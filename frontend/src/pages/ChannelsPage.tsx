@@ -71,6 +71,7 @@ export function ChannelsPage() {
                 label="Name"
                 placeholder="e.g. Premium Coaching"
                 fullWidth
+                autoComplete="off"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onBlur={() => setTouched(true)}
@@ -81,6 +82,7 @@ export function ChannelsPage() {
                 label="Niche"
                 placeholder="Industry, offer type, ICP"
                 fullWidth
+                autoComplete="off"
                 value={niche}
                 onChange={(e) => setNiche(e.target.value)}
                 onBlur={() => setTouched(true)}
@@ -91,6 +93,7 @@ export function ChannelsPage() {
                 label="Tone"
                 placeholder="Authoritative, playful, minimal…"
                 fullWidth
+                autoComplete="off"
                 value={tone}
                 onChange={(e) => setTone(e.target.value)}
                 onBlur={() => setTouched(true)}

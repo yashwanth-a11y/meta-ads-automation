@@ -173,10 +173,9 @@ export class AdsController {
       const statusCode = (typeof error.code === "number" && error.code >= 100 && error.code < 600)
         ? error.code
         : (error.response?.status || 500);
-      const metaError = error.response?.data?.error || error.message || error;
+
       console.error("[CreateCampaign] Full error:", JSON.stringify(error, null, 2));
-      console.error("[CreateCampaign] Meta error:", JSON.stringify(metaError, null, 2));
-      this.logger.error("Create campaign failed:", metaError);
+      this.logger.error({ err: error?.message, sub: error?.metaErrorSubcode, step: error?.step }, "Create campaign failed");
 
       // Return actionable error messages for known Meta error subcodes
       if (error.metaErrorSubcode === 2446886) {
@@ -186,9 +185,27 @@ export class AdsController {
         });
       }
 
+      // Prefer Meta's user-facing message (e.g. "Budget is too low: must be
+      // more than ₹93.36") over the bland top-level "Invalid parameter".
+      // `error.message` is already composed by MetaAdsApiService._request to
+      // be "<userTitle>: <userMsg>" when both are present.
+      const userMessage =
+        error.metaErrorUserMsg
+          ? (error.metaErrorUserTitle && !error.metaErrorUserMsg.toLowerCase().includes(String(error.metaErrorUserTitle).toLowerCase())
+              ? `${error.metaErrorUserTitle}: ${error.metaErrorUserMsg}`
+              : error.metaErrorUserMsg)
+          : error.message || "Failed to create campaign";
+
       return reply.status(statusCode).send({
         success: false,
-        error: typeof metaError === "string" ? metaError : (metaError.message || "Failed to create campaign"),
+        error: userMessage,
+        details: {
+          step: error.step,
+          field: error.field,
+          meta_error_code: error.metaErrorCode,
+          meta_error_subcode: error.metaErrorSubcode,
+          fbtrace_id: error.metaErrorFbtraceId,
+        },
       });
     }
   }
@@ -200,6 +217,44 @@ export class AdsController {
     );
     if (!result) return reply.status(404).send({ success: false, message: "Campaign not found" });
     return reply.send({ success: true, data: result });
+  }
+
+  // Validate-only dry-run: same payload as createCampaign, but Meta is asked
+  // to validate without persisting. Always returns 200 with {ok: bool}.
+  async validateCampaign(request, reply) {
+    try {
+      const result = await this.adsService.validateCampaign(
+        request.user.organization_id,
+        request.body,
+      );
+      return reply.send({ success: true, data: result });
+    } catch (error) {
+      // Hard failures (missing account, network) bubble up as 5xx.
+      this.logger?.error({ message: error?.message }, "validateCampaign failed");
+      return reply.status(error.code || 500).send({
+        success: false,
+        error: error.message || "Validation failed",
+      });
+    }
+  }
+
+  // Create a Lead Gen form on the connected Page.
+  async createLeadForm(request, reply) {
+    try {
+      const result = await this.adsService.createLeadForm(
+        request.user.organization_id,
+        request.body,
+      );
+      return reply.status(201).send({ success: true, data: result });
+    } catch (error) {
+      const metaError = error.response?.data?.error || error.message || error;
+      this.logger?.error({ message: metaError?.message || metaError }, "createLeadForm failed");
+      const statusCode = error.code >= 400 && error.code < 600 ? error.code : 500;
+      return reply.status(statusCode).send({
+        success: false,
+        error: typeof metaError === "string" ? metaError : (metaError.message || "Failed to create lead form"),
+      });
+    }
   }
 
   async updateCampaign(request, reply) {
@@ -449,6 +504,24 @@ export class AdsController {
       request.body
     );
     return reply.send({ success: true, data: result });
+  }
+
+  // Full campaign generator: prompt in → structured WizardForm-shaped data out.
+  async aiGenerateCampaign(request, reply) {
+    try {
+      const result = await this.adsService.generateCampaignFromPrompt(
+        request.user.organization_id,
+        request.body || {},
+      );
+      return reply.send({ success: true, data: result });
+    } catch (err) {
+      const code = err?.code >= 400 && err?.code < 600 ? err.code : 500;
+      this.logger?.error({ err: err?.message }, "aiGenerateCampaign failed");
+      return reply.status(code).send({
+        success: false,
+        error: err?.message || "AI campaign generation failed",
+      });
+    }
   }
 
   // === CAMPAIGN DETAIL ===

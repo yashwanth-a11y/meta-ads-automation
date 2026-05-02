@@ -12,15 +12,14 @@ export function GlassCard({ glow = false, sx, children, ...rest }: GlassCardProp
       sx={{
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 2,
-        bgcolor: (t) => alpha(t.palette.background.paper, 0.72),
+        borderRadius: '8px',
+        bgcolor: (t) => alpha(t.palette.background.paper, 0.94),
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid',
-        borderColor: alpha('#FFFFFF', 0.08),
+        border: '1px solid #dddddd57',
         boxShadow: glow
-          ? `0 0 0 1px ${alpha('#FFFFFF', 0.1)}, 0 16px 48px ${alpha('#000000', 0.55)}, 0 0 80px ${alpha('#FFFFFF', 0.03)}`
-          : `0 8px 32px ${alpha('#000000', 0.45)}`,
+          ? `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 18px 40px ${alpha('#0F172A', 0.12)}, 0 0 70px ${alpha('#22D3EE', 0.12)}`
+          : `0 8px 24px ${alpha('#0F172A', 0.08)}`,
         transition: 'transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease',
         '&::before': glow
           ? {
@@ -29,7 +28,7 @@ export function GlassCard({ glow = false, sx, children, ...rest }: GlassCardProp
               inset: 0,
               borderRadius: 'inherit',
               padding: '1px',
-              background: `linear-gradient(135deg, ${alpha('#FFFFFF', 0.18)} 0%, transparent 45%, ${alpha('#FFFFFF', 0.06)} 100%)`,
+              background: `linear-gradient(135deg, ${alpha('#22D3EE', 0.22)} 0%, transparent 45%, ${alpha('#0F172A', 0.06)} 100%)`,
               WebkitMask:
                 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
               WebkitMaskComposite: 'xor',
@@ -39,8 +38,8 @@ export function GlassCard({ glow = false, sx, children, ...rest }: GlassCardProp
           : {},
         '&:hover': {
           transform: 'translateY(-2px)',
-          borderColor: alpha('#FFFFFF', 0.14),
-          boxShadow: `0 12px 40px ${alpha('#000000', 0.55)}, 0 0 60px ${alpha('#FFFFFF', 0.04)}`,
+          borderColor: '#dddddd57',
+          boxShadow: `0 14px 30px ${alpha('#0F172A', 0.12)}, 0 0 50px ${alpha('#22D3EE', 0.08)}`,
         },
         ...sx,
       }}

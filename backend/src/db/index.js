@@ -6,9 +6,11 @@ import * as schema from './schema.js';
 // One pg pool per process. Reused by all repositories via the `db` export.
 // We prefer individual DB_* fields over a URL because the user's password
 // contains '@', which would have to be URL-encoded inside DATABASE_URL.
-const pool = env.DATABASE_URL
+// A URL without a password makes `pg` pass `undefined` and breaks SCRAM auth.
+const databaseUrl = typeof env.DATABASE_URL === 'string' ? env.DATABASE_URL.trim() : '';
+const pool = databaseUrl
   ? new pg.Pool({
-      connectionString: env.DATABASE_URL,
+      connectionString: databaseUrl,
       ssl: env.DB_SSL ? { rejectUnauthorized: false } : false,
       max: 10,
     })
@@ -16,7 +18,7 @@ const pool = env.DATABASE_URL
       host: env.DB_HOST,
       port: env.DB_PORT,
       user: env.DB_USER,
-      password: env.DB_PASSWORD,
+      password: String(env.DB_PASSWORD ?? ''),
       database: env.DB_NAME,
       ssl: env.DB_SSL ? { rejectUnauthorized: false } : false,
       max: 10,

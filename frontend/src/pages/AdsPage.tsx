@@ -1,145 +1,433 @@
 import {
+  Alert,
   Box,
   Button,
   Chip,
-  Divider,
-  Paper,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Menu,
+  MenuItem,
   Stack,
-  TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
-import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
-import { useState } from 'react'
-import { GlassCard } from '../components/ui/GlassCard'
-import { GeneratingIndicator } from '../components/ui/GeneratingIndicator'
+import AddIcon from '@mui/icons-material/Add'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
+import PauseIcon from '@mui/icons-material/Pause'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { adsApi, ApiError, qk } from '../api'
+import type { CampaignSummary } from '../api/types'
+import { paths } from '../auth/constants'
 import { PageHeader } from '../components/ui/PageHeader'
+import { StatusBadge } from '../components/ads/StatusBadge'
+import { GlassCard } from '../components/ui/GlassCard'
+
+function formatMoney(amount?: number | string | null, currency?: string | null) {
+  if (amount === null || amount === undefined || amount === '') return '—'
+  const n = typeof amount === 'number' ? amount : parseFloat(amount)
+  if (Number.isNaN(n)) return '—'
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currency || 'USD',
+      maximumFractionDigits: 2,
+    }).format(n)
+  } catch {
+    return `${n.toFixed(2)} ${currency || ''}`.trim()
+  }
+}
+
+function objectiveLabel(o?: string | null) {
+  if (!o) return '—'
+  switch (o) {
+    case 'OUTCOME_TRAFFIC':
+    case 'OUTCOME_TRAFFIC_WEBSITE':
+      return 'Website Traffic'
+    case 'OUTCOME_TRAFFIC_CTWA':
+    case 'OUTCOME_ENGAGEMENT_CTWA':
+    case 'OUTCOME_ENGAGEMENT':
+      return 'Click to WhatsApp'
+    case 'OUTCOME_LEADS':
+    case 'OUTCOME_LEADS_ON_AD':
+      return 'Lead Gen'
+    case 'OUTCOME_SALES':
+    case 'OUTCOME_SALES_CATALOG':
+      return 'Catalog Sales'
+    default:
+      return o.replace(/^OUTCOME_/, '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+  }
+}
 
 export function AdsPage() {
-  const [prompt, setPrompt] = useState(
-    'Launch a prospecting campaign for founders who want AI-assisted creative velocity without losing brand voice.',
-  )
-  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
-  const handleGenerate = () => {
-    setLoading(true)
-    window.setTimeout(() => setLoading(false), 1800)
+  const setupQuery = useQuery({
+    queryKey: qk.setupStatus,
+    queryFn: () => adsApi.getSetupStatus(),
+    staleTime: 60_000,
+  })
+
+  const balanceQuery = useQuery({
+    queryKey: qk.balance,
+    queryFn: () => adsApi.getBalance(),
+    enabled: setupQuery.data?.connected === true,
+    staleTime: 60_000,
+  })
+
+  const campaignsQuery = useQuery({
+    queryKey: qk.campaigns(),
+    queryFn: () => adsApi.getCampaigns({ limit: 50 }),
+    enabled: setupQuery.data?.connected === true,
+    staleTime: 30_000,
+  })
+
+  if (setupQuery.isLoading) {
+    return (
+      <Stack sx={{ alignItems: 'center', mt: 8 }}>
+        <CircularProgress />
+      </Stack>
+    )
   }
 
+  // Setup query failed (network, server error). 401s are caught upstream
+  // by the AppShell auth guard — anything that lands here is non-auth.
+  if (setupQuery.error) {
+    return (
+      <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
+        <PageHeader title="Ads" subtitle="Couldn't load your Meta connection status." />
+        <Alert
+          severity="error"
+          action={<Button color="inherit" onClick={() => setupQuery.refetch()}>Retry</Button>}
+        >
+          {(setupQuery.error as ApiError).message || 'Failed to load setup status.'}
+        </Alert>
+      </Stack>
+    )
+  }
+
+  // No data at all (rare — usually means disabled feature flag)
+  if (!setupQuery.data) {
+    return (
+      <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
+        <PageHeader title="Ads" subtitle="Ads module is unavailable." />
+        <Alert severity="warning">The ads feature is not enabled on the server.</Alert>
+      </Stack>
+    )
+  }
+
+  if (!setupQuery.data.connected) {
+    return (
+      <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
+        <PageHeader title="Ads" subtitle="Connect Meta to start launching campaigns from GrowthOS." />
+        <GlassCard sx={{ p: 4, borderRadius: 3, textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>No Meta account connected</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Sign in with Facebook to choose an ad account and Page.
+          </Typography>
+          <Button variant="contained" onClick={() => navigate(paths.adsSetup)}>
+            Connect Meta
+          </Button>
+        </GlassCard>
+      </Stack>
+    )
+  }
+
+  const status = setupQuery.data
+  const balance = balanceQuery.data
+  // Backend returns `{items, totalCount, page, limit}` — see CampaignList type.
+  const campaigns = campaignsQuery.data?.items || []
+
   return (
-    <Stack spacing={3} sx={{ maxWidth: 920, mx: 'auto', width: '100%' }}>
+    // <Stack spacing={3}>
+    <Stack spacing={3}>
       <PageHeader
         title="Ads"
-        subtitle="Prompt-to-launch workflows with structured outputs your media team can ship."
+        subtitle="Create, validate, and publish Meta campaigns end-to-end."
         action={
-          <Chip
-            icon={<AutoAwesomeOutlinedIcon />}
-            label="Copilot"
-            sx={{
-              bgcolor: alpha('#FFFFFF', 0.06),
-              border: `1px solid ${alpha('#FFFFFF', 0.12)}`,
-              fontWeight: 700,
-            }}
-          />
+          <Stack direction="row" spacing={1.5}>
+            <Button variant="outlined" color="inherit" onClick={() => navigate(paths.adsSetup)}>
+              Manage account
+            </Button>
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate(paths.adsCreate)}>
+              Create campaign
+            </Button>
+          </Stack>
         }
       />
 
-      <Paper
-        elevation={0}
-        sx={{
-          p: { xs: 2, sm: 3 },
-          borderRadius: 3,
-          bgcolor: alpha('#FFFFFF', 0.03),
-          border: `1px solid ${alpha('#FFFFFF', 0.08)}`,
-        }}
-      >
-        <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-          Your brief
-        </Typography>
-        <TextField
-          multiline
-          minRows={4}
-          fullWidth
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe offer, audience, constraints, and desired outcome…"
-        />
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={1.5}
-          sx={{ mt: 2, justifyContent: 'flex-end' }}
-        >
-          <Button variant="outlined" color="inherit" onClick={handleGenerate}>
-            Generate variants
-          </Button>
-          <Button variant="contained" color="primary" onClick={handleGenerate}>
-            Run synthesis
-          </Button>
+      {/* Account header */}
+      <GlassCard sx={{ p: 2.5 }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="overline" color="text.secondary">Connected to</Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              {status?.ad_account_name || `act_${status?.ad_account_id}`}
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              {status?.page_name ? `Page: ${status.page_name}` : ''}
+              {status?.waba_id ? ' · WhatsApp linked' : ''}
+            </Typography>
+          </Box>
+          <Box sx={{ minWidth: 180, textAlign: { sm: 'right' } }}>
+            <Typography variant="overline" color="text.secondary">Balance</Typography>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: { sm: 'flex-end' } }}>
+              <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                {balanceQuery.isLoading ? '…' : formatMoney(balance?.balance, balance?.currency || status?.currency)}
+              </Typography>
+              <Tooltip title="Refresh">
+                <IconButton size="small" onClick={() => balanceQuery.refetch()}>
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          </Box>
         </Stack>
-      </Paper>
+      </GlassCard>
 
-      <Stack spacing={2}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <Typography variant="subtitle2" color="text.secondary">
-            Assistant
-          </Typography>
-          <Divider sx={{ flex: 1, borderColor: alpha('#FFFFFF', 0.08) }} />
+      {campaignsQuery.isLoading && (
+        <Stack sx={{ alignItems: 'center', py: 6 }}>
+          <CircularProgress size={28} />
         </Stack>
+      )}
 
-        <GlassCard sx={{ p: 2.5, alignSelf: 'flex-start', maxWidth: '92%' }}>
-          <Typography variant="body2" color="text.secondary">
-            Parsed objectives and mapped to PhotonX channel defaults. Generating structured campaign
-            scaffold…
+      {campaignsQuery.error && (
+        <Alert severity="error">{(campaignsQuery.error as ApiError).message || 'Failed to load campaigns'}</Alert>
+      )}
+
+      {!campaignsQuery.isLoading && campaigns.length === 0 && (
+        <GlassCard sx={{ padding:"30px 15px" ,textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>No campaigns yet</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Build and publish your first ad to Meta in a few minutes.
           </Typography>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate(paths.adsCreate)}>
+            Create your first campaign
+          </Button>
         </GlassCard>
+      )}
 
-        {loading ? (
-          <GlassCard sx={{ p: 2.5, alignSelf: 'flex-end', maxWidth: '92%', bgcolor: alpha('#FFF', 0.06) }}>
-            <GeneratingIndicator label="Generating" />
-          </GlassCard>
-        ) : (
-          <GlassCard glow sx={{ p: 3, alignSelf: 'flex-end', maxWidth: '92%' }}>
-            <Typography variant="overline" color="text.secondary">
-              Output
-            </Typography>
-            <Typography variant="subtitle1" sx={{ mt: 1, fontWeight: 800 }}>
-              Headline
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              Ship creative velocity without sacrificing voice — AI-built, founder-approved.
-            </Typography>
-
-            <Typography variant="subtitle1" sx={{ mt: 2, fontWeight: 800 }}>
-              Ad copy
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              PhotonX stitches live trends into hooks, scripts, and captions your team can approve in one
-              pass. Built for teams scaling paid social without ballooning headcount.
-            </Typography>
-
-            <Typography variant="subtitle1" sx={{ mt: 2, fontWeight: 800 }}>
-              Audience targeting
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              Founders &amp; growth leads · NA/EU · Advantage+ creative · Interest: SaaS, AI tooling,
-              marketing automation.
-            </Typography>
-
-            <Typography variant="subtitle1" sx={{ mt: 2, fontWeight: 800 }}>
-              Budget
-            </Typography>
-            <Typography variant="body2" sx={{ mt: 0.5 }}>
-              Start $420/day · scale at +18% every 3 winning days · cap $3.6k/week during learning.
-            </Typography>
-
-            <Box sx={{ mt: 3 }}>
-              <Button variant="contained" color="primary" size="large" fullWidth>
-                Publish campaign
-              </Button>
-            </Box>
-          </GlassCard>
-        )}
-      </Stack>
+      {campaigns.length > 0 && (
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 2,
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              md: 'repeat(3, minmax(0, 1fr))',
+            },
+          }}
+        >
+          {campaigns.map((c) => (
+            <CampaignRow
+              key={c.id}
+              campaign={c}
+              currency={status?.currency || balance?.currency}
+              onChanged={() => {
+                queryClient.invalidateQueries({ queryKey: qk.campaigns() })
+              }}
+            />
+          ))}
+        </Box>
+      )}
     </Stack>
   )
 }
+
+function CampaignRow({
+  campaign,
+  currency,
+  onChanged,
+}: {
+  campaign: CampaignSummary
+  currency?: string | null
+  onChanged: () => void
+}) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  const isActive = campaign.status === 'active'
+  const targetStatus = isActive ? 'PAUSED' : 'ACTIVE'
+
+  const toggleMutation = useMutation({
+    mutationFn: () => {
+      if (!campaign.meta_campaign_id) {
+        return Promise.reject(new Error('Campaign has no Meta ID — sync first.'))
+      }
+      return adsApi.updateMetaCampaignStatus(campaign.meta_campaign_id, targetStatus as 'ACTIVE' | 'PAUSED')
+    },
+    onSuccess: () => {
+      setAnchorEl(null)
+      onChanged()
+    },
+    onError: (err: Error) => setActionError(err.message),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => adsApi.deleteCampaign(campaign.id),
+    onSuccess: () => {
+      setConfirmDelete(false)
+      setAnchorEl(null)
+      onChanged()
+    },
+    onError: (err: ApiError) => setActionError(err.message),
+  })
+
+  const summaryLine = useMemo(() => {
+    const parts: string[] = []
+    parts.push(objectiveLabel(campaign.objective))
+    if (campaign.daily_budget) parts.push(`${formatMoney(campaign.daily_budget, currency)}/day`)
+    else if (campaign.lifetime_budget) parts.push(`${formatMoney(campaign.lifetime_budget, currency)} lifetime`)
+    return parts.join(' · ')
+  }, [campaign.objective, campaign.daily_budget, campaign.lifetime_budget, currency])
+
+  return (
+    <>
+      <GlassCard
+        sx={{
+          bgcolor: (t) => alpha(t.palette.background.paper, 0.94),
+          height: '100%',
+          display: 'flex',
+        }}
+      >
+        <Stack spacing={1} sx={{ p: 2.5, flex: 1, minWidth: 0 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}
+          >
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                variant="subtitle1"
+                sx={{ fontWeight: 700, mb: 1.5 }}
+                noWrap
+                title={campaign.name}
+              >
+                {campaign.name}
+              </Typography>
+              <StatusBadge
+                status={campaign.status}
+                effectiveStatus={campaign.effective_status}
+              />
+            </Box>
+            <IconButton
+              size="small"
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              sx={{ mt: -0.5, mr: -0.5 }}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+
+          <Typography variant="caption" color="text.secondary">
+            {summaryLine}
+          </Typography>
+
+          <Box sx={{ flex: 1 }} />
+
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            {campaign.meta_campaign_id ? (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`Meta · ${campaign.meta_campaign_id.slice(-8)}`}
+                sx={{ maxWidth: '60%' }}
+              />
+            ) : (
+              <Box />
+            )}
+            <Tooltip title={isActive ? 'Pause' : 'Resume'}>
+              <span>
+                <IconButton
+                  size="small"
+                  color={isActive ? 'warning' : 'success'}
+                  onClick={() => toggleMutation.mutate()}
+                  disabled={toggleMutation.isPending || !campaign.meta_campaign_id}
+                >
+                  {isActive ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+
+          {actionError && (
+            <Alert severity="error" onClose={() => setActionError(null)}>
+              {actionError}
+            </Alert>
+          )}
+        </Stack>
+      </GlassCard>
+
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} sx={{
+        
+      }}>
+        <MenuItem
+        sx={{
+          color: '#0F172A',
+        }}
+          onClick={() => {
+            if (campaign.meta_campaign_id) {
+              window.open(
+                `https://business.facebook.com/adsmanager/manage/campaigns?act=${campaign.ad_account_id}&selected_campaign_ids=${campaign.meta_campaign_id}`,
+                '_blank',
+              )
+            }
+            setAnchorEl(null)
+          }}
+          disabled={!campaign.meta_campaign_id}
+        >
+           Open in Ads Manager
+        </MenuItem>
+        <MenuItem  sx={{
+          color: '#0F172A',
+        }}
+          onClick={() => {
+            setAnchorEl(null)
+            setConfirmDelete(true)
+          }}
+        >
+           Delete
+        </MenuItem>
+      </Menu>
+
+      <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)}>
+        <DialogTitle>Delete campaign?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            This will remove <strong>{campaign.name}</strong> from GrowthOS. The campaign on Meta is not deleted automatically — pause it there if needed.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDelete(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={() => deleteMutation.mutate()}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
+  )
+}
+
+export default AdsPage

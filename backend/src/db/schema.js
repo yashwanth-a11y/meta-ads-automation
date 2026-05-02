@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   varchar,
@@ -19,6 +20,56 @@ const ts = (name) =>
   timestamp(name, { withTimezone: true, mode: 'date' })
     .notNull()
     .defaultNow();
+
+// --- Users ---
+// Individual users; no organization concept — each user owns their own data.
+// `organization_id` on the rest of the schema is set to `users.id` so the
+// existing per-tenant scoping (every Meta Ads repo filters by organization_id)
+// keeps working without modification.
+
+export const users = pgTable(
+  'users',
+  {
+    id: id(),
+    first_name: varchar('first_name', { length: 100 }).notNull(),
+    last_name: varchar('last_name', { length: 100 }).notNull(),
+    email: varchar('email', { length: 255 }).notNull(),
+    phone: varchar('phone', { length: 20 }).notNull(),
+    password_hash: text('password_hash').notNull(),
+    last_login_at: timestamp('last_login_at', { withTimezone: true, mode: 'date' }),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    // Case-insensitive uniqueness on email. We also lowercase + trim before
+    // insert, but the index is the authoritative guard (and helps lookups).
+    email_lower_uq: uniqueIndex('users_email_lower_uq').on(sql`lower(${t.email})`),
+    // Phone is unique across all users (one account per phone number).
+    phone_uq: uniqueIndex('users_phone_uq').on(t.phone),
+  }),
+);
+
+// --- Password reset tokens (single-use, 1h expiry) ---
+// We store SHA-256(token) so a DB leak doesn't yield usable reset links.
+// `invalidate_at` lets us soft-revoke all tokens for a user when a new
+// reset is requested (only the latest token works).
+
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: id(),
+    user_id: varchar('user_id', { length: 36 }).notNull(),
+    token_hash: varchar('token_hash', { length: 64 }).notNull(),
+    expires_at: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    used_at: timestamp('used_at', { withTimezone: true, mode: 'date' }),
+    created_at: ts('created_at'),
+  },
+  (t) => ({
+    token_hash_uq: uniqueIndex('password_reset_token_hash_uq').on(t.token_hash),
+    user_idx: index('password_reset_user_idx').on(t.user_id),
+    expires_idx: index('password_reset_expires_idx').on(t.expires_at),
+  }),
+);
 
 // --- Meta ad account connections (one active per organization, can be more historical) ---
 

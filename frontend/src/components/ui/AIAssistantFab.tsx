@@ -82,7 +82,7 @@ export function AIAssistantFab() {
             <Box
               sx={{
                 p: 2,
-                borderRadius: 2,
+                borderRadius: '8px',
                 bgcolor: alpha('#FFFFFF', 0.04),
                 border: `1px solid ${alpha('#FFFFFF', 0.08)}`,
               }}
@@ -98,7 +98,7 @@ export function AIAssistantFab() {
           </Box>
 
           <Stack direction="row" spacing={1} sx={{ p: 2, borderTop: `1px solid ${alpha('#FFFFFF', 0.06)}` }}>
-            <TextField fullWidth placeholder="Message PhotonX AI…" size="small" />
+            <TextField fullWidth autoComplete="off" placeholder="Message PhotonX AI…" size="small" />
             <IconButton color="primary" onClick={handleSend} aria-label="Send message">
               <SendRoundedIcon />
             </IconButton>

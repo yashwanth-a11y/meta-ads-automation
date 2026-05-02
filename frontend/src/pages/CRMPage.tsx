@@ -89,10 +89,10 @@ export function CRMPage() {
               {rows.map((row) => (
                 <TableRow key={row.name} hover>
                   <TableCell>
-                    <Typography sx={{ fontWeight: 700 }}>{row.name}</Typography>
+                    <Typography variant='subtitle2'>{row.name}</Typography>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography  color="text.secondary">
                       {row.phone}
                     </Typography>
                   </TableCell>
@@ -124,7 +124,7 @@ export function CRMPage() {
                     </FormControl>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography color="text.secondary">
                       {row.source}
                     </Typography>
                   </TableCell>

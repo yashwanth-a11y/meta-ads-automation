@@ -63,11 +63,42 @@ export class MetaAdsApiService {
           continue;
         }
 
+        // Surface Meta's user-friendly fields when present. `error_user_msg`
+        // is the message Meta wants you to show to the *advertiser* (e.g.
+        // "Your ad set budget must be more than ₹93.36"). It's far more
+        // actionable than the top-level `message` field ("Invalid parameter").
+        const userMsg = metaError?.error_user_msg || null;
+        const userTitle = metaError?.error_user_title || null;
+        // Compose a final message: prefer the user-facing one, but include
+        // the title as a prefix so the surfaced text reads naturally.
+        const composed = userMsg
+          ? userTitle && !userMsg.toLowerCase().includes(userTitle.toLowerCase())
+            ? `${userTitle}: ${userMsg}`
+            : userMsg
+          : metaError?.message || error.message;
+
+        // Try to extract the offending field name from `error_data.blame_field_specs`.
+        // Meta returns it as a JSON string; defensively try to parse it.
+        let blameField = null;
+        try {
+          const ed = metaError?.error_data;
+          const parsed = typeof ed === "string" ? JSON.parse(ed) : ed;
+          const specs = parsed?.blame_field_specs;
+          if (Array.isArray(specs) && Array.isArray(specs[0])) {
+            blameField = specs[0][0] || null;
+          }
+        } catch { /* best-effort, keep null */ }
+
         throw {
           code: status || 500,
-          message: metaError?.message || error.message,
+          message: composed,
+          rawMessage: metaError?.message || error.message,
           metaErrorCode: metaError?.code,
           metaErrorSubcode: metaError?.error_subcode,
+          metaErrorUserTitle: userTitle,
+          metaErrorUserMsg: userMsg,
+          metaErrorFbtraceId: metaError?.fbtrace_id,
+          field: blameField,
         };
       }
     }
@@ -114,6 +145,10 @@ export class MetaAdsApiService {
     if (params.adlabels && params.adlabels.length > 0) {
       body.adlabels = params.adlabels;
     }
+    // Pass through validate-only flag without persisting other unknown keys.
+    // Meta returns {success: true} on success and a normal error on failure
+    // when execution_options=['validate_only'] is set.
+    if (params.execution_options) body.execution_options = params.execution_options;
     return this._request("POST", `/act_${adAccountId}/campaigns`, body);
   }
 
@@ -141,6 +176,9 @@ export class MetaAdsApiService {
     if (params.daily_budget) data.daily_budget = params.daily_budget;
     if (params.lifetime_budget) data.lifetime_budget = params.lifetime_budget;
     if (params.end_time) data.end_time = params.end_time;
+    if (params.bid_amount) data.bid_amount = params.bid_amount;
+    if (params.bid_constraints) data.bid_constraints = params.bid_constraints;
+    if (params.execution_options) data.execution_options = params.execution_options;
     return this._request("POST", `/act_${adAccountId}/adsets`, data);
   }
 
@@ -150,15 +188,34 @@ export class MetaAdsApiService {
       object_story_spec: params.object_story_spec,
     };
     if (params.product_set_id) data.product_set_id = params.product_set_id;
+    if (params.execution_options) data.execution_options = params.execution_options;
     return this._request("POST", `/act_${adAccountId}/adcreatives`, data);
   }
 
   async createAd(adAccountId, params) {
-    return this._request("POST", `/act_${adAccountId}/ads`, {
+    const body = {
       name: params.name,
       adset_id: params.adset_id,
-      creative: { creative_id: params.creative_id },
+      creative: params.creative || { creative_id: params.creative_id },
       status: params.status || "PAUSED",
+    };
+    if (params.execution_options) body.execution_options = params.execution_options;
+    return this._request("POST", `/act_${adAccountId}/ads`, body);
+  }
+
+  // === LEAD FORMS ===
+
+  // POST /{page-id}/leadgen_forms — must use a PAGE access token, not the
+  // user/business token. Caller is expected to construct an instance with
+  // the page token (`new MetaAdsApiService(pageToken, logger)`).
+  async createLeadGenForm(pageId, payload) {
+    return this._request("POST", `/${pageId}/leadgen_forms`, payload);
+  }
+
+  // GET /{form-id} — single form metadata, used for ownership / status checks
+  async getLeadGenForm(formId) {
+    return this._request("GET", `/${formId}`, {
+      fields: "id,name,status,page,created_time,questions,leads_count",
     });
   }
 
@@ -584,7 +641,7 @@ export class MetaAdsApiService {
   async getCampaigns(adAccountId, params = {}) {
     return this._request("GET", `/act_${adAccountId}/campaigns`, {
       fields:
-        "name,objective,status,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(maximum){spend,impressions,reach,clicks,unique_clicks,ctr,cpc,actions,cost_per_action_type}",
+        "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time,special_ad_categories,insights.date_preset(maximum){spend,impressions,reach,clicks,unique_clicks,ctr,cpc,actions,cost_per_action_type}",
       limit: params.limit || 50,
       ...params,
     });

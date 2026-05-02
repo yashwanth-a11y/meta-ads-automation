@@ -76,11 +76,11 @@ export function TrendsPage() {
                   sx={{
                     bgcolor: alpha('#FFFFFF', 0.1),
                     border: `1px solid ${alpha('#FFFFFF', 0.2)}`,
-                    fontWeight: 800,
+                    // fontWeight: 800,
                   }}
                 />
               </Stack>
-              <Typography variant="subtitle1" sx={{ flex: 1, fontWeight: 700 }}>
+              <Typography variant="subtitle1">
                 {t.title}
               </Typography>
               <Button variant="contained" color="primary" fullWidth sx={{ mt: 'auto' }}>

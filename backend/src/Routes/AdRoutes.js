@@ -197,6 +197,17 @@ export async function adsRoutes(fastify, options) {
     },
   }, (req, reply) => controller.getCampaigns(req, reply));
 
+  // Validate-only dry-run: runs the full 4-step Meta create with
+  // execution_options=['validate_only'] and returns {ok, validated, error}.
+  // Always responds 200 unless the request itself was malformed.
+  fastify.post("/ads/campaigns/validate", {
+    schema: {
+      description: "Dry-run a campaign create against Meta (validate_only).",
+      tags: ["ads"],
+      body: { type: "object" },
+    },
+  }, (req, reply) => controller.validateCampaign(req, reply));
+
   fastify.post("/ads/campaigns", {
     schema: {
       description: "Create a CTWA campaign",
@@ -515,6 +526,22 @@ export async function adsRoutes(fastify, options) {
 
   // === AI GENERATION ===
 
+  // AI: generate a full campaign config from a free-text brief. The frontend
+  // wizard maps this onto its form and skips straight to the Review step.
+  fastify.post("/ads/ai/generate-campaign", {
+    schema: {
+      description: "Generate a complete campaign config from a natural-language prompt.",
+      tags: ["ads"],
+      body: {
+        type: "object",
+        required: ["prompt"],
+        properties: {
+          prompt: { type: "string", minLength: 10, maxLength: 4000 },
+        },
+      },
+    },
+  }, (req, reply) => controller.aiGenerateCampaign(req, reply));
+
   fastify.post("/ads/generate-copy", {
     schema: {
       description: "Generate ad copy using AI",
@@ -618,6 +645,39 @@ export async function adsRoutes(fastify, options) {
   fastify.get("/ads/leads/forms", {
     schema: { description: "Get lead gen forms from connected page", tags: ["ads"] },
   }, (req, reply) => controller.getLeadForms(req, reply));
+
+  // Lead form CRUD — `/ads/lead-forms` is the cleaner path; `/ads/leads/forms`
+  // (above) stays as the read alias used by the existing leads UI.
+  fastify.get("/ads/lead-forms", {
+    schema: { description: "Get lead gen forms from connected page (alias)", tags: ["ads"] },
+  }, (req, reply) => controller.getLeadForms(req, reply));
+
+  fastify.post("/ads/lead-forms", {
+    schema: {
+      description: "Create a Lead Gen form on the connected Facebook Page",
+      tags: ["ads"],
+      body: {
+        type: "object",
+        required: ["name", "questions", "privacy_policy"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 255 },
+          locale: { type: "string" },
+          questions: { type: "array" },
+          privacy_policy: {
+            type: "object",
+            required: ["url", "link_text"],
+            properties: {
+              url: { type: "string" },
+              link_text: { type: "string" },
+            },
+          },
+          follow_up_action_url: { type: "string" },
+          thank_you_page: { type: "object" },
+          context_card: { type: "object" },
+        },
+      },
+    },
+  }, (req, reply) => controller.createLeadForm(req, reply));
 
   fastify.get("/ads/leads/forms/:form_id/leads", {
     schema: {

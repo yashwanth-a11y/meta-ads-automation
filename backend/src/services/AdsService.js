@@ -414,7 +414,20 @@ export class AdsService {
 
   // === CAMPAIGNS ===
 
+  // Newer wizard objectives (Website Traffic, Lead Gen, true CTWA-with-WABA)
+  // are dispatched to a separate orchestrator below. The legacy CTWA +
+  // Catalog logic in this method is preserved as-is for back-compat.
+  static NEW_OBJECTIVES = new Set([
+    "OUTCOME_TRAFFIC_WEBSITE",
+    "OUTCOME_LEADS_ON_AD",
+    "OUTCOME_ENGAGEMENT_CTWA",
+  ]);
+
   async createCampaign(organizationId, data) {
+    if (data && data.objective && AdsService.NEW_OBJECTIVES.has(data.objective)) {
+      return this._createCampaignForObjective(organizationId, data, { dryRun: false });
+    }
+
     const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
     if (!account) throw { code: 400, message: "No ad account connected" };
 
@@ -652,6 +665,452 @@ export class AdsService {
     return campaign;
   }
 
+  // === NEW OBJECTIVES ORCHESTRATOR ===
+
+  // Resolves per-objective Meta campaign+adset+creative+ad params.
+  // Returns { campaign, adset, creative, ad } where each is the params bag
+  // that goes to MetaAdsApiService.create*. The orchestrator then runs
+  // the 4-step create with optional validate_only and cleanup-on-failure.
+  _resolveObjective(objective, data, account) {
+    const orgPageId = account.page_id;
+    if (!orgPageId) {
+      throw { code: 400, message: "Connected Page is required for this objective." };
+    }
+
+    const baseTargeting = {
+      ...(data.targeting_spec || {}),
+      targeting_automation: {
+        advantage_audience:
+          data.targeting_spec?.targeting_automation?.advantage_audience ?? 1,
+      },
+    };
+    if (!baseTargeting.geo_locations || Object.keys(baseTargeting.geo_locations).length === 0) {
+      baseTargeting.geo_locations = { countries: ["IN"] };
+    }
+
+    const cs = data.creative_spec || {};
+    const headline = cs.headline || data.name;
+    const message = cs.primary_text || data.name;
+    const description = cs.description || "";
+
+    const linkData = (link, ctaType, ctaValue) => {
+      const ld = {
+        message,
+        link,
+        name: headline,
+        description,
+        call_to_action: { type: ctaType, value: ctaValue },
+      };
+      if (cs.image_hash) ld.image_hash = cs.image_hash;
+      else if (cs.image_url) ld.picture = cs.image_url;
+      if (cs.video_id) ld.video_id = cs.video_id;
+      return ld;
+    };
+
+    const objectStorySpecLink = (link, ctaType, ctaValue) => ({
+      page_id: orgPageId,
+      link_data: linkData(link, ctaType, ctaValue),
+    });
+
+    const sac =
+      Array.isArray(data.special_ad_categories) && data.special_ad_categories.length > 0
+        ? data.special_ad_categories
+        : ["NONE"];
+
+    if (objective === "OUTCOME_TRAFFIC_WEBSITE") {
+      const url = cs.destination_url;
+      if (!url || !/^https?:\/\//.test(url)) {
+        throw { code: 400, message: "destination_url is required and must start with http(s)://" };
+      }
+      return {
+        campaign: { name: data.name, objective: "OUTCOME_TRAFFIC", status: "PAUSED", special_ad_categories: sac },
+        adset: {
+          name: `${data.name} - AdSet`,
+          campaign_id: null, // filled in after step 1
+          billing_event: "IMPRESSIONS",
+          optimization_goal: "LINK_CLICKS",
+          targeting: baseTargeting,
+          status: "PAUSED",
+        },
+        creative: {
+          name: `${data.name} - Creative`,
+          object_story_spec: objectStorySpecLink(url, cs.cta_type || "LEARN_MORE", { link: url }),
+        },
+        ad: { name: data.name, adset_id: null, creative_id: null, status: "PAUSED" },
+      };
+    }
+
+    if (objective === "OUTCOME_LEADS_ON_AD") {
+      const leadFormId = data.lead_gen_form_id || cs.lead_gen_form_id;
+      if (!leadFormId) {
+        throw { code: 400, message: "lead_gen_form_id is required for Lead Gen campaigns." };
+      }
+      // Per Meta lead-ads docs: adset.destination_type=ON_AD,
+      // optimization_goal=LEAD_GENERATION, promoted_object.page_id, and
+      // creative CTA value carries lead_gen_form_id.
+      const placeholderUrl = `https://www.facebook.com/${orgPageId}`;
+      return {
+        campaign: { name: data.name, objective: "OUTCOME_LEADS", status: "PAUSED", special_ad_categories: sac },
+        adset: {
+          name: `${data.name} - AdSet`,
+          campaign_id: null,
+          billing_event: "IMPRESSIONS",
+          optimization_goal: "LEAD_GENERATION",
+          destination_type: "ON_AD",
+          targeting: baseTargeting,
+          promoted_object: { page_id: orgPageId },
+          status: "PAUSED",
+        },
+        creative: {
+          name: `${data.name} - Creative`,
+          object_story_spec: objectStorySpecLink(
+            placeholderUrl,
+            cs.cta_type || "SIGN_UP",
+            { lead_gen_form_id: leadFormId },
+          ),
+        },
+        ad: { name: data.name, adset_id: null, creative_id: null, status: "PAUSED" },
+      };
+    }
+
+    if (objective === "OUTCOME_ENGAGEMENT_CTWA") {
+      if (!account.waba_id) {
+        throw {
+          code: 400,
+          message:
+            "Your Facebook Page is not linked to a WhatsApp Business Account. Link a WABA in Meta Business Suite, or use the legacy CTWA flow.",
+          metaErrorSubcode: 2446886,
+        };
+      }
+      const waNumber = (cs.whatsapp_number || "").replace(/\D/g, "");
+      const waLink = waNumber ? `https://wa.me/${waNumber}` : `https://wa.me/`;
+      return {
+        campaign: { name: data.name, objective: "OUTCOME_ENGAGEMENT", status: "PAUSED", special_ad_categories: sac },
+        adset: {
+          name: `${data.name} - AdSet`,
+          campaign_id: null,
+          billing_event: "IMPRESSIONS",
+          optimization_goal: "CONVERSATIONS",
+          destination_type: "WHATSAPP",
+          targeting: baseTargeting,
+          promoted_object: { page_id: orgPageId },
+          status: "PAUSED",
+        },
+        creative: {
+          name: `${data.name} - Creative`,
+          object_story_spec: objectStorySpecLink(
+            waLink,
+            "WHATSAPP_MESSAGE",
+            { app_destination: "WHATSAPP", link: waLink },
+          ),
+        },
+        ad: { name: data.name, adset_id: null, creative_id: null, status: "PAUSED" },
+      };
+    }
+
+    throw { code: 400, message: `Unknown objective: ${objective}` };
+  }
+
+  // Clamp helper used by AI generation normalization.
+  static _clampInt(value, min, max, fallback) {
+    const n = typeof value === "number" ? Math.round(value) : parseInt(value, 10);
+    if (Number.isNaN(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  // Coerces a date-string or unix-second value to unix seconds; if the
+  // result is in the past, bumps it to now+5min so Meta doesn't reject it.
+  static _toUnixTs(value) {
+    if (!value) return undefined;
+    let ts = typeof value === "number" ? value : Math.floor(new Date(value).getTime() / 1000);
+    if (Number.isNaN(ts)) return undefined;
+    const nowTs = Math.floor(Date.now() / 1000);
+    if (ts < nowTs) ts = nowTs + 300;
+    return ts;
+  }
+
+  // The orchestrator. Runs the 4 Meta calls (with execution_options=
+  // ['validate_only'] when dryRun is true). On real-run failure, deletes
+  // any objects already created on Meta in reverse order so we don't
+  // leave orphans behind.
+  async _createCampaignForObjective(organizationId, data, { dryRun }) {
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    if (!account) throw { code: 400, message: "No ad account connected" };
+
+    const metaApi = this._getMetaApi(account.access_token_encrypted);
+
+    // Auto-fetch WABA for Page if missing & objective wants it
+    if (data.objective === "OUTCOME_ENGAGEMENT_CTWA" && !account.waba_id && account.page_id) {
+      try {
+        const pageApi = this._getPageMetaApi(account);
+        const wabaResp = await pageApi.getPageWABA(account.page_id);
+        const wabaId = wabaResp?.whatsapp_business_account?.id || null;
+        if (wabaId) {
+          await this.metaAdAccountRepo.update(account.id, { waba_id: wabaId });
+          account.waba_id = wabaId;
+        }
+      } catch (err) {
+        this.logger?.warn({ err: err.message }, "[Ads] Could not auto-fetch WABA");
+      }
+    }
+
+    const resolved = this._resolveObjective(data.objective, data, account);
+
+    // Apply budget/schedule/promoted_object to the adset block
+    const adset = { ...resolved.adset };
+    if (data.daily_budget) adset.daily_budget = Math.round(data.daily_budget * 100);
+    if (data.lifetime_budget) adset.lifetime_budget = Math.round(data.lifetime_budget * 100);
+    adset.start_time = AdsService._toUnixTs(data.start_date);
+    adset.end_time = data.end_date
+      ? Math.floor(new Date(data.end_date).getTime() / 1000)
+      : undefined;
+
+    // Bid strategy. Default 'LOWEST_COST_WITHOUT_CAP' is set in the resolver.
+    // Meta requires bid_amount in account-currency MINOR units when using
+    // LOWEST_COST_WITH_BID_CAP or COST_CAP. roas_average_floor is a basis-points
+    // multiplier (1.5 → pass 1500) for LOWEST_COST_WITH_MIN_ROAS.
+    if (data.bid_strategy && data.bid_strategy !== "LOWEST_COST_WITHOUT_CAP") {
+      adset.bid_strategy = data.bid_strategy;
+      if (
+        (data.bid_strategy === "LOWEST_COST_WITH_BID_CAP" ||
+          data.bid_strategy === "COST_CAP") &&
+        typeof data.bid_amount === "number" &&
+        data.bid_amount > 0
+      ) {
+        adset.bid_amount = Math.round(data.bid_amount * 100);
+      }
+      if (
+        data.bid_strategy === "LOWEST_COST_WITH_MIN_ROAS" &&
+        typeof data.roas_average_floor === "number" &&
+        data.roas_average_floor > 0
+      ) {
+        // Meta expects roas_average_floor as basis points (1.5 = 1500).
+        adset.bid_constraints = { roas_average_floor: Math.round(data.roas_average_floor * 1000) };
+      }
+    }
+
+    const execOptions = dryRun ? ["validate_only"] : undefined;
+
+    // Track created object IDs so we can roll back on failure.
+    const created = [];
+    let validatedSteps = [];
+    try {
+      // STEP 1 — campaign
+      const campaignResp = await metaApi.createCampaign(account.ad_account_id, {
+        ...resolved.campaign,
+        ...(execOptions ? { execution_options: execOptions } : {}),
+      });
+      const metaCampaignId = campaignResp?.id;
+      if (!dryRun) created.push({ kind: "campaign", id: metaCampaignId });
+      validatedSteps.push("campaign");
+
+      // Dry-run short-circuit: Meta's validate_only returns { success: true }
+      // with no `id`, so we can't chain the next step's validation against
+      // a parent that doesn't exist (placeholder "0" gets rejected with
+      // "Invalid id: 0"). The campaign-level validation is still useful —
+      // it catches objective + special_ad_categories + name issues, which
+      // are the most common failure modes. Adset/creative/ad get validated
+      // at real publish, with cleanup-on-failure if any step fails.
+      if (dryRun) {
+        return {
+          ok: true,
+          validated: validatedSteps,
+          note:
+            "Meta validate_only only verifies the campaign step end-to-end. " +
+            "Ad set, creative, and ad are validated at publish time (cleanup runs on failure).",
+        };
+      }
+
+      // STEP 2 — ad set
+      const adsetParams = {
+        ...adset,
+        campaign_id: metaCampaignId,
+      };
+      const adsetResp = await metaApi.createAdSet(account.ad_account_id, adsetParams);
+      const metaAdsetId = adsetResp?.id;
+      created.push({ kind: "adset", id: metaAdsetId });
+      validatedSteps.push("adset");
+
+      // STEP 3 — ad creative
+      const creativeResp = await metaApi.createAdCreative(account.ad_account_id, {
+        ...resolved.creative,
+      });
+      const metaCreativeId = creativeResp?.id;
+      created.push({ kind: "creative", id: metaCreativeId });
+      validatedSteps.push("creative");
+
+      // STEP 4 — ad
+      const adResp = await metaApi.createAd(account.ad_account_id, {
+        ...resolved.ad,
+        adset_id: metaAdsetId,
+        creative_id: metaCreativeId,
+      });
+      const metaAdId = adResp?.id;
+      created.push({ kind: "ad", id: metaAdId });
+      validatedSteps.push("ad");
+
+      // (dryRun returned earlier — code path below is real-create only.)
+
+      // Persist mirror row
+      const campaign = await this.campaignRepo.create({
+        organization_id: organizationId,
+        ad_account_id: account.ad_account_id,
+        business_account_id: data.business_account_id,
+        meta_campaign_id: metaCampaignId,
+        meta_adset_id: metaAdsetId,
+        meta_creative_id: metaCreativeId,
+        meta_ad_id: metaAdId,
+        name: data.name,
+        campaign_label: data.campaign_label || null,
+        status: "paused",
+        objective: data.objective,
+        campaign_type: data.campaign_type || data.objective,
+        daily_budget: data.daily_budget,
+        lifetime_budget: data.lifetime_budget,
+        start_date: data.start_date ? new Date(data.start_date) : null,
+        end_date: data.end_date ? new Date(data.end_date) : null,
+        targeting_spec: data.targeting_spec,
+        creative_spec: data.creative_spec,
+        opening_message: data.opening_message,
+      });
+
+      // Optionally publish — flips campaign + adset + ad to ACTIVE.
+      if (data.publish) {
+        try {
+          await metaApi.updateCampaignStatus(metaCampaignId, "ACTIVE");
+          await metaApi.updateAdSetStatus(metaAdsetId, "ACTIVE");
+          await metaApi.updateAd(metaAdId, { status: "ACTIVE" });
+          await this.campaignRepo.update(campaign.id, { status: "active" });
+          campaign.status = "active";
+        } catch (publishErr) {
+          this.logger?.warn(
+            { err: publishErr, campaignId: campaign.id },
+            "[Ads] Campaign created but activation failed",
+          );
+          campaign._publishWarning =
+            publishErr?.message ||
+            "Campaign was saved as a draft. Open it in Meta Ads Manager to activate.";
+        }
+      }
+
+      return campaign;
+    } catch (err) {
+      // Cleanup orphans on real-run failure (skip for validate_only).
+      if (!dryRun && created.length > 0) {
+        for (const obj of [...created].reverse()) {
+          try {
+            if (obj.kind === "ad") await metaApi.deleteAd(obj.id);
+            else if (obj.kind === "creative") await metaApi._request("DELETE", `/${obj.id}`);
+            else if (obj.kind === "adset") await metaApi._request("DELETE", `/${obj.id}`);
+            else if (obj.kind === "campaign") await metaApi._request("DELETE", `/${obj.id}`);
+            this.logger?.info({ kind: obj.kind, id: obj.id }, "[Ads] Cleanup deleted orphan");
+          } catch (cleanupErr) {
+            this.logger?.error(
+              { kind: obj.kind, id: obj.id, err: cleanupErr.message },
+              "[Ads] Cleanup failed for orphan — manual deletion required",
+            );
+          }
+        }
+      }
+      // Tag with the failed step so the wizard's review screen can show it.
+      // We forward Meta's user-facing fields verbatim so the controller can
+      // surface "Budget is too low: must be more than ₹93.36" instead of
+      // the useless top-level "Invalid parameter".
+      const failedStep = validatedSteps.length < 4 ? ["campaign","adset","creative","ad"][validatedSteps.length] : "publish";
+      throw {
+        code: err?.code || 500,
+        message: err?.message || "Failed to create campaign",
+        metaErrorCode: err?.metaErrorCode,
+        metaErrorSubcode: err?.metaErrorSubcode,
+        metaErrorUserTitle: err?.metaErrorUserTitle,
+        metaErrorUserMsg: err?.metaErrorUserMsg,
+        metaErrorFbtraceId: err?.metaErrorFbtraceId,
+        field: err?.field,
+        step: failedStep,
+      };
+    }
+  }
+
+  // Public dry-run: same machinery as createCampaign but with validate_only
+  // on every Meta call. Always returns 200 with {ok: bool} — even on
+  // Meta-side rejection (a successful "validation says no" is still a
+  // successful API call).
+  async validateCampaign(organizationId, data) {
+    if (!data || !data.objective) {
+      return {
+        ok: false,
+        step: "preflight",
+        error: { code: 400, user_message: "Objective is required to validate." },
+      };
+    }
+    if (!AdsService.NEW_OBJECTIVES.has(data.objective)) {
+      return {
+        ok: false,
+        step: "preflight",
+        error: { code: 400, user_message: `Validation is only supported for new objectives. Got ${data.objective}.` },
+      };
+    }
+    try {
+      const result = await this._createCampaignForObjective(organizationId, data, { dryRun: true });
+      return {
+        ok: true,
+        validated: result.validated || ["campaign"],
+        ...(result.note ? { note: result.note } : {}),
+      };
+    } catch (err) {
+      // Prefer Meta's `error_user_msg` (with title prefix) over the bland
+      // top-level "Invalid parameter". `err.message` is already composed
+      // that way by MetaAdsApiService._request.
+      return {
+        ok: false,
+        step: err?.step || "preflight",
+        error: {
+          code: err?.metaErrorCode || err?.code || 500,
+          user_message: err?.metaErrorUserMsg || err?.message || "Validation failed",
+          title: err?.metaErrorUserTitle,
+          field: err?.field,
+          fbtrace_id: err?.metaErrorFbtraceId,
+        },
+      };
+    }
+  }
+
+  // === LEAD FORMS ===
+
+  // POST /{page-id}/leadgen_forms — uses the page access token, so the
+  // user must have selected a page during connect (page_access_token saved).
+  async createLeadForm(organizationId, input) {
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    if (!account) throw { code: 400, message: "No ad account connected" };
+    if (!account.page_id) throw { code: 400, message: "No Facebook Page selected" };
+    if (!account.page_access_token_encrypted) {
+      throw {
+        code: 400,
+        message: "No Page access token on file. Reconnect Meta to grant pages_manage_ads.",
+      };
+    }
+    const pageToken = decryptToken(account.page_access_token_encrypted);
+    const pageApi = new MetaAdsApiService(pageToken, this.logger);
+
+    const payload = {
+      name: input.name,
+      locale: input.locale || "en_US",
+      questions: JSON.stringify(input.questions || []),
+      privacy_policy: JSON.stringify(input.privacy_policy || {}),
+    };
+    if (input.follow_up_action_url) payload.follow_up_action_url = input.follow_up_action_url;
+    if (input.thank_you_page) payload.thank_you_page = JSON.stringify(input.thank_you_page);
+    if (input.context_card) payload.context_card = JSON.stringify(input.context_card);
+
+    const created = await pageApi.createLeadGenForm(account.page_id, payload);
+    // Read it back to surface name/status/questions in one round-trip
+    try {
+      return await pageApi.getLeadGenForm(created.id);
+    } catch {
+      return created;
+    }
+  }
+
   // === CATALOGS ===
 
   async createProductCatalog(organizationId, data) {
@@ -733,8 +1192,93 @@ export class AdsService {
     return result.data || [];
   }
 
-  async getCampaigns(organizationId, filters) {
-    return this.campaignRepo.findAll(organizationId, filters);
+  async getCampaigns(organizationId, filters = {}) {
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    if (!account) {
+      // Not connected → no campaigns visible. Return empty page rather than
+      // throwing so the UI can render the "Connect Meta" empty state.
+      return { items: [], totalCount: 0, page: filters.page || 1, limit: filters.limit || 50 };
+    }
+
+    const metaApi = this._getMetaApi(account.access_token_encrypted);
+    const limit = Math.min(filters.limit || 50, 100);
+
+    let metaResp;
+    try {
+      metaResp = await metaApi.getCampaigns(account.ad_account_id, { limit });
+    } catch (err) {
+      this.logger?.warn(
+        { err: err.message, account_id: account.ad_account_id },
+        "[Ads] Meta getCampaigns failed — falling back to local mirror table",
+      );
+      // Best-effort fallback: surface whatever we have locally so the UI
+      // isn't completely blank if Meta is unavailable / rate-limited.
+      return this.campaignRepo.findAll(organizationId, filters);
+    }
+
+    const metaItems = Array.isArray(metaResp?.data) ? metaResp.data : [];
+
+    // Index our local rows by meta_campaign_id so we can enrich Meta's
+    // payload with anything we know locally (our internal id, opening_message,
+    // mirrored objective, etc.).
+    const local = await this.campaignRepo.findAll(organizationId, { limit: 1000 });
+    const byMetaId = new Map();
+    for (const row of local.items || []) {
+      if (row.meta_campaign_id) byMetaId.set(String(row.meta_campaign_id), row);
+    }
+
+    const items = metaItems.map((m) => {
+      const localRow = byMetaId.get(String(m.id)) || null;
+      // Meta returns daily_budget / lifetime_budget as strings in account
+      // currency *minor* units (e.g. "9300" = ₹93.00). Convert to major units
+      // so the UI can format with currency() directly.
+      const dailyMinor = m.daily_budget ? Number(m.daily_budget) : null;
+      const lifetimeMinor = m.lifetime_budget ? Number(m.lifetime_budget) : null;
+      return {
+        // Use the Meta campaign id as the primary key when no local row exists.
+        id: localRow?.id || m.id,
+        organization_id: organizationId,
+        ad_account_id: account.ad_account_id,
+        meta_campaign_id: m.id,
+        meta_adset_id: localRow?.meta_adset_id || null,
+        meta_creative_id: localRow?.meta_creative_id || null,
+        meta_ad_id: localRow?.meta_ad_id || null,
+        name: m.name,
+        // Map Meta's UPPERCASE status to our lowercase enum where relevant.
+        status: (m.status || "").toLowerCase() || "paused",
+        effective_status: m.effective_status || m.status,
+        objective: localRow?.objective || m.objective,
+        campaign_type: localRow?.campaign_type || null,
+        daily_budget: dailyMinor !== null ? dailyMinor / 100 : null,
+        lifetime_budget: lifetimeMinor !== null ? lifetimeMinor / 100 : null,
+        start_date: m.start_time || null,
+        end_date: m.stop_time || null,
+        special_ad_categories: m.special_ad_categories || null,
+        insights: m.insights?.data?.[0] || null,
+        created_at: m.created_time || localRow?.created_at || new Date().toISOString(),
+        updated_at: m.updated_time || localRow?.updated_at || new Date().toISOString(),
+      };
+    });
+
+    // Apply client-side filters that Meta's /campaigns endpoint doesn't
+    // expose directly via fields=... query. (Meta has its own filtering
+    // syntax but it's brittle — this is good enough for the list view.)
+    let filtered = items;
+    if (filters.status && filters.status !== "all") {
+      const target = String(filters.status).toLowerCase();
+      filtered = filtered.filter((c) => c.status.toLowerCase() === target);
+    }
+    if (filters.search) {
+      const q = String(filters.search).toLowerCase();
+      filtered = filtered.filter((c) => c.name?.toLowerCase().includes(q));
+    }
+
+    return {
+      items: filtered,
+      totalCount: filtered.length,
+      page: filters.page || 1,
+      limit,
+    };
   }
 
   async getCampaign(id, organizationId) {
@@ -1664,6 +2208,191 @@ Return ONLY valid JSON array with no markdown formatting:
     }
   }
 
+  // === AI: full campaign generation from a free-text prompt ===
+  //
+  // Asks GPT-4o-mini to draft a complete campaign config (objective, audience,
+  // budget, creative copy + CTA, optional lead-form questions) from one
+  // sentence-or-paragraph prompt. Uses OpenAI's response_format json_object
+  // so we get back valid JSON without prose around it.
+  //
+  // The wizard then maps this onto its `WizardForm` shape and jumps straight
+  // to the Review step. Media (image/video) is NOT generated — the user
+  // uploads on Review before publishing.
+  async generateCampaignFromPrompt(organizationId, { prompt }) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw { code: 500, message: "OpenAI API key not configured" };
+    if (!prompt || typeof prompt !== "string" || prompt.trim().length < 10) {
+      throw { code: 400, message: "Prompt must be at least 10 characters." };
+    }
+
+    // Pull account context so the model can pick a sane currency / locale.
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    const currency = account?.currency || "USD";
+    const pageName = account?.page_name || null;
+    const wabaLinked = Boolean(account?.waba_id);
+
+    const systemPrompt = `You are an expert Meta Ads strategist. Convert a user's plain-English brief into a complete, production-ready Meta ad campaign configuration. Reply with VALID JSON ONLY matching the schema below — no prose, no markdown.
+
+CONTEXT:
+- Connected Page: ${pageName || "unknown"}
+- Account currency: ${currency}
+- WhatsApp linked to Page: ${wabaLinked ? "yes" : "no"} (only suggest CTWA objective when this is yes)
+
+OBJECTIVE OPTIONS (pick exactly one):
+- "WEBSITE_TRAFFIC" — drive clicks to a landing page (most common SMB choice)
+- "LEAD_GEN" — collect leads via Meta's instant form
+- "CTWA" — open WhatsApp conversation (only when WhatsApp linked = yes)
+
+CTA OPTIONS by objective:
+- WEBSITE_TRAFFIC: LEARN_MORE | SHOP_NOW | SIGN_UP | BOOK_NOW | DOWNLOAD | GET_OFFER | GET_QUOTE | CONTACT_US
+- LEAD_GEN: SIGN_UP | LEARN_MORE | GET_QUOTE | APPLY_NOW | GET_OFFER | SUBSCRIBE
+- CTWA: WHATSAPP_MESSAGE
+
+BUDGET RULES:
+- Use account currency (${currency}). Output amount as a number in MAJOR units (e.g. 100 = ₹100, not 10000 paise).
+- For INR, daily minimum is usually around 100. For USD, around 5. For most accounts, 200 is a safe daily floor.
+- Default to "daily" budget unless the user specifies a campaign run length.
+
+OUTPUT JSON SCHEMA:
+{
+  "name": "Short descriptive campaign name (max 80 chars)",
+  "objective": "WEBSITE_TRAFFIC|LEAD_GEN|CTWA",
+  "audience": {
+    "country_codes": ["IN", "US"],     // ISO-3166-1 alpha-2 codes; default ["IN"] if unsure
+    "age_min": 18,                      // integer 13-65
+    "age_max": 65,                      // integer 13-65, >= age_min
+    "genders": "all|male|female",
+    "interest_keywords": ["string"],    // free-text suggestions, user will look up in Meta later
+    "advantage_audience": true,
+    "special_ad_categories": ["NONE"]   // ["NONE"] OR one of: CREDIT, EMPLOYMENT, HOUSING, FINANCIAL_PRODUCTS_SERVICES, ISSUES_ELECTIONS_POLITICS, ONLINE_GAMBLING_AND_GAMING
+  },
+  "budget": {
+    "type": "daily|lifetime",
+    "amount": 200,                      // number in major currency units
+    "start_date": null,                 // ISO 8601 string, or null for "start when published"
+    "end_date": null                    // ISO 8601 string, or null. REQUIRED if type === "lifetime"
+  },
+  "creative": {
+    "headline": "Max 40 chars",
+    "primary_text": "Max 125 chars; the body of the ad",
+    "description": "Max 30 chars; sub-headline",
+    "cta_type": "LEARN_MORE",           // from CTA OPTIONS above, valid for the chosen objective
+    "destination_url": "https://..."    // REQUIRED for WEBSITE_TRAFFIC; null for LEAD_GEN and CTWA
+  },
+  "lead_form_suggestion": {             // ONLY include this object when objective = LEAD_GEN
+    "name": "Form name",
+    "questions": [                      // pick 3-5 useful questions
+      {"type": "FULL_NAME"},
+      {"type": "EMAIL"},
+      {"type": "PHONE"}
+    ]
+  },
+  "rationale": "1-2 sentence explanation of why these choices fit the brief"
+}
+
+If the user mentions a website URL in their brief, use it for destination_url and lean toward WEBSITE_TRAFFIC.
+If they mention 'WhatsApp' / 'chat' / 'message' AND WhatsApp is linked, choose CTWA.
+If they mention 'leads' / 'enquiries' / 'sign-ups' / 'form', choose LEAD_GEN.
+Otherwise choose WEBSITE_TRAFFIC.`;
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 1200,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      this.logger?.error({ err }, "[Ads.AI] OpenAI request failed");
+      throw { code: 502, message: err.error?.message || "AI generation failed" };
+    }
+
+    const result = await response.json();
+    const text = result.choices?.[0]?.message?.content?.trim();
+    if (!text) throw { code: 502, message: "AI returned empty response." };
+
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      this.logger?.warn({ text }, "[Ads.AI] Failed to parse JSON");
+      throw { code: 502, message: "AI response was not valid JSON. Try rephrasing your brief." };
+    }
+
+    // Defensive normalization. The model is usually obedient but we don't
+    // want a single malformed field to break the whole flow.
+    const objective = ["WEBSITE_TRAFFIC", "LEAD_GEN", "CTWA"].includes(parsed.objective)
+      ? parsed.objective
+      : "WEBSITE_TRAFFIC";
+
+    // Force CTWA → WEBSITE_TRAFFIC if no WABA is linked (model isn't always
+    // disciplined about the constraint we put in the system prompt).
+    const safeObjective = objective === "CTWA" && !wabaLinked ? "WEBSITE_TRAFFIC" : objective;
+
+    const audience = parsed.audience || {};
+    const budget = parsed.budget || {};
+    const creative = parsed.creative || {};
+
+    const normalized = {
+      name: String(parsed.name || "AI campaign").slice(0, 80),
+      objective: safeObjective,
+      audience: {
+        country_codes: Array.isArray(audience.country_codes) && audience.country_codes.length > 0
+          ? audience.country_codes.map((c) => String(c).toUpperCase().slice(0, 2))
+          : ["IN"],
+        age_min: AdsService._clampInt(audience.age_min, 13, 65, 18),
+        age_max: AdsService._clampInt(audience.age_max, 13, 65, 65),
+        genders: ["all", "male", "female"].includes(audience.genders) ? audience.genders : "all",
+        interest_keywords: Array.isArray(audience.interest_keywords)
+          ? audience.interest_keywords.map(String).slice(0, 8)
+          : [],
+        advantage_audience: audience.advantage_audience !== false,
+        special_ad_categories: Array.isArray(audience.special_ad_categories) && audience.special_ad_categories.length > 0
+          ? audience.special_ad_categories
+          : ["NONE"],
+      },
+      budget: {
+        type: budget.type === "lifetime" ? "lifetime" : "daily",
+        amount: typeof budget.amount === "number" && budget.amount > 0 ? budget.amount : 200,
+        start_date: budget.start_date || null,
+        end_date: budget.end_date || null,
+      },
+      creative: {
+        headline: String(creative.headline || "").slice(0, 40),
+        primary_text: String(creative.primary_text || "").slice(0, 125),
+        description: String(creative.description || "").slice(0, 30),
+        cta_type: String(creative.cta_type || "LEARN_MORE"),
+        destination_url:
+          safeObjective === "WEBSITE_TRAFFIC" ? (creative.destination_url || "") : null,
+      },
+      lead_form_suggestion:
+        safeObjective === "LEAD_GEN" && parsed.lead_form_suggestion
+          ? {
+              name: String(parsed.lead_form_suggestion.name || "Leads").slice(0, 100),
+              questions: Array.isArray(parsed.lead_form_suggestion.questions)
+                ? parsed.lead_form_suggestion.questions.filter((q) => q && q.type)
+                : [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
+            }
+          : null,
+      rationale: String(parsed.rationale || ""),
+      account_currency: currency,
+    };
+
+    return normalized;
+  }
+
   // === CAMPAIGN DETAIL (Ad Sets + Ads for a single campaign) ===
 
   async getMetaCampaignDetail(organizationId, metaCampaignId) {
@@ -1901,7 +2630,8 @@ Provide a concise, actionable answer. If recommending changes, be specific about
       try {
         const pageMetaApi = new MetaAdsApiService(page.access_token, this.logger);
 
-        try { await pageMetaApi.subscribePageToLeadGen(page.id); } catch {}
+        // Best-effort: page may already be subscribed to leadgen; ignore the error.
+        try { await pageMetaApi.subscribePageToLeadGen(page.id); } catch { /* already subscribed */ }
 
         const formsResp = await pageMetaApi.getLeadGenForms(page.id);
         const forms = formsResp.data || [];
