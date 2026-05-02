@@ -2155,6 +2155,163 @@ export class AdsService {
     return metaApi.uploadImageFile(account.ad_account_id, fileBuffer, fileName);
   }
 
+  /**
+   * Creatives studio: fetch rendered MP4, upload to Meta ad library, create a Page video ad creative.
+   * User finishes delivery in Ads Manager (attach creative to an ad set / activate).
+   */
+  async publishStudioRenderVideoToMeta(
+    organizationId,
+    { videoUrl, name, headline, primaryText, destinationUrl } = {},
+  ) {
+    if (!videoUrl || typeof videoUrl !== "string" || !videoUrl.trim()) {
+      throw { code: 400, message: "videoUrl is required", errorCode: "BAD_REQUEST" };
+    }
+
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    if (!account) throw { code: 400, message: "No ad account connected", errorCode: "NO_AD_ACCOUNT" };
+    if (!account.page_id) {
+      throw {
+        code: 400,
+        message: "Connect a Facebook Page to your ad account (Ads setup) to publish video creatives.",
+        errorCode: "NO_PAGE",
+      };
+    }
+
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(videoUrl.trim());
+    } catch {
+      throw { code: 400, message: "Invalid video URL", errorCode: "BAD_REQUEST" };
+    }
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw { code: 400, message: "Video URL must be http(s)", errorCode: "BAD_REQUEST" };
+    }
+    if (_isPrivateOrLoopbackHostname(parsedUrl.hostname)) {
+      throw { code: 400, message: "Video URL host is not allowed", errorCode: "BAD_REQUEST" };
+    }
+
+    const axios = (await import("axios")).default;
+    const MAX_BYTES = 250 * 1024 * 1024;
+
+    let response;
+    try {
+      response = await axios.get(videoUrl.trim(), {
+        responseType: "arraybuffer",
+        timeout: 600000,
+        maxContentLength: MAX_BYTES,
+        maxBodyLength: MAX_BYTES,
+        validateStatus: (s) => s >= 200 && s < 300,
+        maxRedirects: 0,
+      });
+    } catch (err) {
+      const status = err.response?.status;
+      const detail = status ? `${status} ${err.response?.statusText || ""}`.trim() : err.message;
+      throw { code: 400, message: `Could not fetch video: ${detail}`, errorCode: "VIDEO_FETCH_FAILED" };
+    }
+
+    const contentType = String(response.headers?.["content-type"] || "").toLowerCase();
+    const okType = contentType.startsWith("video/") || contentType.startsWith("application/octet-stream");
+    if (!okType) {
+      throw {
+        code: 400,
+        message: `URL did not return video data (content-type: ${contentType || "unknown"})`,
+        errorCode: "BAD_VIDEO_TYPE",
+      };
+    }
+
+    const buffer = Buffer.from(response.data);
+    if (buffer.length > MAX_BYTES) {
+      throw { code: 400, message: "Video exceeds size limit", errorCode: "VIDEO_TOO_LARGE" };
+    }
+
+    const metaApi = this._getMetaApi(account.access_token_encrypted);
+    const safeName = String(name || "Studio render")
+      .replace(/[^\w\s.-]/g, "")
+      .trim()
+      .slice(0, 80);
+    const fileName = `${safeName || "video"}-${Date.now()}.mp4`;
+
+    let uploadResp;
+    try {
+      uploadResp = await metaApi.uploadVideo(account.ad_account_id, buffer, fileName, safeName || "Video");
+    } catch (err) {
+      const metaMsg = err.response?.data?.error?.message || err.message || String(err);
+      throw { code: 502, message: `Meta video upload failed: ${metaMsg}`, errorCode: "META_UPLOAD_FAILED" };
+    }
+
+    const videoId = uploadResp?.id;
+    if (!videoId) {
+      throw { code: 502, message: "Meta video upload returned no video id", errorCode: "META_UPLOAD_BAD_RESPONSE" };
+    }
+
+    let thumbUri = null;
+    try {
+      const vmeta = await metaApi.getAdVideo(videoId, "thumbnails,picture");
+      const t = vmeta?.thumbnails;
+      thumbUri =
+        (Array.isArray(t?.data) && t.data[0]?.uri) ||
+        (Array.isArray(t) && t[0]?.uri) ||
+        (typeof vmeta?.picture === "string" ? vmeta.picture : null);
+    } catch (err) {
+      this.logger?.warn(
+        { err: err?.message || err, videoId },
+        "[Ads] Could not fetch video thumbnails from Meta after upload",
+      );
+    }
+
+    if (!thumbUri) {
+      throw {
+        code: 502,
+        message:
+          "Meta did not return a usable thumbnail for this video yet. Wait a minute and try Publish again, or open Ads Manager → Creative library.",
+        errorCode: "META_THUMBNAIL_MISSING",
+      };
+    }
+
+    const title = String(headline || safeName || "Video").slice(0, 255);
+    const message = String(primaryText || "").slice(0, 2000);
+    const creativeName = `${safeName || "Studio"} — library`.slice(0, 200);
+
+    const videoData = {
+      video_id: videoId,
+      title,
+      message,
+      image_url: thumbUri,
+    };
+    const dest = typeof destinationUrl === "string" ? destinationUrl.trim() : "";
+    if (dest && /^https?:\/\//i.test(dest)) {
+      videoData.call_to_action = {
+        type: "LEARN_MORE",
+        value: { link: dest.slice(0, 2000) },
+      };
+    }
+
+    let creativeResp;
+    try {
+      creativeResp = await metaApi.createAdCreative(account.ad_account_id, {
+        name: creativeName,
+        object_story_spec: {
+          page_id: account.page_id,
+          video_data: videoData,
+        },
+      });
+    } catch (err) {
+      const msg = typeof err === "object" && err?.message ? err.message : String(err);
+      throw { code: 502, message: `Meta creative creation failed: ${msg}`, errorCode: "META_CREATIVE_FAILED" };
+    }
+
+    const actParam = String(account.ad_account_id).replace(/^act_/, "");
+    const adsManagerUrl = `https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=${actParam}`;
+
+    return {
+      video_id: videoId,
+      creative_id: creativeResp?.id || null,
+      ad_account_id: account.ad_account_id,
+      page_id: account.page_id,
+      ads_manager_url: adsManagerUrl,
+    };
+  }
+
   // === AI AD GENERATION ===
 
   async generateAdCopy(organizationId, data) {
