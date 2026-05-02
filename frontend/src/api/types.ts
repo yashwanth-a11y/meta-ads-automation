@@ -47,7 +47,12 @@ export type OAuthCallbackResult = {
   ad_accounts: AvailableAdAccount[]
   pages: AvailablePage[]
   businesses?: AvailableBusiness[]
-  user_access_token: string
+  // Long-lived user access token, minted by the backend's code-exchange step.
+  // Field name matches the backend response (`access_token`), NOT `user_access_token`.
+  access_token: string
+  // Which FB app issued the token — pass back on /connect so the backend
+  // saves the correct oauth_app_id (multi-app environments).
+  oauth_app_id?: string
   fb_user_id?: string
   expires_in?: number
 }
@@ -64,6 +69,8 @@ export type ConnectAdAccountInput = {
   expires_in?: number | null
   pixel_id?: string | null
   currency?: string | null
+  // Which FB app issued the token; backend persists it on meta_ad_accounts.
+  oauth_app_id?: string
 }
 
 export type SwitchAdAccountInput = {

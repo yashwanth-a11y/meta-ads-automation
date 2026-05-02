@@ -111,10 +111,12 @@ export function AdsSetupPage() {
       page_name: page.name,
       waba_id: page.whatsapp_business_account?.id || null,
       fb_user_id: oauthData.fb_user_id || null,
-      access_token: oauthData.user_access_token,
+      // Backend OAuth callback returns this as `access_token`, not `user_access_token`.
+      access_token: oauthData.access_token,
       page_access_token: page.access_token || null,
       expires_in: oauthData.expires_in,
       currency: account.currency,
+      oauth_app_id: oauthData.oauth_app_id,
     })
   }
 
