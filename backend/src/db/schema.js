@@ -280,3 +280,219 @@ export const audiencePresets = pgTable(
     org_idx: index('audience_presets_org_idx').on(t.organization_id),
   }),
 );
+
+// ---------------------------------------------------------------------------
+// GrowthOS — Trend-to-Video (Microservice 1)
+// ---------------------------------------------------------------------------
+
+// --- Channels (brand profiles driving content generation) ---
+
+export const channels = pgTable(
+  'channels',
+  {
+    id: id(),
+    organization_id: orgId(),
+    name: varchar('name', { length: 255 }).notNull(),
+    brand_name: varchar('brand_name', { length: 255 }).notNull(),
+    brand_description: text('brand_description'),
+    industry: varchar('industry', { length: 100 }),
+    niche: varchar('niche', { length: 255 }),
+    tone: varchar('tone', { length: 255 }),
+    language: varchar('language', { length: 10 }).default('en').notNull(),
+    target_audience: text('target_audience'),
+    products: jsonb('products').default([]),
+    competitors: jsonb('competitors').default([]),
+    tracked_keywords: jsonb('tracked_keywords').default([]),
+    blocked_topics: jsonb('blocked_topics').default([]),
+    brand_assets: jsonb('brand_assets').default({}),
+    // { logo_url, colors[], font, intro_video_url, outro_video_url }
+    instagram_account_id: varchar('instagram_account_id', { length: 64 }),
+    approval_mode: varchar('approval_mode', { length: 32 }).default('manual').notNull(),
+    auto_publish_threshold: numeric('auto_publish_threshold', { precision: 4, scale: 2 }).default('8.5'),
+    topic_cooldown_days: integer('topic_cooldown_days').default(14).notNull(),
+    posting_schedule: varchar('posting_schedule', { length: 64 }).default('3x/week'),
+    trend_sources: jsonb('trend_sources').default({}),
+    // { rss: true, google_trends: true, reddit: true, product_hunt: true, youtube: true, twitter: false }
+    status: varchar('status', { length: 32 }).default('active').notNull(),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    org_idx: index('channels_org_idx').on(t.organization_id),
+    org_status_idx: index('channels_org_status_idx').on(t.organization_id, t.status),
+  }),
+);
+
+// --- Trend candidates (raw ingested items from all sources) ---
+
+export const trendCandidates = pgTable(
+  'trend_candidates',
+  {
+    id: id(),
+    // null = universal trend (not brand-specific); set = brand-own trend
+    organization_id: varchar('organization_id', { length: 36 }),
+    source_type: varchar('source_type', { length: 32 }).notNull(),
+    // rss | google_trends | reddit | product_hunt | youtube | twitter | know_your_meme
+    source_name: varchar('source_name', { length: 128 }).notNull(),
+    external_id: varchar('external_id', { length: 512 }),
+    title: text('title').notNull(),
+    summary: text('summary'),
+    url: text('url'),
+    image_url: text('image_url'),
+    published_at: timestamp('published_at', { withTimezone: true, mode: 'date' }),
+    classification: varchar('classification', { length: 32 }),
+    // topic | format_template | brand_news | noise
+    emotional_dna: jsonb('emotional_dna'),
+    // { core_emotion, visual_signature, themes[], brand_fit_notes }
+    lifecycle_stage: varchar('lifecycle_stage', { length: 16 }).default('seed'),
+    // seed | sprout | peak | saturated
+    velocity_score: numeric('velocity_score', { precision: 18, scale: 2 }).default('0'),
+    platform_count: integer('platform_count').default(1).notNull(),
+    raw_data: jsonb('raw_data'),
+    ingested_at: ts('ingested_at'),
+    created_at: ts('created_at'),
+  },
+  (t) => ({
+    source_external_uq: uniqueIndex('trend_candidates_source_external_uq').on(t.source_type, t.external_id),
+    classification_idx: index('trend_candidates_classification_idx').on(t.classification),
+    lifecycle_idx: index('trend_candidates_lifecycle_idx').on(t.lifecycle_stage),
+    ingested_idx: index('trend_candidates_ingested_idx').on(t.ingested_at),
+    org_idx: index('trend_candidates_org_idx').on(t.organization_id),
+  }),
+);
+
+// --- Trend scores (per-channel brand fit scoring for each candidate) ---
+
+export const trendScores = pgTable(
+  'trend_scores',
+  {
+    id: id(),
+    trend_candidate_id: varchar('trend_candidate_id', { length: 36 }).notNull(),
+    channel_id: varchar('channel_id', { length: 36 }).notNull(),
+    organization_id: orgId(),
+    emotional_alignment: numeric('emotional_alignment', { precision: 4, scale: 2 }).default('0'),
+    audience_fit: numeric('audience_fit', { precision: 4, scale: 2 }).default('0'),
+    adaptation_ease: numeric('adaptation_ease', { precision: 4, scale: 2 }).default('0'),
+    risk_score: numeric('risk_score', { precision: 4, scale: 2 }).default('0'),
+    composite_score: numeric('composite_score', { precision: 4, scale: 2 }).default('0'),
+    adaptation_idea: text('adaptation_idea'),
+    scored_at: ts('scored_at'),
+  },
+  (t) => ({
+    trend_channel_uq: uniqueIndex('trend_scores_trend_channel_uq').on(t.trend_candidate_id, t.channel_id),
+    channel_score_idx: index('trend_scores_channel_score_idx').on(t.channel_id, t.composite_score),
+    org_idx: index('trend_scores_org_idx').on(t.organization_id),
+  }),
+);
+
+// --- Creative bundles (generated content per channel per trend) ---
+
+export const creativeBundles = pgTable(
+  'creative_bundles',
+  {
+    id: id(),
+    organization_id: orgId(),
+    channel_id: varchar('channel_id', { length: 36 }).notNull(),
+    trend_candidate_id: varchar('trend_candidate_id', { length: 36 }),
+    hook: text('hook'),
+    script: text('script'),
+    caption: text('caption'),
+    hashtags: jsonb('hashtags').default([]),
+    scene_prompts: jsonb('scene_prompts').default([]),
+    voiceover_text: text('voiceover_text'),
+    video_url: text('video_url'),
+    thumbnail_url: text('thumbnail_url'),
+    status: varchar('status', { length: 32 }).default('draft').notNull(),
+    // draft | rendering | ready | approved | rejected | published
+    score_composite: numeric('score_composite', { precision: 4, scale: 2 }),
+    score_breakdown: jsonb('score_breakdown'),
+    // { trend_relevance, viral_hook, clarity, audience_fit, platform_fit, brand_safety, rationale }
+    render_job_id: varchar('render_job_id', { length: 128 }),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    org_idx: index('creative_bundles_org_idx').on(t.organization_id),
+    channel_idx: index('creative_bundles_channel_idx').on(t.channel_id),
+    status_idx: index('creative_bundles_status_idx').on(t.status),
+    trend_idx: index('creative_bundles_trend_idx').on(t.trend_candidate_id),
+  }),
+);
+
+// --- Approvals (JWT-signed single-use action links) ---
+
+export const approvals = pgTable(
+  'approvals',
+  {
+    id: id(),
+    organization_id: orgId(),
+    // null at topic_selection stage (no bundle yet)
+    creative_bundle_id: varchar('creative_bundle_id', { length: 36 }),
+    approver_email: varchar('approver_email', { length: 255 }).notNull(),
+    token_hash: varchar('token_hash', { length: 64 }).notNull(),
+    // topic_selection | content_review | video_review
+    stage: varchar('stage', { length: 32 }).default('content_review').notNull(),
+    action: varchar('action', { length: 32 }),
+    // approve | reject | regenerate | select_topic — null until acted on
+    action_taken_at: timestamp('action_taken_at', { withTimezone: true, mode: 'date' }),
+    rejection_reason: text('rejection_reason'),
+    // stores: top trends list (topic_selection), user feedback (content/video review)
+    metadata: jsonb('metadata'),
+    ip_address: varchar('ip_address', { length: 64 }),
+    user_agent: text('user_agent'),
+    expires_at: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    reminder_sent_at: timestamp('reminder_sent_at', { withTimezone: true, mode: 'date' }),
+    created_at: ts('created_at'),
+  },
+  (t) => ({
+    token_hash_uq: uniqueIndex('approvals_token_hash_uq').on(t.token_hash),
+    bundle_idx: index('approvals_bundle_idx').on(t.creative_bundle_id),
+    org_idx: index('approvals_org_idx').on(t.organization_id),
+    expires_idx: index('approvals_expires_idx').on(t.expires_at),
+  }),
+);
+
+// --- Topic cooldowns (prevents same trend hitting same channel twice within window) ---
+
+export const topicCooldowns = pgTable(
+  'topic_cooldowns',
+  {
+    id: id(),
+    channel_id: varchar('channel_id', { length: 36 }).notNull(),
+    organization_id: orgId(),
+    topic_key: varchar('topic_key', { length: 512 }).notNull(),
+    expires_at: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),
+    created_at: ts('created_at'),
+  },
+  (t) => ({
+    channel_topic_uq: uniqueIndex('topic_cooldowns_channel_topic_uq').on(t.channel_id, t.topic_key),
+    expires_idx: index('topic_cooldowns_expires_idx').on(t.expires_at),
+  }),
+);
+
+// --- Pipeline runs (DB-backed scheduler state; restart-safe run history) ---
+// Each automated ingestion→classify→score→generate→email cycle creates one row.
+// On startup the scheduler checks the latest completed_at to decide whether to
+// run immediately. This replaces a naive setInterval with no persistence.
+
+export const pipelineRuns = pgTable(
+  'pipeline_runs',
+  {
+    id: id(),
+    status: varchar('status', { length: 16 }).default('running').notNull(),
+    // running | done | failed
+    started_at: ts('started_at'),
+    completed_at: timestamp('completed_at', { withTimezone: true, mode: 'date' }),
+    ingested: integer('ingested').default(0).notNull(),
+    skipped: integer('skipped').default(0).notNull(),
+    classified: integer('classified').default(0).notNull(),
+    scored: integer('scored').default(0).notNull(),
+    bundles_generated: integer('bundles_generated').default(0).notNull(),
+    emails_sent: integer('emails_sent').default(0).notNull(),
+    errors: jsonb('errors').default([]),
+  },
+  (t) => ({
+    status_idx: index('pipeline_runs_status_idx').on(t.status),
+    started_idx: index('pipeline_runs_started_idx').on(t.started_at),
+  }),
+);

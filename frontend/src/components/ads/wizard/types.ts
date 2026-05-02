@@ -237,6 +237,45 @@ function buildGeoLocations(locations: WizardForm['audience']['locations']) {
   return out
 }
 
+// Pick the most appropriate aspect ratio for the AI image microservice
+// based on the placements the user has chosen. This is the single-image
+// approximation — for true per-placement variants we'd generate one image
+// per ratio and use Meta's asset_feed_spec on the creative (deferred).
+//
+// Priority rules (when multiple placement types are selected):
+//   1. Stories / Reels heavy → 9:16   (worst auto-crop if wrong)
+//   2. IG portrait Feed only  → 4:5
+//   3. In-stream / AN video   → 16:9
+//   4. Otherwise              → 1:1   (universal fallback)
+export function pickAspectRatioForPlacements(
+  audience: WizardForm['audience'],
+): '1:1' | '4:5' | '9:16' | '16:9' {
+  // Auto placements → 1:1 is the safest default; Meta will handle delivery.
+  if (audience.placement_mode === 'auto') return '1:1'
+
+  const fb = new Set(audience.facebook_positions)
+  const ig = new Set(audience.instagram_positions)
+  const an = new Set(audience.audience_network_positions)
+
+  const wantsVertical =
+    fb.has('story') || fb.has('facebook_reels') ||
+    ig.has('story') || ig.has('reels')
+
+  if (wantsVertical) return '9:16'
+
+  // IG portrait feed is its own preference — only when no horizontal
+  // placements are also picked.
+  const onlyIg = audience.publisher_platforms.length === 1 && audience.publisher_platforms[0] === 'instagram'
+  if (onlyIg && (ig.has('stream') || ig.has('profile_feed')) && !ig.has('story') && !ig.has('reels')) {
+    return '4:5'
+  }
+
+  const wantsHorizontal = fb.has('instream_video') || an.has('rewarded_video')
+  if (wantsHorizontal && !wantsVertical) return '16:9'
+
+  return '1:1'
+}
+
 // Maps the backend AI response onto our WizardForm. We can't auto-fill
 // `interests` (no Meta IDs) or media (AI doesn't generate it) — those stay
 // blank for the user to handle on Review.

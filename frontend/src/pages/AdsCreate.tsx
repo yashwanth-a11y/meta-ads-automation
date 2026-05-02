@@ -239,6 +239,7 @@ export function AdsCreatePage() {
           <CreativeStep
             objective={form.objective}
             creative={form.creative}
+            audience={form.audience}
             onChange={(creative) => setForm((f) => ({ ...f, creative }))}
           />
         )}

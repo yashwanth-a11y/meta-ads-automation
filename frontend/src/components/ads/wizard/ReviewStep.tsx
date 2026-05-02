@@ -14,12 +14,14 @@ import {
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined'
 import CloudUploadIcon from '@mui/icons-material/CloudUploadOutlined'
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import { useState } from 'react'
 import { adsApi, ApiError } from '../../../api'
 import type { CreateCampaignInput, ValidateCampaignResult } from '../../../api/types'
 import type { WizardForm } from './types'
 import { toCreateCampaignInput } from './types'
+import { AiImageGenerator } from './AiImageGenerator'
+import { pickAspectRatioForPlacements } from './types'
+import { GlassCard } from '../../ui/GlassCard'
 
 // Wizard step keys that the Review screen can request the parent to jump to.
 // Subset of the parent's StepKey — the parent decides which of these are
@@ -152,7 +154,7 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
 
   return (
     <Stack spacing={3}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Review and publish</Typography>
+      <Typography variant="subtitle1">Review and publish</Typography>
 
       {buildError && <Alert severity="error">{buildError}</Alert>}
 
@@ -164,7 +166,7 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
 
       {/* === Audience === */}
       <Section title="Audience" onEdit={onEditStep && (() => onEditStep('audience'))}>
-        <Row
+        <Row 
           label="Locations"
           value={form.audience.locations.map((l) => l.name).join(', ') || '—'}
         />
@@ -279,7 +281,7 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
           (which lands here without media) has a place to attach an image
           or video. If media is already attached we show a smaller preview. */}
       {onCreativeChange && (
-        <Card variant="outlined" sx={{ borderRadius: 2 }}>
+        <GlassCard variant="outlined">
           <CardContent>
             <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5 }}>
               <Typography variant="overline" color="text.secondary" sx={{ flex: 1 }}>
@@ -367,11 +369,39 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
               </Box>
             )}
             {uploadError && <Alert severity="error" sx={{ mt: 1.5 }}>{uploadError}</Alert>}
+
+            {/* AI image generation. Only when no image is attached AND user
+                is in image mode (no video equivalent yet). Reuses the wizard's
+                creative copy as context so the generated image matches the
+                ad's headline / body / CTA. */}
+            {form.creative.media_type === 'image' && !hasMedia && (
+              <Box sx={{ mt: 2 }}>
+                <Divider sx={{ mb: 2 }}>
+                  <Typography variant="caption" color="text.secondary">or</Typography>
+                </Divider>
+                <AiImageGenerator
+                  context={{
+                    objective: form.objective || undefined,
+                    headline: form.creative.headline,
+                    primary_text: form.creative.primary_text,
+                    cta_type: form.creative.cta_type,
+                    aspect_ratio: pickAspectRatioForPlacements(form.audience),
+                  }}
+                  onApprove={(result) =>
+                    onCreativeChange({
+                      ...form.creative,
+                      image_hash: result.hash,
+                      image_preview_url: result.url || form.creative.image_preview_url,
+                    })
+                  }
+                />
+              </Box>
+            )}
           </CardContent>
-        </Card>
+        </GlassCard>
       )}
 
-      <Card variant="outlined" sx={{ borderRadius: 2 }}>
+      <GlassCard>
         <CardContent>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1.5 }}>
             <Typography variant="overline" color="text.secondary" sx={{ flex: 1 }}>
@@ -383,7 +413,7 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
           </Stack>
 
           {!validateResult && (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="subtitle2" color="text.secondary">
               Click Validate to dry-run the campaign against Meta. Nothing is published yet.
             </Typography>
           )}
@@ -447,7 +477,7 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
             </Alert>
           )}
         </CardContent>
-      </Card>
+      </GlassCard>
 
       <Divider />
 
@@ -455,10 +485,11 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
 
       <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
         <ButtonGroup variant="contained" disabled={publishing || !hasMedia}>
-          <Button onClick={() => publish('paused')}>
+          <Button variant='text' onClick={() => publish('paused')}>
             {publishing ? 'Saving…' : 'Save as Paused'}
           </Button>
           <Button
+          variant='text'
             color="success"
             onClick={() => publish('live')}
             disabled={!validateOk || !hasMedia}
@@ -489,25 +520,69 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <Card variant="outlined" sx={{ borderRadius: 2 }}>
-      <CardContent>
-        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 1 }}>
-          <Typography variant="overline" color="text.secondary" sx={{ flex: 1, letterSpacing: 1 }}>
+    <Card
+      variant="outlined"
+      sx={{
+        transition: 'border-color 200ms ease, box-shadow 200ms ease',
+        '&:hover': {
+          // borderColor: (t) => t.palette.primary.main,
+          boxShadow: (t) => `0 8px 24px ${t.palette.divider}`,
+        },
+      }}
+    >
+      <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+        <Stack
+          direction="row"
+          spacing={2}
+          sx={{
+            alignItems: 'center',
+            mb: 2,
+            pb: 1.5,
+            borderBottom: (t) => `1px solid ${t.palette.divider}`,
+          }}
+        >
+          <Typography
+            variant="overline"
+            color="text.secondary"
+            sx={{ flex: 1, letterSpacing: 1.2, fontWeight: 500 }}
+          >
             {title}
           </Typography>
           {onEdit && (
             <Button
               size="small"
               variant="text"
-              startIcon={<EditOutlinedIcon fontSize="small" />}
               onClick={onEdit}
-              sx={{ textTransform: 'none' }}
+              sx={{
+                fontSize: '13px !important',
+                        fontWeight: '500',
+                        letterSpacing: '0.1rem',
+                        whiteSpace: 'nowrap',
+                        borderRadius: "0px",
+                        textTransform: "uppercase",
+                        // padding:"8px 20px",
+                        height: "unset !important",
+                        minHeight: "unset !important",
+              }}
             >
               Edit
             </Button>
           )}
         </Stack>
-        <Stack spacing={0.25}>{children}</Stack>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              md: 'repeat(2, minmax(0, 1fr))',
+              lg: 'repeat(3, minmax(0, 1fr))',
+            },
+            columnGap: 3,
+            rowGap: 2,
+          }}
+        >
+          {children}
+        </Box>
       </CardContent>
     </Card>
   )
@@ -523,21 +598,35 @@ function Row({
   multiline?: boolean
 }) {
   return (
-    <Stack direction="row" spacing={2} sx={{ py: 0.6, alignItems: multiline ? 'flex-start' : 'center' }}>
-      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 160 }}>
+    <Stack
+      spacing={0.5}
+      sx={{
+        gridColumn: multiline ? { xs: '1 / -1', sm: '1 / -1' } : 'auto',
+        minWidth: 0,
+      }}
+    >
+      <Typography
+        variant="subtitle1"
+        sx={{
+          fontWeight: 500,
+          color: 'text.primary',
+          lineHeight: 1.3,
+        }}
+      >
         {label}
       </Typography>
-      <Box sx={{ flex: 1 }}>
-        <Typography
-          variant="body2"
-          sx={{
-            wordBreak: 'break-word',
-            whiteSpace: multiline ? 'pre-wrap' : 'normal',
-          }}
-        >
-          {value}
-        </Typography>
-      </Box>
+      <Typography
+        variant="body1"
+        sx={{
+          fontWeight: 400,
+          color: 'text.secondary',
+          lineHeight: 1.5,
+          wordBreak: 'break-word',
+          whiteSpace: multiline ? 'pre-wrap' : 'normal',
+        }}
+      >
+        {value}
+      </Typography>
     </Stack>
   )
 }

@@ -5,6 +5,7 @@ import { resolveHeyGenConfig } from './services/heygenClient.js';
 import { resolveKlingConfig } from './services/klingClient.js';
 import { resolveModelsLabConfig } from './services/modelsLabClient.js';
 import { resolveReplicateConfig } from './services/replicateVideoClient.js';
+import { startScheduler } from './scheduler.js';
 
 const app = await buildApp();
 
@@ -42,7 +43,10 @@ try {
     },
     'Creatives script→video: configured providers',
   );
+  // Start scheduler only after server is bound and healthy
+  startScheduler(app.log);
 } catch (err) {
   app.log.error({ err }, 'failed to start');
   process.exit(1);
 }
+

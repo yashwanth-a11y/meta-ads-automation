@@ -59,6 +59,16 @@ const schema = z.object({
     .optional()
     .transform((v) => (typeof v === 'string' && v.trim() ? v.trim() : 'gpt-4o-mini')),
 
+  // Trend intelligence
+  TAVILY_API_KEY: z.string().optional(),
+  PRODUCT_HUNT_TOKEN: z.string().optional(),
+  YOUTUBE_API_KEY: z.string().optional(),    // YouTube Data API v3 (free 10K units/day)
+
+  // Pipeline / scheduler
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
+  CRON_INTERVAL_HOURS: z.coerce.number().int().positive().default(6),
+  MIN_BRAND_FIT_SCORE: z.coerce.number().min(0).max(10).default(6),
+
   // X / Twitter
   X_BEARER_TOKEN: z.string().optional(),
 
@@ -76,9 +86,9 @@ const schema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
-  // Email
-  RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().optional(),
+  // Email (Brevo / Sendinblue)
+  BREVO_API_KEY: z.string().optional(),
+  FROM_EMAIL: z.string().default('hussain@photonxtech.com'),
 
   // Feature flags
   FEATURE_ADS_ENABLED: z

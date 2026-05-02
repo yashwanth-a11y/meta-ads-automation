@@ -148,7 +148,7 @@ export function AdsSetupPage() {
       )}
 
       {isConnected && step !== 'choosing' && (
-        <GlassCard sx={{ borderRadius: 3 }}>
+        <GlassCard sx={{ p: 3 }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 2 }}>
             <Avatar sx={{ bgcolor: 'success.main' }}>
               <CheckCircleIcon />
