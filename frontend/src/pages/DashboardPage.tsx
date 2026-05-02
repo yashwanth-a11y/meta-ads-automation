@@ -67,7 +67,7 @@ export function DashboardPage() {
               borderRadius: '8px',
               border: `1px solid ${alpha('#FFFFFF', 0.1)}`,
               bgcolor: '#FFFFFF',
-              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
               position: 'relative',
               overflow: 'hidden',
               '&::before': {
@@ -116,7 +116,7 @@ export function DashboardPage() {
               borderRadius: '8px',
               border: `1px solid ${alpha('#FFFFFF', 0.1)}`,
               bgcolor: '#FFFFFF',
-              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
@@ -148,7 +148,7 @@ export function DashboardPage() {
                 borderRadius: '8px',
                 border: `1px solid ${alpha('#FFFFFF', 0.08)}`,
                 bgcolor: '#FFFFFF',
-                boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
+                boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
                 transition: 'transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease',
                 '&:hover': {
                   transform: 'translateY(-2px)',
@@ -231,7 +231,10 @@ export function DashboardPage() {
         </Grid>
 
         <Grid size={{ xs: 12, lg: 7 }}>
-          <ChartCard title="Performance over time" subtitle="Blended CPA and pipeline velocity" glow>
+          <ChartCard title="Performance over time" subtitle="Blended CPA and pipeline velocity" glow cardSx={{
+            bgcolor: '#FFFFFF',
+            boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
+          }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid stroke="#262626" strokeDasharray="4 8" vertical={false} />
@@ -257,12 +260,8 @@ export function DashboardPage() {
             title="Campaign comparison"
             subtitle="Attributed conversions by initiative"
             cardSx={{
-              '&:hover': {
-                transform: 'none',
-                borderColor: alpha('#FFFFFF', 0.08),
-                boxShadow: `0 8px 32px ${alpha('#000000', 0.45)}`,
-                bgcolor: 'transparent',
-              },
+              bgcolor: '#FFFFFF',
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`
             }}
           >
             <ResponsiveContainer width="100%" height="100%">
