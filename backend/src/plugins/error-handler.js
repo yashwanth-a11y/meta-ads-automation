@@ -16,6 +16,25 @@ async function plugin(app) {
       });
     }
 
+    // The imported Meta Ads service throws POJO errors of shape `{code, message}`.
+    // Treat numeric `code` in 400-599 as the HTTP status; everything else falls
+    // through to the generic 500 path.
+    if (
+      err && typeof err === 'object' && !(err instanceof Error) &&
+      typeof err.code === 'number' && err.code >= 400 && err.code < 600
+    ) {
+      const level = err.code >= 500 ? 'error' : 'warn';
+      request.log[level]({ err }, 'service error');
+      return reply.status(err.code).send({
+        error: {
+          code: err.errorCode || 'SERVICE_ERROR',
+          message: err.message || 'Service error',
+          ...(err.metaErrorCode && { metaErrorCode: err.metaErrorCode }),
+          ...(err.metaErrorSubcode && { metaErrorSubcode: err.metaErrorSubcode }),
+        },
+      });
+    }
+
     if (err.statusCode && err.statusCode < 500) {
       request.log.warn({ err }, 'client error');
       return reply.status(err.statusCode).send({

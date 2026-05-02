@@ -7,7 +7,7 @@ import creativesRoutes from './creatives/routes.js';
 import approvalsRoutes from './approvals/routes.js';
 import publishingRoutes from './publishing/routes.js';
 import metaRoutes from './meta/routes.js';
-import adsRoutes from './ads/routes.js';
+import adsRoutes from '../Routes/AdRoutes.js';
 import leadsRoutes from './leads/routes.js';
 import analyticsRoutes from './analytics/routes.js';
 import webhooksRoutes from './webhooks/routes.js';
@@ -25,7 +25,9 @@ export async function registerModules(app) {
       await api.register(approvalsRoutes, { prefix: '/approvals' });
       await api.register(publishingRoutes, { prefix: '/publishing' });
       await api.register(metaRoutes, { prefix: '/meta' });
-      await api.register(adsRoutes, { prefix: '/ads' });
+      // adsRoutes self-prefixes every path with `/ads/...`, so register without
+      // a prefix inside the /api/v1 group → final paths look like /api/v1/ads/*.
+      await api.register(adsRoutes);
       await api.register(leadsRoutes, { prefix: '/leads' });
       await api.register(analyticsRoutes, { prefix: '/analytics' });
     },

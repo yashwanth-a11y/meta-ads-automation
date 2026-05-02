@@ -9,19 +9,26 @@ async function plugin(app) {
     sign: { expiresIn: '7d' },
   });
 
-  app.decorate('requireAuth', async function (request) {
+  // Verify JWT and reject the request if invalid. Used as `preHandler` or
+  // `onRequest` hook on protected routes. Two names for the same thing —
+  // `requireAuth` matches our internal style, `authenticate` matches the
+  // imported Meta Ads route file. Keep both so neither side has to change.
+  const authenticate = async function (request) {
     try {
       await request.jwtVerify();
     } catch (_err) {
       throw unauthorized();
     }
-  });
+  };
+
+  app.decorate('requireAuth', authenticate);
+  app.decorate('authenticate', authenticate);
 
   app.decorateRequest('tenantId', null);
 
   app.addHook('preHandler', async (request) => {
     if (request.user && typeof request.user === 'object') {
-      request.tenantId = request.user.tenantId ?? null;
+      request.tenantId = request.user.tenantId ?? request.user.organization_id ?? null;
     }
   });
 }
