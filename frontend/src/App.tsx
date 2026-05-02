@@ -49,6 +49,10 @@ export default function App() {
         path="/"
         element={<Navigate to={isAuthenticated() ? paths.dashboard : paths.auth} replace />}
       />
+      {/* OAuth popup callback — must live OUTSIDE ProtectedRoute so the
+          popup can reach it even if it has no JWT (the page just postMessages
+          the code+state back to the opener and closes). */}
+      <Route path="oauth/meta-ads/callback" element={<OAuthCallback />} />
       <Route
         element={
           <ProtectedRoute>

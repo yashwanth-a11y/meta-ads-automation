@@ -26,7 +26,7 @@ import {
 import { useMemo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo-1.svg'
-import { paths, useAuth } from '../../auth'
+import { paths } from '../../auth'
 
 const navItems = [
   { to: paths.dashboard, label: 'Dashboard', icon: DashboardOutlined },
@@ -197,7 +197,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <Tooltip title="Sign out">
           <IconButton
             size="small"
-            onClick={onLogout}
+            onClick={handleLogout}
             sx={{
               color: 'text.secondary',
               '&:hover': { color: 'error.main', bgcolor: alpha('#FFFFFF', 0.06) },

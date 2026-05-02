@@ -42,10 +42,8 @@ export function AuthPage() {
   const theme = useTheme()
   const auth = theme.palette.auth
   const navigate = useNavigate()
-  const { login, signup, isAuthenticated, loading } = useAuth()
 
   const [tab, setTab] = useState<AuthTab>('login')
-  const [serverError, setServerError] = useState<string | null>(null)
 
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
@@ -434,7 +432,7 @@ export function AuthPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             {tab === 'login'
               ? 'Sign in to orchestrate campaigns or create your PhotonX workspace.'
-              : 'Enter your basics — name, email, phone, and password — to start.'}
+              : 'Enter your basics — name, email, and password — to start.'}
           </Typography>
 
           <ToggleButtonGroup
@@ -493,12 +491,6 @@ export function AuthPage() {
               Sign up
             </ToggleButton>
           </ToggleButtonGroup>
-
-          {serverError && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setServerError(null)}>
-              {serverError}
-            </Alert>
-          )}
 
           {tab === 'login' ? (
             <Stack spacing={3}>
@@ -681,7 +673,7 @@ export function AuthPage() {
                   fullWidth
                   autoComplete="new-password"
                   type={showSignupPass ? 'text' : 'password'}
-                  placeholder="At least 8 chars, one letter and one digit"
+                  placeholder="Minimum 8 characters"
                   value={signupPassword}
                   onChange={(e) => {
                     clearSignupError()

@@ -151,7 +151,7 @@ export function AdsPage() {
   const campaigns = campaignsQuery.data?.campaigns || []
 
   return (
-    <Stack spacing={3}>
+    // <Stack spacing={3}>
     <Stack spacing={3}>
       <PageHeader
         title="Ads"

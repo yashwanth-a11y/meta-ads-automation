@@ -3,20 +3,24 @@ import type { ApiResponse } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 
-const TOKEN_KEY = 'growthos.jwt'
+// Must match the key the AuthPage writes (`auth_token`) and the App.tsx
+// guard reads. Single source of truth across the app.
+const TOKEN_KEY = 'auth_token'
+const USER_KEY = 'auth_user'
 
 export function getAuthToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY)
 }
 
-export function setAuthToken(token: string, persist = false) {
+export function setAuthToken(token: string, persist = true) {
   if (persist) localStorage.setItem(TOKEN_KEY, token)
   else sessionStorage.setItem(TOKEN_KEY, token)
 }
 
 export function clearAuthToken() {
-  sessionStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(USER_KEY)
 }
 
 export const http = axios.create({
