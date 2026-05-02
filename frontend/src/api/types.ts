@@ -128,9 +128,12 @@ export type CampaignSummary = {
   updated_at: string
 }
 
+// Backend response shape: `{items, totalCount, page, limit}` (matches the
+// repository pagination convention; getCampaigns also returns this shape
+// when fetching live from Meta).
 export type CampaignList = {
-  campaigns: CampaignSummary[]
-  total: number
+  items: CampaignSummary[]
+  totalCount: number
   page: number
   limit: number
 }

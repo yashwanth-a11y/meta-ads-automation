@@ -1161,8 +1161,93 @@ export class AdsService {
     return result.data || [];
   }
 
-  async getCampaigns(organizationId, filters) {
-    return this.campaignRepo.findAll(organizationId, filters);
+  async getCampaigns(organizationId, filters = {}) {
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    if (!account) {
+      // Not connected → no campaigns visible. Return empty page rather than
+      // throwing so the UI can render the "Connect Meta" empty state.
+      return { items: [], totalCount: 0, page: filters.page || 1, limit: filters.limit || 50 };
+    }
+
+    const metaApi = this._getMetaApi(account.access_token_encrypted);
+    const limit = Math.min(filters.limit || 50, 100);
+
+    let metaResp;
+    try {
+      metaResp = await metaApi.getCampaigns(account.ad_account_id, { limit });
+    } catch (err) {
+      this.logger?.warn(
+        { err: err.message, account_id: account.ad_account_id },
+        "[Ads] Meta getCampaigns failed — falling back to local mirror table",
+      );
+      // Best-effort fallback: surface whatever we have locally so the UI
+      // isn't completely blank if Meta is unavailable / rate-limited.
+      return this.campaignRepo.findAll(organizationId, filters);
+    }
+
+    const metaItems = Array.isArray(metaResp?.data) ? metaResp.data : [];
+
+    // Index our local rows by meta_campaign_id so we can enrich Meta's
+    // payload with anything we know locally (our internal id, opening_message,
+    // mirrored objective, etc.).
+    const local = await this.campaignRepo.findAll(organizationId, { limit: 1000 });
+    const byMetaId = new Map();
+    for (const row of local.items || []) {
+      if (row.meta_campaign_id) byMetaId.set(String(row.meta_campaign_id), row);
+    }
+
+    const items = metaItems.map((m) => {
+      const localRow = byMetaId.get(String(m.id)) || null;
+      // Meta returns daily_budget / lifetime_budget as strings in account
+      // currency *minor* units (e.g. "9300" = ₹93.00). Convert to major units
+      // so the UI can format with currency() directly.
+      const dailyMinor = m.daily_budget ? Number(m.daily_budget) : null;
+      const lifetimeMinor = m.lifetime_budget ? Number(m.lifetime_budget) : null;
+      return {
+        // Use the Meta campaign id as the primary key when no local row exists.
+        id: localRow?.id || m.id,
+        organization_id: organizationId,
+        ad_account_id: account.ad_account_id,
+        meta_campaign_id: m.id,
+        meta_adset_id: localRow?.meta_adset_id || null,
+        meta_creative_id: localRow?.meta_creative_id || null,
+        meta_ad_id: localRow?.meta_ad_id || null,
+        name: m.name,
+        // Map Meta's UPPERCASE status to our lowercase enum where relevant.
+        status: (m.status || "").toLowerCase() || "paused",
+        effective_status: m.effective_status || m.status,
+        objective: localRow?.objective || m.objective,
+        campaign_type: localRow?.campaign_type || null,
+        daily_budget: dailyMinor !== null ? dailyMinor / 100 : null,
+        lifetime_budget: lifetimeMinor !== null ? lifetimeMinor / 100 : null,
+        start_date: m.start_time || null,
+        end_date: m.stop_time || null,
+        special_ad_categories: m.special_ad_categories || null,
+        insights: m.insights?.data?.[0] || null,
+        created_at: m.created_time || localRow?.created_at || new Date().toISOString(),
+        updated_at: m.updated_time || localRow?.updated_at || new Date().toISOString(),
+      };
+    });
+
+    // Apply client-side filters that Meta's /campaigns endpoint doesn't
+    // expose directly via fields=... query. (Meta has its own filtering
+    // syntax but it's brittle — this is good enough for the list view.)
+    let filtered = items;
+    if (filters.status && filters.status !== "all") {
+      const target = String(filters.status).toLowerCase();
+      filtered = filtered.filter((c) => c.status.toLowerCase() === target);
+    }
+    if (filters.search) {
+      const q = String(filters.search).toLowerCase();
+      filtered = filtered.filter((c) => c.name?.toLowerCase().includes(q));
+    }
+
+    return {
+      items: filtered,
+      totalCount: filtered.length,
+      page: filters.page || 1,
+      limit,
+    };
   }
 
   async getCampaign(id, organizationId) {

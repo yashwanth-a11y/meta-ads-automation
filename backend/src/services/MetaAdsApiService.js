@@ -640,7 +640,7 @@ export class MetaAdsApiService {
   async getCampaigns(adAccountId, params = {}) {
     return this._request("GET", `/act_${adAccountId}/campaigns`, {
       fields:
-        "name,objective,status,daily_budget,lifetime_budget,start_time,stop_time,insights.date_preset(maximum){spend,impressions,reach,clicks,unique_clicks,ctr,cpc,actions,cost_per_action_type}",
+        "id,name,objective,status,effective_status,daily_budget,lifetime_budget,start_time,stop_time,created_time,updated_time,special_ad_categories,insights.date_preset(maximum){spend,impressions,reach,clicks,unique_clicks,ctr,cpc,actions,cost_per_action_type}",
       limit: params.limit || 50,
       ...params,
     });

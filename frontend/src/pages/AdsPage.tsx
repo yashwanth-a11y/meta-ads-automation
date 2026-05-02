@@ -148,7 +148,8 @@ export function AdsPage() {
 
   const status = setupQuery.data
   const balance = balanceQuery.data
-  const campaigns = campaignsQuery.data?.campaigns || []
+  // Backend returns `{items, totalCount, page, limit}` — see CampaignList type.
+  const campaigns = campaignsQuery.data?.items || []
 
   return (
     // <Stack spacing={3}>
