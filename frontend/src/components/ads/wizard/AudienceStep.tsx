@@ -16,6 +16,7 @@ import {
   Radio,
   RadioGroup,
   Select,
+  Slider,
   Stack,
   Switch,
   TextField,
@@ -65,7 +66,8 @@ export function AudienceStep({ audience, onChange }: Props) {
     onChange(applySpecialAdConstraints({ ...audience, ...patch }))
 
   const sacLocked = audience.special_ad_categories.some((c) => c !== 'NONE')
-  const ages = Array.from({ length: 53 }, (_, i) => i + 13) // 13 to 65
+
+  const FULL_WIDTH = { gridColumn: { xs: '1', md: '1 / -1' } }
 
   return (
     <Stack spacing={4} sx={{ mt: 2 }}>
@@ -78,126 +80,131 @@ export function AudienceStep({ audience, onChange }: Props) {
         </Alert>
       )}
 
-      <LocationsField
-        value={audience.locations}
-        onChange={(locations) => update({ locations })}
-      />
-
-      <Box>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
-          Age range — {audience.age_min} to {audience.age_max}
-        </Typography>
-        <Slider
-          value={[audience.age_min, audience.age_max]}
-          min={13}
-          max={65}
-          marks={[{ value: 13, label: '13' }, { value: 65, label: '65+' }]}
-          disabled={sacLocked}
-          onChange={(_, val) => {
-            const [lo, hi] = val as [number, number]
-            update({ age_min: lo, age_max: hi })
-          }}
-        />
-      </Box>
-
-      <FormControl fullWidth>
-        <InputLabel>Gender</InputLabel>
-        <Select
-          label="Gender"
-          value={audience.genders}
-          disabled={sacLocked}
-          onChange={(e) => update({ genders: e.target.value as WizardForm['audience']['genders'] })}
-        >
-          <MenuItem value="all">All</MenuItem>
-          <MenuItem value="male">Male</MenuItem>
-          <MenuItem value="female">Female</MenuItem>
-        </Select>
-      </FormControl>
-
-      <InterestsField
-        value={audience.interests}
-        onChange={(interests) => update({ interests })}
-      />
-
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-        <Switch
-          checked={audience.advantage_audience}
-          disabled={sacLocked}
-          onChange={(e) => update({ advantage_audience: e.target.checked })}
-        />
-        <Box>
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>Advantage+ Audience</Typography>
-          <Typography variant="caption" color="text.secondary">
-            Let Meta find more people similar to your selection. Recommended; required for Special Ad Categories.
-          </Typography>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 3,
+          gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
+          alignItems: 'start',
+        }}
+      >
+        <Box sx={FULL_WIDTH}>
+          <LocationsField
+            value={audience.locations}
+            onChange={(locations) => update({ locations })}
+          />
         </Box>
-      </Stack>
 
-      <FormControl fullWidth>
-        <InputLabel>Special Ad Category</InputLabel>
-        <Select
-          label="Special Ad Category"
-          multiple
-          value={audience.special_ad_categories}
-          renderValue={(selected) => (selected as string[]).join(', ')}
-          onChange={(e) => {
-            const next = e.target.value as SpecialAdCategory[]
-            // If user adds a non-NONE category, drop NONE and vice versa.
-            const cleaned = next.includes('NONE') && next.length > 1
-              ? next.filter((c) => c !== 'NONE')
-              : next.length === 0
-                ? (['NONE'] as SpecialAdCategory[])
-                : next
-            update({ special_ad_categories: cleaned })
-          }}
-        >
-          {SPECIAL_AD_CATEGORIES.map((c) => (
-            <MenuItem key={c} value={c}>{c}</MenuItem>
-          ))}
-        </Select>
-        <FormHelperText>
-          Required by Meta for housing, employment, credit, financial, gambling, and politics ads.
-        </FormHelperText>
-      </FormControl>
+        <Box sx={FULL_WIDTH}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}>
+            Age range — {audience.age_min} to {audience.age_max}
+          </Typography>
+          <Slider
+            value={[audience.age_min, audience.age_max]}
+            min={13}
+            max={65}
+            marks={[{ value: 13, label: '13' }, { value: 65, label: '65+' }]}
+            disabled={sacLocked}
+            onChange={(_, val) => {
+              const [lo, hi] = val as [number, number]
+              update({ age_min: lo, age_max: hi })
+            }}
+          />
+        </Box>
+
+        <FormControl fullWidth>
+          <InputLabel>Gender</InputLabel>
+          <Select
+            label="Gender"
+            value={audience.genders}
+            disabled={sacLocked}
+            onChange={(e) => update({ genders: e.target.value as WizardForm['audience']['genders'] })}
+          >
+            <MenuItem value="all">All</MenuItem>
+            <MenuItem value="male">Male</MenuItem>
+            <MenuItem value="female">Female</MenuItem>
+          </Select>
+        </FormControl>
+
+        <FormControl fullWidth>
+          <InputLabel>Special Ad Category</InputLabel>
+          <Select
+            label="Special Ad Category"
+            multiple
+            value={audience.special_ad_categories}
+            renderValue={(selected) => (selected as string[]).join(', ')}
+            onChange={(e) => {
+              const next = e.target.value as SpecialAdCategory[]
+              const cleaned = next.includes('NONE') && next.length > 1
+                ? next.filter((c) => c !== 'NONE')
+                : next.length === 0
+                  ? (['NONE'] as SpecialAdCategory[])
+                  : next
+              update({ special_ad_categories: cleaned })
+            }}
+          >
+            {SPECIAL_AD_CATEGORIES.map((c) => (
+              <MenuItem key={c} value={c}>{c}</MenuItem>
+            ))}
+          </Select>
+          <FormHelperText>
+            Required by Meta for housing, employment, credit, financial, gambling, and politics ads.
+          </FormHelperText>
+        </FormControl>
+
+        <Box sx={FULL_WIDTH}>
+          <InterestsField
+            value={audience.interests}
+            onChange={(interests) => update({ interests })}
+          />
+        </Box>
+
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+          <Switch
+            checked={audience.advantage_audience}
+            disabled={sacLocked}
+            onChange={(e) => update({ advantage_audience: e.target.checked })}
+          />
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>Advantage+ Audience</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Let Meta find more people similar to your selection. Recommended; required for Special Ad Categories.
+            </Typography>
+          </Box>
+        </Stack>
+
+        <FormControl>
+          <FormLabel sx={{ mb: 1 }}>Device</FormLabel>
+          <RadioGroup
+            row
+            value={
+              audience.device_platforms.length === 0
+                ? 'all'
+                : audience.device_platforms.length === 1
+                  ? audience.device_platforms[0]
+                  : 'all'
+            }
+            onChange={(e) => {
+              const v = e.target.value
+              update({
+                device_platforms:
+                  v === 'all' ? [] : v === 'mobile' ? ['mobile'] : ['desktop'],
+              })
+            }}
+          >
+            <FormControlLabel value="all" control={<Radio />} label="All devices" />
+            <FormControlLabel value="mobile" control={<Radio />} label="Mobile only" />
+            <FormControlLabel value="desktop" control={<Radio />} label="Desktop only" />
+          </RadioGroup>
+        </FormControl>
+      </Box>
 
       <Divider sx={{ my: 1 }} />
 
-      {/* Placements: Auto (Advantage Placements) by default; Manual lets the
-          user pick which platforms + positions to deliver on. */}
       <PlacementsSection audience={audience} update={update} />
 
       <Divider sx={{ my: 1 }} />
 
-      {/* Devices: empty array = both. */}
-      <FormControl>
-        <FormLabel sx={{ mb: 1 }}>Device</FormLabel>
-        <RadioGroup
-          row
-          value={
-            audience.device_platforms.length === 0
-              ? 'all'
-              : audience.device_platforms.length === 1
-                ? audience.device_platforms[0]
-                : 'all'
-          }
-          onChange={(e) => {
-            const v = e.target.value
-            update({
-              device_platforms:
-                v === 'all' ? [] : v === 'mobile' ? ['mobile'] : ['desktop'],
-            })
-          }}
-        >
-          <FormControlLabel value="all" control={<Radio />} label="All devices" />
-          <FormControlLabel value="mobile" control={<Radio />} label="Mobile only" />
-          <FormControlLabel value="desktop" control={<Radio />} label="Desktop only" />
-        </RadioGroup>
-      </FormControl>
-
-      <Divider sx={{ my: 1 }} />
-
-      {/* Languages — Meta filters ads to users whose FB UI language matches.
-          Most SMBs leave this blank. */}
       <FormControl fullWidth>
         <InputLabel>Languages (optional)</InputLabel>
         <Select

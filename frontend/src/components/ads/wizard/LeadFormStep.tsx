@@ -106,8 +106,16 @@ export function LeadFormStep({ leadForm, onChange }: Props) {
 
       {leadForm.mode === 'create' && leadForm.new_form && (
         <GlassCard sx={{ p: 2.5, borderRadius: 2 }}>
-          <Stack spacing={2}>
+          <Box
+            sx={{
+              display: 'grid',
+              gap: 2.5,
+              gridTemplateColumns: { xs: '1fr', md: 'repeat(2, minmax(0, 1fr))' },
+              alignItems: 'start',
+            }}
+          >
             <TextField
+              fullWidth
               label="Form name"
               value={leadForm.new_form.name}
               onChange={(e) => updateNew({ name: e.target.value })}
@@ -129,7 +137,7 @@ export function LeadFormStep({ leadForm, onChange }: Props) {
               </Select>
             </FormControl>
 
-            <Box>
+            <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}>
               <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
                 Questions
               </Typography>
@@ -187,6 +195,7 @@ export function LeadFormStep({ leadForm, onChange }: Props) {
             </Box>
 
             <TextField
+              fullWidth
               label="Privacy policy URL"
               type="url"
               value={leadForm.new_form.privacy_policy_url}
@@ -194,25 +203,24 @@ export function LeadFormStep({ leadForm, onChange }: Props) {
               required
             />
             <TextField
+              fullWidth
               label="Privacy policy link text"
               value={leadForm.new_form.privacy_policy_link_text}
               onChange={(e) => updateNew({ privacy_policy_link_text: e.target.value })}
             />
 
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Thank-you title"
-                value={leadForm.new_form.thank_you_title}
-                onChange={(e) => updateNew({ thank_you_title: e.target.value })}
-                fullWidth
-              />
-              <TextField
-                label="Thank-you body"
-                value={leadForm.new_form.thank_you_body}
-                onChange={(e) => updateNew({ thank_you_body: e.target.value })}
-                fullWidth
-              />
-            </Stack>
+            <TextField
+              fullWidth
+              label="Thank-you title"
+              value={leadForm.new_form.thank_you_title}
+              onChange={(e) => updateNew({ thank_you_title: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              label="Thank-you body"
+              value={leadForm.new_form.thank_you_body}
+              onChange={(e) => updateNew({ thank_you_body: e.target.value })}
+            />
 
             <FormControl fullWidth>
               <InputLabel>Thank-you button</InputLabel>
@@ -229,40 +237,56 @@ export function LeadFormStep({ leadForm, onChange }: Props) {
               </Select>
             </FormControl>
 
-            {leadForm.new_form.thank_you_button_type === 'VIEW_WEBSITE' && (
+            {leadForm.new_form.thank_you_button_type === 'VIEW_WEBSITE' ? (
               <TextField
+                fullWidth
                 label="Website URL"
                 type="url"
                 value={leadForm.new_form.thank_you_website_url}
                 onChange={(e) => updateNew({ thank_you_website_url: e.target.value })}
               />
+            ) : (
+              <Box />
             )}
 
-            <TextField
-              label="Follow-up URL (optional)"
-              type="url"
-              value={leadForm.new_form.follow_up_action_url}
-              onChange={(e) => updateNew({ follow_up_action_url: e.target.value })}
-              helperText="The user can be sent here from a confirmation page."
-            />
+            <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}>
+              <TextField
+                fullWidth
+                label="Follow-up URL (optional)"
+                type="url"
+                value={leadForm.new_form.follow_up_action_url}
+                onChange={(e) => updateNew({ follow_up_action_url: e.target.value })}
+                helperText="The user can be sent here from a confirmation page."
+              />
+            </Box>
 
             {createMutation.isError && (
-              <Alert severity="error">{(createMutation.error as ApiError).message}</Alert>
+              <Box sx={{ gridColumn: { xs: '1', md: '1 / -1' } }}>
+                <Alert severity="error">{(createMutation.error as ApiError).message}</Alert>
+              </Box>
             )}
 
-            <Button
-              variant="contained"
-              onClick={() => createMutation.mutate()}
-              disabled={
-                createMutation.isPending ||
-                !leadForm.new_form.name ||
-                !leadForm.new_form.privacy_policy_url ||
-                leadForm.new_form.questions.length === 0
-              }
+            <Box
+              sx={{
+                gridColumn: { xs: '1', md: '1 / -1' },
+                display: 'flex',
+                justifyContent: 'flex-end',
+              }}
             >
-              {createMutation.isPending ? 'Creating…' : 'Create form on Meta'}
-            </Button>
-          </Stack>
+              <Button
+                variant="contained"
+                onClick={() => createMutation.mutate()}
+                disabled={
+                  createMutation.isPending ||
+                  !leadForm.new_form.name ||
+                  !leadForm.new_form.privacy_policy_url ||
+                  leadForm.new_form.questions.length === 0
+                }
+              >
+                {createMutation.isPending ? 'Creating…' : 'Create form on Meta'}
+              </Button>
+            </Box>
+          </Box>
         </GlassCard>
       )}
     </Stack>
