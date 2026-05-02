@@ -1,11 +1,11 @@
 import { Box, Drawer, useTheme } from '@mui/material'
 import { alpha } from '@mui/material/styles'
-import { useMemo, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { AIAssistantFab } from '../ui/AIAssistantFab'
-import { paths } from '../../auth'
+import { paths, useAuth } from '../../auth'
 
 const pathTitles: Record<string, string> = {
   [paths.dashboard]: 'Dashboard',
@@ -24,8 +24,24 @@ export function AppShell() {
   const theme = useTheme()
   const [mobileOpen, setMobileOpen] = useState(false)
   const location = useLocation()
-
+  const navigate = useNavigate()
+  const { isAuthenticated } = useAuth()
   const title = useMemo(() => pathTitles[location.pathname] ?? 'PhotonX', [location.pathname])
+
+  // Reactive auth guard: any 401 from anywhere clears the token and fires
+  // 'auth:invalid' (see api/client.ts). useAuth listens and flips
+  // isAuthenticated → we redirect to /auth and remember where they were.
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate(paths.auth, { replace: true })
+    }
+  }, [isAuthenticated, navigate])
+
+  // Initial guard so we don't even render the protected shell during the
+  // first paint when we already know there's no token.
+  if (!isAuthenticated) {
+    return <Navigate to={paths.auth} replace state={{ from: location.pathname }} />
+  }
 
   const drawer = <Sidebar onNavigate={() => setMobileOpen(false)} />
 

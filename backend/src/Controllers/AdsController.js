@@ -202,6 +202,44 @@ export class AdsController {
     return reply.send({ success: true, data: result });
   }
 
+  // Validate-only dry-run: same payload as createCampaign, but Meta is asked
+  // to validate without persisting. Always returns 200 with {ok: bool}.
+  async validateCampaign(request, reply) {
+    try {
+      const result = await this.adsService.validateCampaign(
+        request.user.organization_id,
+        request.body,
+      );
+      return reply.send({ success: true, data: result });
+    } catch (error) {
+      // Hard failures (missing account, network) bubble up as 5xx.
+      this.logger?.error({ message: error?.message }, "validateCampaign failed");
+      return reply.status(error.code || 500).send({
+        success: false,
+        error: error.message || "Validation failed",
+      });
+    }
+  }
+
+  // Create a Lead Gen form on the connected Page.
+  async createLeadForm(request, reply) {
+    try {
+      const result = await this.adsService.createLeadForm(
+        request.user.organization_id,
+        request.body,
+      );
+      return reply.status(201).send({ success: true, data: result });
+    } catch (error) {
+      const metaError = error.response?.data?.error || error.message || error;
+      this.logger?.error({ message: metaError?.message || metaError }, "createLeadForm failed");
+      const statusCode = error.code >= 400 && error.code < 600 ? error.code : 500;
+      return reply.status(statusCode).send({
+        success: false,
+        error: typeof metaError === "string" ? metaError : (metaError.message || "Failed to create lead form"),
+      });
+    }
+  }
+
   async updateCampaign(request, reply) {
     const result = await this.adsService.updateCampaign(
       request.params.id,

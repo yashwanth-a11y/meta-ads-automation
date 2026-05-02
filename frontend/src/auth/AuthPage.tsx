@@ -1,4 +1,5 @@
 import {
+  Alert,
   Box,
   Button,
   Grid,
@@ -18,18 +19,26 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined'
-import { useMemo, useState } from 'react'
+import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { paths } from './constants'
+import { useAuth } from './useAuth'
+import { ApiError } from '../api/client'
 
 type AuthTab = 'login' | 'signup'
+
+// E.164: +countrycode then digits, no spaces. Mirrors backend PHONE_RE.
+const PHONE_RE = /^\+[1-9]\d{1,14}$/
 
 export function AuthPage() {
   const theme = useTheme()
   const auth = theme.palette.auth
   const navigate = useNavigate()
+  const { login, signup, isAuthenticated, loading } = useAuth()
 
   const [tab, setTab] = useState<AuthTab>('login')
+  const [serverError, setServerError] = useState<string | null>(null)
 
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
@@ -38,10 +47,16 @@ export function AuthPage() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [signupEmail, setSignupEmail] = useState('')
+  const [signupPhone, setSignupPhone] = useState('')
   const [signupPassword, setSignupPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showSignupPass, setShowSignupPass] = useState(false)
   const [showConfirmPass, setShowConfirmPass] = useState(false)
+
+  // If user is already signed in, skip the login screen.
+  useEffect(() => {
+    if (isAuthenticated) navigate(paths.dashboard, { replace: true })
+  }, [isAuthenticated, navigate])
 
   const loginEmailOk = loginEmail.includes('@')
   const loginPassOk = loginPassword.length >= 8
@@ -50,16 +65,51 @@ export function AuthPage() {
   const fnameOk = firstName.trim().length > 0
   const lnameOk = lastName.trim().length > 0
   const signupEmailOk = signupEmail.includes('@')
-  const signupPassOk = signupPassword.length >= 8
+  const signupPhoneOk = PHONE_RE.test(signupPhone.trim())
+  const signupPassOk = signupPassword.length >= 8 && /[A-Za-z]/.test(signupPassword) && /\d/.test(signupPassword)
   const passwordsMatch = signupPassword === confirmPassword && confirmPassword.length > 0
 
   const basicsValid = useMemo(
-    () => fnameOk && lnameOk && signupEmailOk && signupPassOk && passwordsMatch,
-    [fnameOk, lnameOk, signupEmailOk, signupPassOk, passwordsMatch],
+    () => fnameOk && lnameOk && signupEmailOk && signupPhoneOk && signupPassOk && passwordsMatch,
+    [fnameOk, lnameOk, signupEmailOk, signupPhoneOk, signupPassOk, passwordsMatch],
   )
 
   const handleTabChange = (_: React.MouseEvent<HTMLElement>, value: AuthTab | null) => {
-    if (value) setTab(value)
+    if (value) {
+      setServerError(null)
+      setTab(value)
+    }
+  }
+
+  const onLogin = async () => {
+    if (!loginValid) return
+    setServerError(null)
+    try {
+      await login({ email: loginEmail.trim(), password: loginPassword }, /* persist */ true)
+      navigate(paths.dashboard, { replace: true })
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : (err as Error).message
+      setServerError(msg || 'Login failed')
+    }
+  }
+
+  const onSignup = async () => {
+    if (!basicsValid) return
+    setServerError(null)
+    try {
+      await signup({
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: signupEmail.trim(),
+        phone: signupPhone.trim(),
+        password: signupPassword,
+        confirm_password: confirmPassword,
+      }, /* persist */ true)
+      navigate(paths.dashboard, { replace: true })
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : (err as Error).message
+      setServerError(msg || 'Signup failed')
+    }
   }
 
   const gradientTextSx = {
@@ -100,8 +150,6 @@ export function AuthPage() {
       ...(end ? { endAdornment: end } : {}),
     },
   })
-
-  const goToApp = () => navigate(paths.dashboard)
 
   return (
     <Grid container sx={{ minHeight: '100vh', bgcolor: auth.pageBg }}>
@@ -207,7 +255,7 @@ export function AuthPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             {tab === 'login'
               ? 'Sign in to orchestrate campaigns or create your PhotonX workspace.'
-              : 'Enter your basics — name, email, and password — to start.'}
+              : 'Enter your basics — name, email, phone, and password — to start.'}
           </Typography>
 
           <ToggleButtonGroup
@@ -267,6 +315,12 @@ export function AuthPage() {
             </ToggleButton>
           </ToggleButtonGroup>
 
+          {serverError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setServerError(null)}>
+              {serverError}
+            </Alert>
+          )}
+
           {tab === 'login' ? (
             <Stack spacing={3}>
               <Box>
@@ -293,6 +347,7 @@ export function AuthPage() {
                   placeholder="••••••••"
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && loginValid) onLogin() }}
                   slotProps={inputSlotProps(
                     <LockOutlinedIcon fontSize="small" />,
                     <InputAdornment position="end">
@@ -323,11 +378,11 @@ export function AuthPage() {
               <Button
                 fullWidth
                 variant="contained"
-                disabled={!loginValid}
+                disabled={!loginValid || loading}
                 sx={ctaSx}
-                onClick={() => loginValid && goToApp()}
+                onClick={onLogin}
               >
-                Sign in now
+                {loading ? 'Signing in…' : 'Sign in now'}
               </Button>
               <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
                 Don&apos;t have access yet?{' '}
@@ -390,12 +445,30 @@ export function AuthPage() {
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
+                  Phone
+                </Typography>
+                <TextField
+                  fullWidth
+                  placeholder="+14155552671"
+                  value={signupPhone}
+                  onChange={(e) => setSignupPhone(e.target.value)}
+                  slotProps={inputSlotProps(<PhoneOutlinedIcon fontSize="small" />)}
+                  error={signupPhone.length > 0 && !signupPhoneOk}
+                  helperText={
+                    signupPhone.length > 0 && !signupPhoneOk
+                      ? 'Use international (E.164) format starting with +'
+                      : 'International format starting with +country code'
+                  }
+                />
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
                   Password
                 </Typography>
                 <TextField
                   fullWidth
                   type={showSignupPass ? 'text' : 'password'}
-                  placeholder="Minimum 8 characters"
+                  placeholder="At least 8 chars, one letter and one digit"
                   value={signupPassword}
                   onChange={(e) => setSignupPassword(e.target.value)}
                   slotProps={inputSlotProps(
@@ -411,7 +484,11 @@ export function AuthPage() {
                     </InputAdornment>,
                   )}
                   error={signupPassword.length > 0 && !signupPassOk}
-                  helperText={signupPassword.length > 0 && !signupPassOk ? 'At least 8 characters' : ' '}
+                  helperText={
+                    signupPassword.length > 0 && !signupPassOk
+                      ? 'Need 8+ chars with at least one letter and one digit'
+                      : ' '
+                  }
                 />
               </Box>
               <Box>
@@ -424,6 +501,7 @@ export function AuthPage() {
                   placeholder="Re-enter password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && basicsValid) onSignup() }}
                   slotProps={inputSlotProps(
                     <LockOutlinedIcon fontSize="small" />,
                     <InputAdornment position="end">
@@ -443,11 +521,11 @@ export function AuthPage() {
               <Button
                 fullWidth
                 variant="contained"
-                disabled={!basicsValid}
+                disabled={!basicsValid || loading}
                 sx={ctaSx}
-                onClick={() => basicsValid && goToApp()}
+                onClick={onSignup}
               >
-                Create account
+                {loading ? 'Creating account…' : 'Create account'}
               </Button>
               <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
                 Already onboard?{' '}

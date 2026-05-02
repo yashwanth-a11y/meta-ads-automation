@@ -17,14 +17,15 @@ import {
   CampaignOutlined,
   DashboardOutlined,
   HubOutlined,
+  LogoutOutlined,
   PeopleOutlined,
   SettingsOutlined,
   TrendingUpOutlined,
   VideoLibraryOutlined,
 } from '@mui/icons-material'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo-1.svg'
-import { paths } from '../../auth'
+import { paths, useAuth } from '../../auth'
 
 const navItems = [
   { to: paths.dashboard, label: 'Dashboard', icon: DashboardOutlined },
@@ -41,6 +42,13 @@ type SidebarProps = {
 }
 
 export function Sidebar({ onNavigate }: SidebarProps) {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+  const onLogout = () => {
+    logout()
+    onNavigate?.()
+    navigate(paths.auth, { replace: true })
+  }
   return (
     <Stack
       component="nav"
@@ -131,6 +139,18 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             }}
           >
             <SettingsOutlined fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Sign out">
+          <IconButton
+            size="small"
+            onClick={onLogout}
+            sx={{
+              color: 'text.secondary',
+              '&:hover': { color: 'error.main', bgcolor: alpha('#FFFFFF', 0.06) },
+            }}
+          >
+            <LogoutOutlined fontSize="small" />
           </IconButton>
         </Tooltip>
       </Stack>

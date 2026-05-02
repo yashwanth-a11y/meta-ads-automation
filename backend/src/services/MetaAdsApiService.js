@@ -114,6 +114,10 @@ export class MetaAdsApiService {
     if (params.adlabels && params.adlabels.length > 0) {
       body.adlabels = params.adlabels;
     }
+    // Pass through validate-only flag without persisting other unknown keys.
+    // Meta returns {success: true} on success and a normal error on failure
+    // when execution_options=['validate_only'] is set.
+    if (params.execution_options) body.execution_options = params.execution_options;
     return this._request("POST", `/act_${adAccountId}/campaigns`, body);
   }
 
@@ -141,6 +145,8 @@ export class MetaAdsApiService {
     if (params.daily_budget) data.daily_budget = params.daily_budget;
     if (params.lifetime_budget) data.lifetime_budget = params.lifetime_budget;
     if (params.end_time) data.end_time = params.end_time;
+    if (params.bid_amount) data.bid_amount = params.bid_amount;
+    if (params.execution_options) data.execution_options = params.execution_options;
     return this._request("POST", `/act_${adAccountId}/adsets`, data);
   }
 
@@ -150,15 +156,34 @@ export class MetaAdsApiService {
       object_story_spec: params.object_story_spec,
     };
     if (params.product_set_id) data.product_set_id = params.product_set_id;
+    if (params.execution_options) data.execution_options = params.execution_options;
     return this._request("POST", `/act_${adAccountId}/adcreatives`, data);
   }
 
   async createAd(adAccountId, params) {
-    return this._request("POST", `/act_${adAccountId}/ads`, {
+    const body = {
       name: params.name,
       adset_id: params.adset_id,
-      creative: { creative_id: params.creative_id },
+      creative: params.creative || { creative_id: params.creative_id },
       status: params.status || "PAUSED",
+    };
+    if (params.execution_options) body.execution_options = params.execution_options;
+    return this._request("POST", `/act_${adAccountId}/ads`, body);
+  }
+
+  // === LEAD FORMS ===
+
+  // POST /{page-id}/leadgen_forms — must use a PAGE access token, not the
+  // user/business token. Caller is expected to construct an instance with
+  // the page token (`new MetaAdsApiService(pageToken, logger)`).
+  async createLeadGenForm(pageId, payload) {
+    return this._request("POST", `/${pageId}/leadgen_forms`, payload);
+  }
+
+  // GET /{form-id} — single form metadata, used for ownership / status checks
+  async getLeadGenForm(formId) {
+    return this._request("GET", `/${formId}`, {
+      fields: "id,name,status,page,created_time,questions,leads_count",
     });
   }
 
