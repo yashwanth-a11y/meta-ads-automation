@@ -10,6 +10,7 @@ import { PasswordResetTokenRepository } from '../Repositories/PasswordResetToken
 import { AdsService } from '../services/AdsService.js';
 import { AuthService } from '../services/AuthService.js';
 import { AdsController } from '../Controllers/AdsController.js';
+import { CreativeService } from '../services/CreativeService.js';
 
 // Build the DI graph and decorate the Fastify instance. Keep this file as
 // the *only* place that knows how the pieces are wired together — routes
@@ -49,12 +50,14 @@ async function plugin(app) {
   });
 
   const adsController = new AdsController(adsService, app.log);
+  const creativeService = new CreativeService({ logger: app.log });
 
   app.decorate('db', db);
   app.decorate('userRepository', userRepository);
   app.decorate('authService', authService);
   app.decorate('adsService', adsService);
   app.decorate('adsController', adsController);
+  app.decorate('creativeService', creativeService);
 }
 
 export default fp(plugin, { name: 'di', dependencies: ['auth'] });

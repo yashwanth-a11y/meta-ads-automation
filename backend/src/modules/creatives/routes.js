@@ -1,38 +1,141 @@
-import { notImplemented } from '../../lib/errors.js';
+import { forbidden, notImplemented } from '../../lib/errors.js';
 
-// MS1 — creative bundle per top idea: hook, script, CTA, caption, hashtags,
-// voiceover with markers, per-scene visual prompts. Reels rendered 1080×1920
-// H.264/AAC, 15–45s, ≤90 MB. Scoring across 6 dimensions; <7 auto-discard,
-// 7–8.5 manual approval, >8.5 auto-publish (if channel allows).
+function requireTenant(request) {
+  const org = request.tenantId ?? request.user?.organization_id;
+  if (!org) throw forbidden('Missing organization context');
+  return org;
+}
+
+// MS1 — creative bundle + render job (in-memory per org; swap for DB + queue later).
 export default async function routes(app) {
-  app.get('/', async () => {
-    throw notImplemented('creatives.list');
+  const service = app.creativeService;
+
+  app.addHook('onRequest', app.authenticate);
+
+  app.get('/', async (request) => {
+    const orgId = requireTenant(request);
+    return { creatives: service.list(orgId) };
   });
 
-  app.get('/:creativeId', async () => {
-    throw notImplemented('creatives.get');
-  });
+  app.post(
+    '/generate',
+    {
+      schema: {
+        description: 'Create a creative from a non-empty script (required).',
+        tags: ['creatives'],
+        body: {
+          type: 'object',
+          required: ['script'],
+          properties: {
+            script: { type: 'string', description: 'Voiceover / storyboard text used for Kling text-to-video.' },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const orgId = requireTenant(request);
+      const creative = await service.generate(orgId, request.body ?? {});
+      return { creative };
+    },
+  );
 
-  // Generate a creative bundle from a candidate idea
-  app.post('/generate', async () => {
-    throw notImplemented('creatives.generate');
-  });
+  app.get(
+    '/:creativeId/render-status',
+    {
+      schema: {
+        description: 'Poll video render job for a creative',
+        tags: ['creatives'],
+        params: {
+          type: 'object',
+          required: ['creativeId'],
+          properties: { creativeId: { type: 'string' } },
+        },
+      },
+    },
+    async (request) => {
+      const orgId = requireTenant(request);
+      const { creativeId } = request.params;
+      const status = service.renderStatus(orgId, creativeId);
+      return { render: status };
+    },
+  );
 
-  // Regenerate (e.g., after rejection with reason)
-  app.post('/:creativeId/regenerate', async () => {
-    throw notImplemented('creatives.regenerate');
-  });
+  app.post(
+    '/:creativeId/render',
+    {
+      schema: {
+        description: 'Start async Kling text-to-video render. Optional body.script updates copy first.',
+        tags: ['creatives'],
+        params: {
+          type: 'object',
+          required: ['creativeId'],
+          properties: { creativeId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          properties: {
+            script: { type: 'string', description: 'If non-empty, updates creative script before render.' },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const orgId = requireTenant(request);
+      const { creativeId } = request.params;
+      const job = service.startRender(orgId, creativeId, request.body ?? {});
+      return { job };
+    },
+  );
 
-  // Render the video (kicks off render job)
-  app.post('/:creativeId/render', async () => {
-    throw notImplemented('creatives.render');
-  });
+  app.post(
+    '/:creativeId/regenerate',
+    {
+      schema: {
+        description: 'Replace creative script (non-empty required).',
+        tags: ['creatives'],
+        params: {
+          type: 'object',
+          required: ['creativeId'],
+          properties: { creativeId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          required: ['script'],
+          properties: {
+            script: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const orgId = requireTenant(request);
+      const { creativeId } = request.params;
+      const creative = await service.regenerate(orgId, creativeId, request.body ?? {});
+      return { creative };
+    },
+  );
 
-  app.get('/:creativeId/render-status', async () => {
-    throw notImplemented('creatives.renderStatus');
-  });
+  app.get(
+    '/:creativeId',
+    {
+      schema: {
+        description: 'Get one creative by id',
+        tags: ['creatives'],
+        params: {
+          type: 'object',
+          required: ['creativeId'],
+          properties: { creativeId: { type: 'string' } },
+        },
+      },
+    },
+    async (request) => {
+      const orgId = requireTenant(request);
+      const { creativeId } = request.params;
+      const creative = service.get(orgId, creativeId);
+      return { creative };
+    },
+  );
 
-  // Score (6 dimensions + composite)
   app.post('/:creativeId/score', async () => {
     throw notImplemented('creatives.score');
   });
