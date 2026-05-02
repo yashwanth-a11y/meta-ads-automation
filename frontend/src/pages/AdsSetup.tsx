@@ -11,7 +11,6 @@ import {
   ListItemAvatar,
   ListItemText,
   MenuItem,
-  Paper,
   Select,
   Stack,
   Typography,
@@ -31,6 +30,7 @@ import type {
   OAuthCallbackResult,
 } from '../api/types'
 import { paths } from '../auth/constants'
+import { GlassCard } from '../components/ui/GlassCard'
 import { useMetaOAuth } from '../hooks/useFacebookSdk'
 import { PageHeader } from '../components/ui/PageHeader'
 
@@ -148,7 +148,7 @@ export function AdsSetupPage() {
       )}
 
       {isConnected && step !== 'choosing' && (
-        <Paper sx={{ borderRadius: 3 }}>
+        <GlassCard sx={{ borderRadius: 3 }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 2 }}>
             <Avatar sx={{ bgcolor: 'success.main' }}>
               <CheckCircleIcon />
@@ -185,11 +185,11 @@ export function AdsSetupPage() {
               Disconnect
             </Button>
           </Stack>
-        </Paper>
+        </GlassCard>
       )}
 
       {!isConnected && step === 'idle' && (
-        <Paper sx={{ p: 3, borderRadius: 3 }}>
+        <GlassCard sx={{ p: 3, borderRadius: 3 }}>
           <Typography variant="body1" sx={{ mb: 2 }}>
             Sign in with Facebook to give GrowthOS permission to manage your ads.
             We will request <code>ads_management</code>, <code>pages_manage_ads</code>,
@@ -203,11 +203,11 @@ export function AdsSetupPage() {
           >
             Connect with Facebook
           </Button>
-        </Paper>
+        </GlassCard>
       )}
 
       {step === 'connecting' && (
-        <Paper sx={{ p: 3, borderRadius: 3 }}>
+        <GlassCard sx={{ p: 3, borderRadius: 3 }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
             <CircularProgress size={24} />
             <Typography>Waiting for Meta sign-in window…</Typography>
@@ -215,11 +215,11 @@ export function AdsSetupPage() {
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             If a popup didn't open, check your browser's popup blocker.
           </Typography>
-        </Paper>
+        </GlassCard>
       )}
 
       {step === 'choosing' && oauthData && (
-        <Paper sx={{ borderRadius: 3 }}>
+        <GlassCard sx={{ borderRadius: 3 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
             Pick an ad account and Facebook Page
           </Typography>
@@ -298,7 +298,7 @@ export function AdsSetupPage() {
               </Button>
             </Stack>
           </Stack>
-        </Paper>
+        </GlassCard>
       )}
 
       {step === 'connected' && (
