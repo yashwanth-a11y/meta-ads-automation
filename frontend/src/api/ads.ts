@@ -9,6 +9,8 @@ import type {
   CreateCampaignInput,
   CreateCampaignResult,
   CreateLeadFormInput,
+  DiscardImageResult,
+  GeneratedAdImage,
   ImageUploadResult,
   InterestSuggestion,
   LeadForm,
@@ -83,19 +85,60 @@ export const adsApi = {
   aiGenerateCampaign: (prompt: string) =>
     post<AiGeneratedCampaign>('/ads/ai/generate-campaign', { prompt }),
 
+  // AI image generation. Returns the S3 URL of the generated image; the
+  // wizard previews it, then approval calls uploadAdImage(url) to mint a
+  // Meta image_hash.
+  aiGenerateImage: (
+    prompt: string,
+    campaign_context?: {
+      objective?: string
+      headline?: string
+      primary_text?: string
+      cta_type?: string
+      target_audience?: string
+      // Aspect ratio derived from the user's placement choices upstream.
+      // Backend overrides whatever GPT-4o-mini would have picked. Defaults
+      // to "1:1" backend-side when omitted.
+      aspect_ratio?: '1:1' | '4:5' | '9:16' | '16:9'
+    },
+    signal?: AbortSignal,
+  ) =>
+    unwrap<GeneratedAdImage>(
+      http.post(
+        '/ads/ai/generate-image',
+        { prompt, campaign_context: campaign_context || {} },
+        // Generation can take 30-90s; AbortSignal lets the UI cancel.
+        { timeout: 180_000, signal },
+      ),
+    ),
+  // Best-effort delete from S3 — never throws on failure (the orphan stays
+  // in the bucket but the user's Reject/Edit flow always proceeds).
+  aiDiscardImage: (image_url: string) =>
+    post<DiscardImageResult>('/ads/ai/discard-image', { image_url }),
+
   // --- Lead Gen forms ---
   getLeadForms: () => get<{ data: LeadForm[] }>('/ads/leads/forms'),
   createLeadForm: (input: CreateLeadFormInput) => post<LeadForm>('/ads/lead-forms', input),
 
   // --- Image upload ---
-  uploadAdImage: (imageUrl: string) =>
-    post<ImageUploadResult>('/ads/upload-image', { image_url: imageUrl }),
-  // Backend forwards Meta's raw response, which is nested:
-  //   { images: { "<filename>": { hash, url, width, height, ... } } }
-  // We flatten it here so callers always see the friendlier shape:
-  //   { hash, url, width, height }
-  // (If the backend ever flattens this server-side later, this code still
-  // works — it just falls through to the already-flat object.)
+  // Both URL- and file-based upload paths flatten Meta's nested response
+  // shape `{ images: { "<filename>": { hash, url, ... } } }` so callers
+  // always see `{ hash, url, width, height }`.
+  uploadAdImage: async (imageUrl: string): Promise<ImageUploadResult> => {
+    const raw = await unwrap<
+      | ImageUploadResult
+      | { images: Record<string, ImageUploadResult & { name?: string }> }
+    >(http.post('/ads/upload-image', { image_url: imageUrl }, { timeout: 120_000 }))
+    if (raw && typeof raw === 'object' && 'images' in raw && raw.images) {
+      const first = Object.values(raw.images)[0]
+      if (!first?.hash) {
+        throw new Error('Upload succeeded but Meta did not return an image hash.')
+      }
+      return first
+    }
+    if ((raw as ImageUploadResult)?.hash) return raw as ImageUploadResult
+    throw new Error('Upload succeeded but the response did not contain an image hash.')
+  },
   uploadAdImageFile: async (file: File): Promise<ImageUploadResult> => {
     const formData = new FormData()
     formData.append('file', file)

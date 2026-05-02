@@ -542,6 +542,51 @@ export async function adsRoutes(fastify, options) {
     },
   }, (req, reply) => controller.aiGenerateCampaign(req, reply));
 
+  // AI: refine a brief image prompt with GPT-4o-mini, then generate an
+  // image via the external microservice. Returns the S3 image URL for the
+  // wizard to preview. Approval = call /ads/upload-image with this URL to
+  // mint a Meta image_hash.
+  fastify.post("/ads/ai/generate-image", {
+    schema: {
+      description: "Generate an ad image from a brief; returns image_url + refined payload.",
+      tags: ["ads"],
+      body: {
+        type: "object",
+        required: ["prompt"],
+        properties: {
+          prompt: { type: "string", minLength: 5, maxLength: 2000 },
+          campaign_context: {
+            type: "object",
+            additionalProperties: true,
+            properties: {
+              objective: { type: "string" },
+              headline: { type: "string" },
+              primary_text: { type: "string" },
+              cta_type: { type: "string" },
+              target_audience: { type: "string" },
+              aspect_ratio: {
+                type: "string",
+                enum: ["1:1", "4:5", "9:16", "16:9"],
+              },
+            },
+          },
+        },
+      },
+    },
+  }, (req, reply) => controller.aiGenerateImage(req, reply));
+
+  fastify.post("/ads/ai/discard-image", {
+    schema: {
+      description: "Best-effort delete of a previously-generated ad image from S3.",
+      tags: ["ads"],
+      body: {
+        type: "object",
+        required: ["image_url"],
+        properties: { image_url: { type: "string" } },
+      },
+    },
+  }, (req, reply) => controller.aiDiscardImage(req, reply));
+
   fastify.post("/ads/generate-copy", {
     schema: {
       description: "Generate ad copy using AI",

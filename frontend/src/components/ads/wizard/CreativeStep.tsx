@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   CircularProgress,
+  Divider,
   FormHelperText,
   Grid,
   MenuItem,
@@ -11,14 +12,19 @@ import {
   Typography,
 } from '@mui/material'
 import CloudUploadIcon from '@mui/icons-material/CloudUpload'
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import { useState } from 'react'
 import { adsApi, ApiError } from '../../../api'
 import type { WizardForm } from './types'
 import { CTA_BY_OBJECTIVE } from './types'
+import { AiImageGenerator } from './AiImageGenerator'
+import { pickAspectRatioForPlacements } from './types'
 
 type Props = {
   objective: WizardForm['objective']
   creative: WizardForm['creative']
+  // Used only to pick the AI image aspect ratio from selected placements.
+  audience?: WizardForm['audience']
   onChange: (next: WizardForm['creative']) => void
 }
 
@@ -27,7 +33,7 @@ const VIDEO_MIME = ['video/mp4', 'video/quicktime']
 const MAX_IMAGE_BYTES = 30 * 1024 * 1024
 const MAX_VIDEO_BYTES = 4 * 1024 * 1024 * 1024 // 4 GB; Meta cap
 
-export function CreativeStep({ objective, creative, onChange }: Props) {
+export function CreativeStep({ objective, creative, audience, onChange }: Props) {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
@@ -143,6 +149,24 @@ export function CreativeStep({ objective, creative, onChange }: Props) {
               Recommended dimensions: at least 1080×1080. Meta auto-crops for each placement.
             </FormHelperText>
           )}
+
+          {/* AI image generation — only offered for image creatives. Toggleable
+              so users who want to upload aren't distracted. Hidden once an image
+              is already attached (use the upload button to replace). */}
+          {creative.media_type === 'image' && !creative.image_hash && (
+            <AiImageToggle
+              objective={objective}
+              creative={creative}
+              audience={audience}
+              onApprove={(result) =>
+                onChange({
+                  ...creative,
+                  image_hash: result.hash,
+                  image_preview_url: result.url || creative.image_preview_url,
+                })
+              }
+            />
+          )}
         </Grid>
 
         <Grid size={{ xs: 12 }}>
@@ -230,6 +254,66 @@ export function CreativeStep({ objective, creative, onChange }: Props) {
         </Grid>
       </Grid>
     </Stack>
+  )
+}
+
+// Collapsible AI image generator. Hidden behind a button by default so the
+// upload UX stays uncluttered for users who already have a creative ready.
+function AiImageToggle({
+  objective,
+  creative,
+  audience,
+  onApprove,
+}: {
+  objective: WizardForm['objective']
+  creative: WizardForm['creative']
+  audience?: WizardForm['audience']
+  onApprove: (result: { hash: string; url?: string }) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (!open) {
+    return (
+      <Box sx={{ mt: 1.5 }}>
+        <Divider sx={{ mb: 1.5 }}>
+          <Typography variant="caption" color="text.secondary">or</Typography>
+        </Divider>
+        <Button
+          fullWidth
+          variant="text"
+          color="primary"
+          startIcon={<AutoAwesomeIcon />}
+          onClick={() => setOpen(true)}
+          sx={{ textTransform: 'none' }}
+        >
+          Generate ad image with AI
+        </Button>
+      </Box>
+    )
+  }
+  return (
+    <Box sx={{ mt: 2 }}>
+      <AiImageGenerator
+        context={{
+          objective: objective || undefined,
+          headline: creative.headline,
+          primary_text: creative.primary_text,
+          cta_type: creative.cta_type,
+          // Derive the right aspect ratio from selected placements so the
+          // microservice generates an image that fits where the ad will run.
+          // Defaults to 1:1 when audience isn't supplied.
+          aspect_ratio: audience ? pickAspectRatioForPlacements(audience) : '1:1',
+        }}
+        onApprove={(result) => {
+          onApprove({ hash: result.hash, url: result.url })
+          setOpen(false)
+        }}
+      />
+      <Box sx={{ mt: 1, textAlign: 'right' }}>
+        <Button size="small" color="inherit" onClick={() => setOpen(false)}>
+          Hide
+        </Button>
+      </Box>
+    </Box>
   )
 }
 

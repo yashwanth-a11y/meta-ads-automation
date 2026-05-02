@@ -339,6 +339,46 @@ export type AiGeneratedCampaign = {
   account_currency: string
 }
 
+// --- AI image generation ---
+
+// Backend response for POST /ads/ai/generate-image. The microservice
+// itself uploads the image to S3 (`upload_to_s3: true` in the request)
+// and returns a public URL we hand back to the wizard.
+export type GeneratedAdImage = {
+  image_url: string                         // S3 URL the wizard can <img src=...>
+  generated_prompt: string                  // GPT-4o-mini's expanded scene description (or microservice's final_prompt)
+  refined_payload: {                        // Full request that was sent to the microservice
+    prompt: string
+    business_name: string
+    tagline: string
+    call_to_action: string
+    campaign_type: string
+    target_audience: string
+    brand_colors: string[]
+    logo_position: string
+    style: string
+    mood: string
+    aspect_ratio: string
+    output_format: string
+    upload_to_s3: boolean
+  }
+  // Reported by the microservice (Gemini → image processing pipeline).
+  // Useful for displaying the actual size next to the preview and for
+  // pre-flight Meta-spec checks (≥600×600, ≤30 MB).
+  width?: number
+  height?: number
+  size_bytes?: number
+  mime_type?: string
+  raw_microservice_response?: unknown       // surfaced for debugging
+}
+
+export type DiscardImageResult = {
+  deleted: boolean
+  reason?: string
+  bucket?: string
+  key?: string
+}
+
 // --- Image upload ---
 
 export type ImageUploadResult = {

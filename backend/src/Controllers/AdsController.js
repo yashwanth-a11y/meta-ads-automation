@@ -524,6 +524,37 @@ export class AdsController {
     }
   }
 
+  // Image generator: brief prompt + campaign context → GPT-4o-mini refines →
+  // microservice generates → returns S3 image URL for preview.
+  async aiGenerateImage(request, reply) {
+    try {
+      const result = await this.adsService.generateAdImage(
+        request.user.organization_id,
+        request.body || {},
+      );
+      return reply.send({ success: true, data: result });
+    } catch (err) {
+      const code = err?.code >= 400 && err?.code < 600 ? err.code : 500;
+      this.logger?.error({ err: err?.message }, "aiGenerateImage failed");
+      return reply.status(code).send({
+        success: false,
+        error: err?.message || "Image generation failed",
+      });
+    }
+  }
+
+  // Discard a previously-generated image: best-effort S3 delete. Always
+  // returns 200 with `{deleted, reason}` — the caller doesn't need to care
+  // whether the delete succeeded; a failed delete just leaves an orphan.
+  async aiDiscardImage(request, reply) {
+    const { image_url } = request.body || {};
+    const result = await this.adsService.discardGeneratedImage(
+      request.user.organization_id,
+      image_url,
+    );
+    return reply.send({ success: true, data: result });
+  }
+
   // === CAMPAIGN DETAIL ===
 
   async getMetaCampaignDetail(request, reply) {

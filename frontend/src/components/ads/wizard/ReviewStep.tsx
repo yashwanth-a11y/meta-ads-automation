@@ -20,6 +20,8 @@ import { adsApi, ApiError } from '../../../api'
 import type { CreateCampaignInput, ValidateCampaignResult } from '../../../api/types'
 import type { WizardForm } from './types'
 import { toCreateCampaignInput } from './types'
+import { AiImageGenerator } from './AiImageGenerator'
+import { pickAspectRatioForPlacements } from './types'
 
 // Wizard step keys that the Review screen can request the parent to jump to.
 // Subset of the parent's StepKey — the parent decides which of these are
@@ -367,6 +369,34 @@ export function ReviewStep({ form, onCreativeChange, onEditStep, onPublishComple
               </Box>
             )}
             {uploadError && <Alert severity="error" sx={{ mt: 1.5 }}>{uploadError}</Alert>}
+
+            {/* AI image generation. Only when no image is attached AND user
+                is in image mode (no video equivalent yet). Reuses the wizard's
+                creative copy as context so the generated image matches the
+                ad's headline / body / CTA. */}
+            {form.creative.media_type === 'image' && !hasMedia && (
+              <Box sx={{ mt: 2 }}>
+                <Divider sx={{ mb: 2 }}>
+                  <Typography variant="caption" color="text.secondary">or</Typography>
+                </Divider>
+                <AiImageGenerator
+                  context={{
+                    objective: form.objective || undefined,
+                    headline: form.creative.headline,
+                    primary_text: form.creative.primary_text,
+                    cta_type: form.creative.cta_type,
+                    aspect_ratio: pickAspectRatioForPlacements(form.audience),
+                  }}
+                  onApprove={(result) =>
+                    onCreativeChange({
+                      ...form.creative,
+                      image_hash: result.hash,
+                      image_preview_url: result.url || form.creative.image_preview_url,
+                    })
+                  }
+                />
+              </Box>
+            )}
           </CardContent>
         </Card>
       )}

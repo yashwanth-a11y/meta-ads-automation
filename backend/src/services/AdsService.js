@@ -1,5 +1,6 @@
 import { MetaAdsApiService } from "./MetaAdsApiService.js";
 import { MetaCapiService } from "./MetaCapiService.js";
+import { AiImageMicroserviceClient } from "./AiImageMicroserviceClient.js";
 import { config } from "../config/index.js";
 import { env } from "../config/env.js";
 import { encryptToken, decryptToken } from "../utils/encryption.js";
@@ -61,6 +62,10 @@ export class AdsService {
     this.audiencePresetRepo = audiencePresetRepository;
     this.logger = logger;
     this.capiService = new MetaCapiService(logger);
+    // Single shared client for the external AI image microservice. Reads
+    // AI_MICROSERVICE_URL from env at construct; methods throw cleanly when
+    // it isn't configured.
+    this.aiImageClient = new AiImageMicroserviceClient({ logger });
   }
 
   _getMetaApi(accessTokenEncrypted) {
@@ -2391,6 +2396,180 @@ Otherwise choose WEBSITE_TRAFFIC.`;
     };
 
     return normalized;
+  }
+
+  // === AI: image generation via external microservice ===
+  //
+  // Two-step flow:
+  //   1) GPT-4o-mini takes the user's brief image prompt + the campaign
+  //      context (headline, primary text, target audience, etc.) and
+  //      expands it into the structured payload the image microservice
+  //      expects (prompt, business_name, tagline, mood, style, etc.).
+  //   2) We POST that payload to the microservice; it generates an image,
+  //      uploads it to S3, and returns the URL. We hand the URL back to
+  //      the frontend for preview.
+  //
+  // The user can then approve (call existing /ads/upload-image which
+  // pushes the bytes to Meta /adimages and returns an image_hash) or
+  // discard (we delete the S3 object via discardGeneratedImage below)
+  // and regenerate.
+  async generateAdImage(organizationId, { prompt, campaign_context = {} }) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw { code: 500, message: "OpenAI API key not configured" };
+    // Microservice URL is verified inside aiImageClient.generate() — surfaces a
+    // 500 with "AI_MICROSERVICE_URL is not configured" if missing.
+    if (!prompt || typeof prompt !== "string" || prompt.trim().length < 5) {
+      throw { code: 400, message: "Image prompt must be at least 5 characters." };
+    }
+
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    const businessName = account?.page_name || "Your business";
+
+    const ctx = campaign_context || {};
+    const ctxLines = [
+      ctx.headline ? `Ad headline: "${ctx.headline}"` : null,
+      ctx.primary_text ? `Ad body: "${ctx.primary_text}"` : null,
+      ctx.cta_type ? `Call to action: ${ctx.cta_type}` : null,
+      ctx.objective ? `Campaign objective: ${ctx.objective}` : null,
+      ctx.target_audience ? `Target audience: ${ctx.target_audience}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    // Step 1 — refine prompt via GPT-4o-mini.
+    const systemPrompt = `You are an art director for Meta ads. Convert a short brief into a precise image-generation payload. Reply with VALID JSON ONLY matching the schema below — no prose, no markdown.
+
+CONTEXT (use it implicitly to inform mood, audience, framing — DO NOT mention literal copy in the image):
+${ctxLines || "(no campaign context provided)"}
+
+OUTPUT JSON SCHEMA:
+{
+  "prompt": "Detailed visual description (60-180 words) — describe scene, subjects, lighting, composition, color palette. NEVER include text/copy in the image itself.",
+  "business_name": "${businessName}",
+  "tagline": "Short 2-6 word tagline used as poster overlay (optional, blank string if not appropriate)",
+  "call_to_action": "${ctx.cta_type || "LEARN_MORE"}",
+  "campaign_type": "social_media_post",
+  "target_audience": "Audience descriptor in 5-12 words",
+  "brand_colors": ["#hex","#hex","#hex"],
+  "logo_position": "bottom-right",
+  "style": "photorealistic | cinematic | flat_illustration | 3d_render | minimal",
+  "mood": "Two-word mood descriptor (e.g. \\"energetic and motivational\\")",
+  "aspect_ratio": "1:1",
+  "output_format": "png",
+  "upload_to_s3": true
+}
+
+RULES:
+- Default aspect_ratio to "1:1" — works on every Meta placement.
+- Pick brand_colors from typical industry palettes if no logo/color hint is given.
+- Never put readable text inside the image (no headlines, no offers) — Meta's automated text-detection will flag ads with too much text.
+- Choose "photorealistic" by default; switch to "flat_illustration" or "3d_render" only if the brief explicitly suggests it.`;
+
+    const refineResp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.7,
+        max_tokens: 800,
+      }),
+    });
+
+    if (!refineResp.ok) {
+      const err = await refineResp.json().catch(() => ({}));
+      this.logger?.error({ err }, "[Ads.AI] GPT-4o-mini refine failed");
+      throw { code: 502, message: err.error?.message || "Prompt refinement failed" };
+    }
+
+    const refineResult = await refineResp.json();
+    const refineText = refineResult.choices?.[0]?.message?.content?.trim();
+    let refined;
+    try {
+      refined = JSON.parse(refineText || "{}");
+    } catch {
+      this.logger?.warn({ text: refineText }, "[Ads.AI] Could not parse refined image prompt");
+      throw { code: 502, message: "AI returned an invalid prompt — try rephrasing your brief." };
+    }
+
+    // Defensive normalization: enforce required fields and safe defaults.
+    const refinedPayload = {
+      prompt: String(refined.prompt || prompt).slice(0, 2000),
+      business_name: String(refined.business_name || businessName).slice(0, 80),
+      tagline: refined.tagline ? String(refined.tagline).slice(0, 60) : "",
+      call_to_action: String(refined.call_to_action || ctx.cta_type || "LEARN_MORE"),
+      campaign_type: refined.campaign_type || "social_media_post",
+      target_audience: String(refined.target_audience || "").slice(0, 120),
+      brand_colors: Array.isArray(refined.brand_colors) && refined.brand_colors.length > 0
+        ? refined.brand_colors.slice(0, 5)
+        : ["#1A1A1A", "#FFFFFF"],
+      logo_position: refined.logo_position || "bottom-right",
+      style: ["photorealistic", "cinematic", "flat_illustration", "3d_render", "minimal"].includes(refined.style)
+        ? refined.style
+        : "photorealistic",
+      mood: String(refined.mood || "energetic and confident").slice(0, 60),
+      // Aspect ratio precedence: caller's hint (derived from placements
+      // upstream) > GPT-4o-mini's pick > 1:1 fallback. The hint is the
+      // truthful signal — the model doesn't see placement choices.
+      aspect_ratio:
+        ["1:1", "4:5", "9:16", "16:9"].includes(ctx.aspect_ratio)
+          ? ctx.aspect_ratio
+          : ["1:1", "4:5", "9:16", "16:9"].includes(refined.aspect_ratio)
+            ? refined.aspect_ratio
+            : "1:1",
+      output_format: refined.output_format === "jpeg" ? "jpeg" : "png",
+      upload_to_s3: true,
+    };
+
+    // Step 2 — call the image microservice via the shared client.
+    // The client owns the URL, timeout, abort handling, and error mapping.
+    // Microservice's documented response (ImageGenerationResponse) returns
+    // image_url, image_base64, data_url, width, height, size_bytes,
+    // final_prompt, model, token_usage. We pass the whole thing through so
+    // the frontend can use width/height for layout if it wants to.
+    const microJson = await this.aiImageClient.generate({
+      ...refinedPayload,
+      organization_id: organizationId,   // S3 key namespacing in the microservice
+    });
+
+    const imageUrl = microJson?.image_url;
+    if (!imageUrl || typeof imageUrl !== "string" || !/^https?:\/\//.test(imageUrl)) {
+      this.logger?.error({ microJson }, "[Ads.AI] microservice did not return a usable image URL");
+      throw { code: 502, message: "Image microservice did not return an image URL." };
+    }
+
+    return {
+      image_url: imageUrl,
+      generated_prompt: microJson.final_prompt || refinedPayload.prompt,
+      refined_payload: refinedPayload,
+      width: microJson.width,
+      height: microJson.height,
+      size_bytes: microJson.size_bytes,
+      mime_type: microJson.mime_type,
+      raw_microservice_response: microJson,   // surface for debugging
+    };
+  }
+
+  // Discard a previously-generated image. The microservice owns its own
+  // S3 bucket (separate from our `sunray-stellar`) and exposes
+  //   POST /api/image/reject  { image_url } → { success, deleted, key }
+  // which handles the delete with its own credentials. We delegate to
+  // AiImageMicroserviceClient.reject — it's idempotent, never throws,
+  // and translates "URL not in our bucket" (400) into a graceful
+  // {deleted:false, reason}.
+  async discardGeneratedImage(_organizationId, imageUrl) {
+    const result = await this.aiImageClient.reject(imageUrl);
+    if (result.deleted) {
+      this.logger?.info({ key: result.key }, "[Ads.AI] discarded image via microservice");
+    }
+    return result;
   }
 
   // === CAMPAIGN DETAIL (Ad Sets + Ads for a single campaign) ===
