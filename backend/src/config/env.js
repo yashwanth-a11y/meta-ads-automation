@@ -54,6 +54,16 @@ const schema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
 
+  // Trend intelligence
+  TAVILY_API_KEY: z.string().optional(),
+  PRODUCT_HUNT_TOKEN: z.string().optional(),
+  YOUTUBE_API_KEY: z.string().optional(),    // YouTube Data API v3 (free 10K units/day)
+
+  // Pipeline / scheduler
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
+  CRON_INTERVAL_HOURS: z.coerce.number().int().positive().default(6),
+  MIN_BRAND_FIT_SCORE: z.coerce.number().min(0).max(10).default(6),
+
   // X / Twitter
   X_BEARER_TOKEN: z.string().optional(),
 
