@@ -120,7 +120,7 @@ export const theme = createTheme({
     },
   },
   shape: {
-    borderRadius: 14,
+    borderRadius: 8,
   },
   components: {
     MuiCssBaseline: {
@@ -134,6 +134,7 @@ export const theme = createTheme({
     MuiPaper: {
       styleOverrides: {
         root: {
+          borderRadius: 8,
           backgroundImage: 'none',
           transition: 'box-shadow 240ms ease, transform 240ms ease, border-color 240ms ease',
         },
@@ -150,16 +151,21 @@ export const theme = createTheme({
         contained: {
           boxShadow: `0 0 0 1px ${alpha('#FFFFFF', 0.12)}, 0 8px 24px ${alpha('#000000', 0.5)}`,
           '&.MuiButton-colorPrimary': {
-            backgroundColor: '#FAFAFA',
+            backgroundColor: '#22D3EE',
+            // backgroundColor: '#FAFAFA',
             color: '#050505',
             '&:hover': {
-              backgroundColor: '#FFFFFF',
+              transform: 'translateY(-2px)',
+              transition: 'transform 200ms ease',
+              // transform: 'scale(1.02)',
+              // backgroundColor: '#FFFFFF',
               boxShadow: `0 0 0 1px ${alpha('#FFFFFF', 0.2)}, 0 12px 32px ${alpha('#000000', 0.55)}`,
             },
           },
         },
         outlined: {
           borderColor: alpha('#FFFFFF', 0.14),
+          // borderColor: alpha('#FFFFFF', 0.14),
           '&:hover': {
             borderColor: alpha('#FFFFFF', 0.28),
             backgroundColor: alpha('#FFFFFF', 0.04),
@@ -186,6 +192,13 @@ export const theme = createTheme({
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
             borderColor: alpha('#FFFFFF', 0.35),
+          },
+          '& .MuiInputBase-input:-webkit-autofill': {
+            '-webkit-text-fill-color': '#A3A3A3 !important',
+            transition: 'background-color 5000s ease-in-out 0s !important',
+            backgroundColor: 'transparent !important',
+            '-webkit-box-shadow': 'unset !important',
+            boxShadow: 'unset !important',
           },
         },
       },

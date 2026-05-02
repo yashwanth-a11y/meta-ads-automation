@@ -23,6 +23,7 @@ import {
   TrendingUpOutlined,
   VideoLibraryOutlined,
 } from '@mui/icons-material'
+import { useMemo } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo-1.svg'
 import { paths, useAuth } from '../../auth'
@@ -41,14 +42,42 @@ type SidebarProps = {
   onNavigate?: () => void
 }
 
+type StoredUser = {
+  first_name?: string
+  last_name?: string
+  email?: string
+}
+
 export function Sidebar({ onNavigate }: SidebarProps) {
-  const { logout } = useAuth()
   const navigate = useNavigate()
-  const onLogout = () => {
-    logout()
+  const user = useMemo<StoredUser | null>(() => {
+    const raw = localStorage.getItem('auth_user')
+    if (!raw) return null
+    try {
+      const parsed = JSON.parse(raw) as StoredUser
+      return typeof parsed === 'object' && parsed ? parsed : null
+    } catch {
+      return null
+    }
+  }, [])
+  const fullName = [user?.first_name?.trim(), user?.last_name?.trim()].filter(Boolean).join(' ')
+  const displayName = fullName || user?.email || 'User'
+  const initials =
+    fullName
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || (displayName[0]?.toUpperCase() ?? 'U')
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
+    sessionStorage.removeItem('auth_token')
     onNavigate?.()
-    navigate(paths.auth, { replace: true })
+    navigate(paths.auth)
   }
+
   return (
     <Stack
       component="nav"
@@ -102,6 +131,30 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             />
           </ListItemButton>
         ))}
+        <ListItemButton
+          onClick={handleLogout}
+          sx={{
+            mb: 0.5,
+            py: 1.1,
+            px: 1.25,
+            color: 'text.secondary',
+            transition: 'background-color 220ms ease, color 220ms ease, box-shadow 220ms ease',
+            '& .MuiListItemIcon-root': { color: 'text.secondary', minWidth: 40 },
+            '&:hover': {
+              bgcolor: alpha('#22D3EE', 0.06),
+              color: 'text.primary',
+              '& .MuiListItemIcon-root': { color: 'text.primary' },
+            },
+          }}
+        >
+          <ListItemIcon>
+            <LogoutOutlined fontSize="small" />
+          </ListItemIcon>
+          <ListItemText
+            primary="Logout"
+            slotProps={{ primary: { variant: 'body2', sx: { fontWeight: 600 } } }}
+          />
+        </ListItemButton>
       </List>
 
       <Divider sx={{ borderColor: alpha('#FFFFFF', 0.06), my: 1 }} />
@@ -117,14 +170,14 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             fontSize: '0.875rem',
           }}
         >
-          AJ
+          {initials}
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
-            Alex Jain
+            {displayName}
           </Typography>
           <Typography variant="caption" color="text.secondary" noWrap>
-            Founder · PhotonX
+            Logged in user
           </Typography>
         </Box>
         <Tooltip title="Settings">

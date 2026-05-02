@@ -152,6 +152,7 @@ export function AdsPage() {
 
   return (
     <Stack spacing={3}>
+    <Stack spacing={3}>
       <PageHeader
         title="Ads"
         subtitle="Create, validate, and publish Meta campaigns end-to-end."

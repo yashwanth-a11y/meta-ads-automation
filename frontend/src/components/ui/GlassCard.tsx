@@ -12,7 +12,7 @@ export function GlassCard({ glow = false, sx, children, ...rest }: GlassCardProp
       sx={{
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: 2,
+        borderRadius: '8px',
         bgcolor: (t) => alpha(t.palette.background.paper, 0.72),
         backdropFilter: 'blur(16px)',
         WebkitBackdropFilter: 'blur(16px)',

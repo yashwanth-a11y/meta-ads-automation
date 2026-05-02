@@ -52,6 +52,7 @@ export function Header({ title, onMenu }: HeaderProps) {
         </Box>
 
         <TextField
+          autoComplete="off"
           placeholder="Search campaigns, leads, creatives…"
           size="small"
           sx={{

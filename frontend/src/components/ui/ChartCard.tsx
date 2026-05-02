@@ -1,4 +1,5 @@
 import { Box, Typography } from '@mui/material'
+import type { SxProps, Theme } from '@mui/material/styles'
 import type { ReactNode } from 'react'
 import { GlassCard } from './GlassCard'
 
@@ -7,11 +8,12 @@ type ChartCardProps = {
   subtitle?: string
   children: ReactNode
   glow?: boolean
+  cardSx?: SxProps<Theme>
 }
 
-export function ChartCard({ title, subtitle, children, glow }: ChartCardProps) {
+export function ChartCard({ title, subtitle, children, glow, cardSx }: ChartCardProps) {
   return (
-    <GlassCard glow={glow} sx={{ p: 2.5 }}>
+    <GlassCard glow={glow} sx={{ p: 2.5, ...cardSx }}>
       <Typography variant="h4" sx={{ mb: 0.5 }}>
         {title}
       </Typography>
