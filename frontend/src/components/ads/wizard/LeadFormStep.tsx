@@ -8,7 +8,6 @@ import {
   IconButton,
   InputLabel,
   MenuItem,
-  Paper,
   Select,
   Stack,
   Tab,
@@ -21,6 +20,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { adsApi, ApiError, qk } from '../../../api'
 import type { LeadForm, LeadFormQuestion } from '../../../api/types'
+import { GlassCard } from '../../ui/GlassCard'
 import type { WizardForm } from './types'
 
 type Props = {
@@ -105,7 +105,7 @@ export function LeadFormStep({ leadForm, onChange }: Props) {
       )}
 
       {leadForm.mode === 'create' && leadForm.new_form && (
-        <Paper sx={{ p: 2.5, borderRadius: 2 }} variant="outlined">
+        <GlassCard sx={{ p: 2.5, borderRadius: 2 }}>
           <Stack spacing={2}>
             <TextField
               label="Form name"
@@ -263,7 +263,7 @@ export function LeadFormStep({ leadForm, onChange }: Props) {
               {createMutation.isPending ? 'Creating…' : 'Create form on Meta'}
             </Button>
           </Stack>
-        </Paper>
+        </GlassCard>
       )}
     </Stack>
   )

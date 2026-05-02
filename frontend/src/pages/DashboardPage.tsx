@@ -20,6 +20,7 @@ import {
 import { ChartCard } from '../components/ui/ChartCard'
 import { KPICard } from '../components/ui/KPICard'
 import { PageHeader } from '../components/ui/PageHeader'
+import { GlassCard } from '../components/ui/GlassCard'
 
 const lineData = [
   { name: 'Mon', value: 420 },
@@ -49,6 +50,7 @@ const stripData = [
   { label: 'Spend efficiency', value: '82%', progress: 82, trend: '+4.2%' },
   { label: 'Creative velocity', value: '19/day', progress: 68, trend: '+11.0%' },
   { label: 'Reply SLA', value: '6m', progress: 91, trend: '+2.1%' },
+  { label: 'Reply SLA', value: '6m', progress: 91, trend: '+2.1%' },
 ]
 
 export function DashboardPage() {
@@ -67,9 +69,13 @@ export function DashboardPage() {
               borderRadius: '8px',
               border: `1px solid ${alpha('#FFFFFF', 0.1)}`,
               bgcolor: '#FFFFFF',
-              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
               position: 'relative',
               overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              height: '100%',
               '&::before': {
                 content: '""',
                 position: 'absolute',
@@ -110,13 +116,13 @@ export function DashboardPage() {
           </Box>
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
-          <Box
+          <GlassCard  
             sx={{
               p: 2,
               borderRadius: '8px',
               border: `1px solid ${alpha('#FFFFFF', 0.1)}`,
               bgcolor: '#FFFFFF',
-              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
@@ -135,26 +141,21 @@ export function DashboardPage() {
             <Typography variant="caption" color="text.secondary">
               channels healthy in the last 24h
             </Typography>
-          </Box>
+          </GlassCard>
         </Grid>
       </Grid>
 
       <Grid container spacing={2}>
         {stripData.map((item) => (
-          <Grid key={item.label} size={{ xs: 12, md: 4 }}>
-            <Box
+          <Grid key={item.label} size={{ xs: 12, md: 3 }}>
+            <GlassCard
               sx={{
                 p: 2,
                 borderRadius: '8px',
                 border: `1px solid ${alpha('#FFFFFF', 0.08)}`,
                 bgcolor: '#FFFFFF',
-                boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
-                transition: 'transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease',
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  borderColor: alpha('#22D3EE', 0.5),
-                  boxShadow: `0 10px 30px ${alpha('#000', 0.35)}`,
-                },
+                boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
+                // transition: 'transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease',
               }}
             >
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -190,7 +191,7 @@ export function DashboardPage() {
                   },
                 }}
               />
-            </Box>
+            </GlassCard>
           </Grid>
         ))}
       </Grid>
@@ -231,7 +232,10 @@ export function DashboardPage() {
         </Grid>
 
         <Grid size={{ xs: 12, lg: 7 }}>
-          <ChartCard title="Performance over time" subtitle="Blended CPA and pipeline velocity" glow>
+          <ChartCard title="Performance over time" subtitle="Blended CPA and pipeline velocity" glow cardSx={{
+            bgcolor: '#FFFFFF',
+            boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`,
+          }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={lineData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid stroke="#262626" strokeDasharray="4 8" vertical={false} />
@@ -257,12 +261,8 @@ export function DashboardPage() {
             title="Campaign comparison"
             subtitle="Attributed conversions by initiative"
             cardSx={{
-              '&:hover': {
-                transform: 'none',
-                borderColor: alpha('#FFFFFF', 0.08),
-                boxShadow: `0 8px 32px ${alpha('#000000', 0.45)}`,
-                bgcolor: 'transparent',
-              },
+              bgcolor: '#FFFFFF',
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)},`
             }}
           >
             <ResponsiveContainer width="100%" height="100%">

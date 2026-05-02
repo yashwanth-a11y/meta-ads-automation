@@ -154,6 +154,7 @@ export const theme = createTheme({
           '&.MuiButton-colorPrimary': {
             backgroundColor: '#22D3EE',
             background: "#22D3EE !important",
+            transition: 'transform 260ms ease,',
             color: '#FFF !important',
             '&:hover': {
               transform: 'translateY(-2px)',

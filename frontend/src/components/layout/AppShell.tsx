@@ -19,10 +19,12 @@ const pathTitles: Record<string, string> = {
 }
 
 const SIDEBAR_WIDTH = 268
+const SIDEBAR_COLLAPSED_WIDTH = 54
 
 export function AppShell() {
   const theme = useTheme()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
@@ -43,14 +45,13 @@ export function AppShell() {
     return <Navigate to={paths.auth} replace state={{ from: location.pathname }} />
   }
 
-  const drawer = <Sidebar onNavigate={() => setMobileOpen(false)} />
-
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'background.default' }}>
       <Box
         component="aside"
         sx={{
-          width: SIDEBAR_WIDTH,
+          width: isCollapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH,
+          transition: 'width 220ms ease',
           flexShrink: 0,
           display: { xs: 'none', md: 'block' },
           position: 'fixed',
@@ -58,11 +59,11 @@ export function AppShell() {
           left: 0,
           bottom: 0,
           zIndex: theme.zIndex.drawer,
-          bgcolor: 'background.paper',
+          bgcolor: '#FFFFFF',
           borderRight: `1px solid ${alpha('#0F172A', 0.08)}`,
         }}
       >
-        {drawer}
+        <Sidebar onNavigate={() => setMobileOpen(false)} isCollapsed={isCollapsed} onToggleCollapse={() => setIsCollapsed(!isCollapsed)} />
       </Box>
 
       <Drawer
@@ -75,18 +76,19 @@ export function AppShell() {
           '& .MuiDrawer-paper': {
             width: SIDEBAR_WIDTH,
             boxSizing: 'border-box',
-            bgcolor: 'background.paper',
+            bgcolor: '#FFFFFF',
           },
         }}
       >
-        {drawer}
+        <Sidebar onNavigate={() => setMobileOpen(false)} isCollapsed={false} onToggleCollapse={() => setMobileOpen(false)} />
       </Drawer>
 
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          ml: { xs: 0, md: `${SIDEBAR_WIDTH}px` },
+          ml: { xs: 0, md: isCollapsed ? `${SIDEBAR_COLLAPSED_WIDTH}px` : `${SIDEBAR_WIDTH}px` },
+          transition: 'margin-left 220ms ease',
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,

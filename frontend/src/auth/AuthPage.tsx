@@ -6,7 +6,6 @@ import {
   IconButton,
   InputAdornment,
   Link,
-  Paper,
   Stack,
   TextField,
   ToggleButton,
@@ -22,6 +21,7 @@ import PersonOutlineOutlinedIcon from '@mui/icons-material/PersonOutlineOutlined
 import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { GlassCard } from '../components/ui/GlassCard'
 import { paths } from './constants'
 import logo from '../assets/logo.svg'
 
@@ -262,8 +262,7 @@ export function AuthPage() {
           <Typography
             variant="overline"
             sx={{
-              color: '#22D3EE',
-              // ...gradientTextSx,
+              ...gradientTextSx,
               fontWeight: 800,
               letterSpacing: '0.35em',
               fontSize: '0.8125rem',
@@ -398,8 +397,7 @@ export function AuthPage() {
             78% healthy campaigns
           </Typography>
         </Box> */}
-        <Paper
-          elevation={0}
+        <GlassCard
           sx={{
             position: 'relative',
             zIndex: 1,
@@ -662,6 +660,28 @@ export function AuthPage() {
                     type={showSignupPass ? 'text' : 'password'}
                     placeholder="Minimum 8 characters"
                     value={signupPassword}
+                    onChange={(e) => {
+                      clearSignupError()
+                      setSignupPassword(e.target.value)
+                    }}
+                    slotProps={inputSlotProps(
+                      <LockOutlinedIcon fontSize="small" />,
+                      <InputAdornment position="end">
+                        <IconButton
+                          edge="end"
+                          onClick={() => setShowSignupPass((v) => !v)}
+                          sx={{ color: auth.accentTo }}
+                        >
+                          {showSignupPass ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                        </IconButton>
+                      </InputAdornment>,
+                    )}
+                    error={signupPassword.length > 0 && !signupPassOk}
+                    helperText={
+                      signupPassword.length > 0 && !signupPassOk
+                        ? 'At least 8 characters, with at least one letter and one digit'
+                        : ' '
+                    }
                   />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
@@ -672,6 +692,24 @@ export function AuthPage() {
                     type={showConfirmPass ? 'text' : 'password'}
                     placeholder="Re-enter password"
                     value={confirmPassword}
+                    onChange={(e) => {
+                      clearSignupError()
+                      setConfirmPassword(e.target.value)
+                    }}
+                    slotProps={inputSlotProps(
+                      <LockOutlinedIcon fontSize="small" />,
+                      <InputAdornment position="end">
+                        <IconButton
+                          edge="end"
+                          onClick={() => setShowConfirmPass((v) => !v)}
+                          sx={{ color: auth.accentTo }}
+                        >
+                          {showConfirmPass ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                        </IconButton>
+                      </InputAdornment>,
+                    )}
+                    error={confirmPassword.length > 0 && !passwordsMatch}
+                    helperText={confirmPassword.length > 0 && !passwordsMatch ? 'Passwords must match' : ' '}
                   />
                 </Grid>
               </Grid>
@@ -704,7 +742,7 @@ export function AuthPage() {
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt:2 }}>
             © {new Date().getFullYear()} PhotonX GrowthOS - Virlo. All rights reserved.
           </Typography>
-        </Paper>
+        </GlassCard>
       </Grid>
     </Grid>
   )

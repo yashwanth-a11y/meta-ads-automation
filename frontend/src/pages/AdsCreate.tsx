@@ -4,7 +4,6 @@ import {
   Box,
   Button,
   CircularProgress,
-  Paper,
   Stack,
   Step,
   StepButton,
@@ -23,6 +22,7 @@ import { CreativeStep } from '../components/ads/wizard/CreativeStep'
 import { LeadFormStep } from '../components/ads/wizard/LeadFormStep'
 import { ObjectiveStep } from '../components/ads/wizard/ObjectiveStep'
 import { ReviewStep } from '../components/ads/wizard/ReviewStep'
+import { GlassCard } from '../components/ui/GlassCard'
 import { aiResultToWizardForm, DEFAULT_FORM, type WizardForm } from '../components/ads/wizard/types'
 
 type StepKey = 'objective' | 'audience' | 'budget' | 'creative' | 'leadform' | 'review'
@@ -205,11 +205,10 @@ export function AdsCreatePage() {
         ))}
       </Stepper>
 
-      <Paper sx={{ p: { xs: 2, sm: 3 },
+      <GlassCard sx={{ p: { xs: 2, sm: 3 },
       mt: 2,
-          // border: "1px solid #dddddd57",
         "&:hover": {
-          boxShadow: `0 8px 32px ${alpha('#000000', 0.45)}`,
+          boxShadow: `0 14px 30px ${alpha('#0F172A', 0.12)}, 0 0 50px ${alpha('#22D3EE', 0.08)}`,
           bgcolor: 'transparent',
         },
       }}>
@@ -275,7 +274,7 @@ export function AdsCreatePage() {
             <Button onClick={() => navigate(paths.ads)} color="inherit">Cancel</Button>
           )}
         </Box>
-      </Paper>
+      </GlassCard>
 
       <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
         Connected: {setup?.ad_account_name || setup?.ad_account_id} · {setup?.page_name || setup?.page_id}

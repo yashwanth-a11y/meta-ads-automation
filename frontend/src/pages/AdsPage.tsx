@@ -2,8 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Chip,
   CircularProgress,
   Dialog,
@@ -13,7 +11,6 @@ import {
   IconButton,
   Menu,
   MenuItem,
-  Paper,
   Stack,
   Tooltip,
   Typography,
@@ -34,6 +31,7 @@ import type { CampaignSummary } from '../api/types'
 import { paths } from '../auth/constants'
 import { PageHeader } from '../components/ui/PageHeader'
 import { StatusBadge } from '../components/ads/StatusBadge'
+import { GlassCard } from '../components/ui/GlassCard'
 
 function formatMoney(amount?: number | string | null, currency?: string | null) {
   if (amount === null || amount === undefined || amount === '') return '—'
@@ -133,7 +131,7 @@ export function AdsPage() {
     return (
       <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
         <PageHeader title="Ads" subtitle="Connect Meta to start launching campaigns from GrowthOS." />
-        <Paper sx={{ p: 4, borderRadius: 3, textAlign: 'center' }}>
+        <GlassCard sx={{ p: 4, borderRadius: 3, textAlign: 'center' }}>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>No Meta account connected</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Sign in with Facebook to choose an ad account and Page.
@@ -141,7 +139,7 @@ export function AdsPage() {
           <Button variant="contained" onClick={() => navigate(paths.adsSetup)}>
             Connect Meta
           </Button>
-        </Paper>
+        </GlassCard>
       </Stack>
     )
   }
@@ -170,13 +168,7 @@ export function AdsPage() {
       />
 
       {/* Account header */}
-      <Paper sx={{ p: 2.5, border: '1px solid', borderColor: alpha('#FFFFFF', 0.08),
-        "&:hover": {
-          borderColor: alpha('#FFFFFF', 0.14),
-          boxShadow: `0 8px 32px ${alpha('#000000', 0.45)}`,
-          bgcolor: 'transparent',
-        },
-       }}>
+      <GlassCard sx={{ p: 2.5 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="overline" color="text.secondary">Connected to</Typography>
@@ -202,7 +194,7 @@ export function AdsPage() {
             </Stack>
           </Box>
         </Stack>
-      </Paper>
+      </GlassCard>
 
       {campaignsQuery.isLoading && (
         <Stack sx={{ alignItems: 'center', py: 6 }}>
@@ -215,7 +207,7 @@ export function AdsPage() {
       )}
 
       {!campaignsQuery.isLoading && campaigns.length === 0 && (
-        <Paper sx={{ p: 4, borderRadius: 3, textAlign: 'center' }}>
+        <GlassCard sx={{ padding:"30px 15px" ,textAlign: 'center' }}>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>No campaigns yet</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Build and publish your first ad to Meta in a few minutes.
@@ -223,7 +215,7 @@ export function AdsPage() {
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate(paths.adsCreate)}>
             Create your first campaign
           </Button>
-        </Paper>
+        </GlassCard>
       )}
 
       {campaigns.length > 0 && (
@@ -294,8 +286,8 @@ function CampaignRow({
 
   return (
     <>
-      <Card sx={{ borderRadius: 3, bgcolor: (t) => alpha(t.palette.background.paper, 0.6) }}>
-        <CardContent sx={{ '&:last-child': { pb: 2 }, py: 2 }}>
+      <GlassCard sx={{ borderRadius: 3, bgcolor: (t) => alpha(t.palette.background.paper, 0.94) }}>
+        <Box sx={{ py: 2 }}>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'center' } }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 0.5 }}>
@@ -344,8 +336,8 @@ function CampaignRow({
               {actionError}
             </Alert>
           )}
-        </CardContent>
-      </Card>
+        </Box>
+      </GlassCard>
 
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
         <MenuItem
