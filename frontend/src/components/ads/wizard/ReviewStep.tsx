@@ -143,12 +143,28 @@ export function ReviewStep({ form, onPublishComplete }: Props) {
 
           {validateOk && (
             <Stack spacing={1} sx={{ mt: 2 }}>
-              {STEPS.map((s) => (
-                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }} key={s}>
-                  <CheckCircleOutlineIcon color="success" fontSize="small" />
-                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>{s}</Typography>
-                </Stack>
-              ))}
+              {STEPS.map((s) => {
+                const wasValidated = (validateResult as { validated?: string[] }).validated?.includes(s)
+                return (
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }} key={s}>
+                    <CheckCircleOutlineIcon
+                      color={wasValidated ? 'success' : 'disabled'}
+                      fontSize="small"
+                    />
+                    <Typography
+                      variant="body2"
+                      sx={{ textTransform: 'capitalize', color: wasValidated ? 'text.primary' : 'text.secondary' }}
+                    >
+                      {s}{!wasValidated && ' (validates at publish)'}
+                    </Typography>
+                  </Stack>
+                )
+              })}
+              {(validateResult as { note?: string }).note && (
+                <Alert severity="info" variant="outlined" sx={{ mt: 1 }}>
+                  {(validateResult as { note: string }).note}
+                </Alert>
+              )}
               {warnings.length > 0 && (
                 <Alert severity="warning" sx={{ mt: 1 }}>
                   <Stack spacing={0.5}>

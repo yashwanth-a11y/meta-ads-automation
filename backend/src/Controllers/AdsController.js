@@ -173,10 +173,9 @@ export class AdsController {
       const statusCode = (typeof error.code === "number" && error.code >= 100 && error.code < 600)
         ? error.code
         : (error.response?.status || 500);
-      const metaError = error.response?.data?.error || error.message || error;
+
       console.error("[CreateCampaign] Full error:", JSON.stringify(error, null, 2));
-      console.error("[CreateCampaign] Meta error:", JSON.stringify(metaError, null, 2));
-      this.logger.error("Create campaign failed:", metaError);
+      this.logger.error({ err: error?.message, sub: error?.metaErrorSubcode, step: error?.step }, "Create campaign failed");
 
       // Return actionable error messages for known Meta error subcodes
       if (error.metaErrorSubcode === 2446886) {
@@ -186,9 +185,27 @@ export class AdsController {
         });
       }
 
+      // Prefer Meta's user-facing message (e.g. "Budget is too low: must be
+      // more than ₹93.36") over the bland top-level "Invalid parameter".
+      // `error.message` is already composed by MetaAdsApiService._request to
+      // be "<userTitle>: <userMsg>" when both are present.
+      const userMessage =
+        error.metaErrorUserMsg
+          ? (error.metaErrorUserTitle && !error.metaErrorUserMsg.toLowerCase().includes(String(error.metaErrorUserTitle).toLowerCase())
+              ? `${error.metaErrorUserTitle}: ${error.metaErrorUserMsg}`
+              : error.metaErrorUserMsg)
+          : error.message || "Failed to create campaign";
+
       return reply.status(statusCode).send({
         success: false,
-        error: typeof metaError === "string" ? metaError : (metaError.message || "Failed to create campaign"),
+        error: userMessage,
+        details: {
+          step: error.step,
+          field: error.field,
+          meta_error_code: error.metaErrorCode,
+          meta_error_subcode: error.metaErrorSubcode,
+          fbtrace_id: error.metaErrorFbtraceId,
+        },
       });
     }
   }

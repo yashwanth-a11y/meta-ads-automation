@@ -211,7 +211,15 @@ export type CreateCampaignResult = CampaignSummary & {
 }
 
 export type ValidateCampaignResult =
-  | { ok: true; validated: ('campaign' | 'adset' | 'creative' | 'ad')[]; warnings?: string[] }
+  | {
+      ok: true
+      validated: ('campaign' | 'adset' | 'creative' | 'ad')[]
+      warnings?: string[]
+      // Backend explanation of WHAT was validated and WHAT defers to publish
+      // (Meta's validate_only doesn't return parent ids, so we can only
+      // dry-run the campaign step end-to-end).
+      note?: string
+    }
   | {
       ok: false
       step: 'campaign' | 'adset' | 'creative' | 'ad' | 'preflight'

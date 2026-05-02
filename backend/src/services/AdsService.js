@@ -873,42 +873,52 @@ export class AdsService {
       if (!dryRun) created.push({ kind: "campaign", id: metaCampaignId });
       validatedSteps.push("campaign");
 
-      // STEP 2 — ad set (only if campaign returned an id; on validate_only Meta
-      // returns {success: true} with no id, so we can't chain. We still want
-      // to validate the adset/creative/ad shapes — do so against a dummy id.)
+      // Dry-run short-circuit: Meta's validate_only returns { success: true }
+      // with no `id`, so we can't chain the next step's validation against
+      // a parent that doesn't exist (placeholder "0" gets rejected with
+      // "Invalid id: 0"). The campaign-level validation is still useful —
+      // it catches objective + special_ad_categories + name issues, which
+      // are the most common failure modes. Adset/creative/ad get validated
+      // at real publish, with cleanup-on-failure if any step fails.
+      if (dryRun) {
+        return {
+          ok: true,
+          validated: validatedSteps,
+          note:
+            "Meta validate_only only verifies the campaign step end-to-end. " +
+            "Ad set, creative, and ad are validated at publish time (cleanup runs on failure).",
+        };
+      }
+
+      // STEP 2 — ad set
       const adsetParams = {
         ...adset,
-        campaign_id: metaCampaignId || "0",
-        ...(execOptions ? { execution_options: execOptions } : {}),
+        campaign_id: metaCampaignId,
       };
       const adsetResp = await metaApi.createAdSet(account.ad_account_id, adsetParams);
       const metaAdsetId = adsetResp?.id;
-      if (!dryRun) created.push({ kind: "adset", id: metaAdsetId });
+      created.push({ kind: "adset", id: metaAdsetId });
       validatedSteps.push("adset");
 
       // STEP 3 — ad creative
       const creativeResp = await metaApi.createAdCreative(account.ad_account_id, {
         ...resolved.creative,
-        ...(execOptions ? { execution_options: execOptions } : {}),
       });
       const metaCreativeId = creativeResp?.id;
-      if (!dryRun) created.push({ kind: "creative", id: metaCreativeId });
+      created.push({ kind: "creative", id: metaCreativeId });
       validatedSteps.push("creative");
 
       // STEP 4 — ad
       const adResp = await metaApi.createAd(account.ad_account_id, {
         ...resolved.ad,
-        adset_id: metaAdsetId || "0",
-        creative_id: metaCreativeId || "0",
-        ...(execOptions ? { execution_options: execOptions } : {}),
+        adset_id: metaAdsetId,
+        creative_id: metaCreativeId,
       });
       const metaAdId = adResp?.id;
-      if (!dryRun) created.push({ kind: "ad", id: metaAdId });
+      created.push({ kind: "ad", id: metaAdId });
       validatedSteps.push("ad");
 
-      if (dryRun) {
-        return { ok: true, validated: validatedSteps };
-      }
+      // (dryRun returned earlier — code path below is real-create only.)
 
       // Persist mirror row
       const campaign = await this.campaignRepo.create({
@@ -971,13 +981,20 @@ export class AdsService {
           }
         }
       }
-      // Tag with the failed step so the wizard's review screen can show it
+      // Tag with the failed step so the wizard's review screen can show it.
+      // We forward Meta's user-facing fields verbatim so the controller can
+      // surface "Budget is too low: must be more than ₹93.36" instead of
+      // the useless top-level "Invalid parameter".
       const failedStep = validatedSteps.length < 4 ? ["campaign","adset","creative","ad"][validatedSteps.length] : "publish";
       throw {
         code: err?.code || 500,
         message: err?.message || "Failed to create campaign",
         metaErrorCode: err?.metaErrorCode,
         metaErrorSubcode: err?.metaErrorSubcode,
+        metaErrorUserTitle: err?.metaErrorUserTitle,
+        metaErrorUserMsg: err?.metaErrorUserMsg,
+        metaErrorFbtraceId: err?.metaErrorFbtraceId,
+        field: err?.field,
         step: failedStep,
       };
     }
@@ -1004,15 +1021,24 @@ export class AdsService {
     }
     try {
       const result = await this._createCampaignForObjective(organizationId, data, { dryRun: true });
-      return { ok: true, validated: result.validated || ["campaign","adset","creative","ad"] };
+      return {
+        ok: true,
+        validated: result.validated || ["campaign"],
+        ...(result.note ? { note: result.note } : {}),
+      };
     } catch (err) {
+      // Prefer Meta's `error_user_msg` (with title prefix) over the bland
+      // top-level "Invalid parameter". `err.message` is already composed
+      // that way by MetaAdsApiService._request.
       return {
         ok: false,
         step: err?.step || "preflight",
         error: {
           code: err?.metaErrorCode || err?.code || 500,
-          user_message: err?.message || "Validation failed",
+          user_message: err?.metaErrorUserMsg || err?.message || "Validation failed",
+          title: err?.metaErrorUserTitle,
           field: err?.field,
+          fbtrace_id: err?.metaErrorFbtraceId,
         },
       };
     }

@@ -85,15 +85,33 @@ export const adsApi = {
   // --- Image upload ---
   uploadAdImage: (imageUrl: string) =>
     post<ImageUploadResult>('/ads/upload-image', { image_url: imageUrl }),
-  uploadAdImageFile: (file: File) => {
+  // Backend forwards Meta's raw response, which is nested:
+  //   { images: { "<filename>": { hash, url, width, height, ... } } }
+  // We flatten it here so callers always see the friendlier shape:
+  //   { hash, url, width, height }
+  // (If the backend ever flattens this server-side later, this code still
+  // works — it just falls through to the already-flat object.)
+  uploadAdImageFile: async (file: File): Promise<ImageUploadResult> => {
     const formData = new FormData()
     formData.append('file', file)
-    return unwrap<ImageUploadResult>(
+    const raw = await unwrap<
+      | ImageUploadResult
+      | { images: Record<string, ImageUploadResult & { name?: string }> }
+    >(
       http.post('/ads/upload-image-file', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 120_000,
       }),
     )
+    if (raw && typeof raw === 'object' && 'images' in raw && raw.images) {
+      const first = Object.values(raw.images)[0]
+      if (!first?.hash) {
+        throw new Error('Upload succeeded but Meta did not return an image hash.')
+      }
+      return first
+    }
+    if ((raw as ImageUploadResult)?.hash) return raw as ImageUploadResult
+    throw new Error('Upload succeeded but the response did not contain an image hash.')
   },
 
   // --- Misc ---

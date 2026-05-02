@@ -63,11 +63,42 @@ export class MetaAdsApiService {
           continue;
         }
 
+        // Surface Meta's user-friendly fields when present. `error_user_msg`
+        // is the message Meta wants you to show to the *advertiser* (e.g.
+        // "Your ad set budget must be more than ₹93.36"). It's far more
+        // actionable than the top-level `message` field ("Invalid parameter").
+        const userMsg = metaError?.error_user_msg || null;
+        const userTitle = metaError?.error_user_title || null;
+        // Compose a final message: prefer the user-facing one, but include
+        // the title as a prefix so the surfaced text reads naturally.
+        const composed = userMsg
+          ? userTitle && !userMsg.toLowerCase().includes(userTitle.toLowerCase())
+            ? `${userTitle}: ${userMsg}`
+            : userMsg
+          : metaError?.message || error.message;
+
+        // Try to extract the offending field name from `error_data.blame_field_specs`.
+        // Meta returns it as a JSON string; defensively try to parse it.
+        let blameField = null;
+        try {
+          const ed = metaError?.error_data;
+          const parsed = typeof ed === "string" ? JSON.parse(ed) : ed;
+          const specs = parsed?.blame_field_specs;
+          if (Array.isArray(specs) && Array.isArray(specs[0])) {
+            blameField = specs[0][0] || null;
+          }
+        } catch { /* best-effort, keep null */ }
+
         throw {
           code: status || 500,
-          message: metaError?.message || error.message,
+          message: composed,
+          rawMessage: metaError?.message || error.message,
           metaErrorCode: metaError?.code,
           metaErrorSubcode: metaError?.error_subcode,
+          metaErrorUserTitle: userTitle,
+          metaErrorUserMsg: userMsg,
+          metaErrorFbtraceId: metaError?.fbtrace_id,
+          field: blameField,
         };
       }
     }
