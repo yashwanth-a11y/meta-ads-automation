@@ -89,7 +89,6 @@ export function AppShell() {
           <Outlet />
         </Box>
       </Box>
-
       <AIAssistantFab />
     </Box>
   )
