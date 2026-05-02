@@ -18,7 +18,7 @@ export function ChartCard({ title, subtitle, children, glow, cardSx }: ChartCard
         {title}
       </Typography>
       {subtitle ? (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+        <Typography variant="subtitle1" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
           {subtitle}
         </Typography>
       ) : (

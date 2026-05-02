@@ -101,11 +101,11 @@ export function ObjectiveStep({ value, onChange, hasWaba, onAiGenerate, aiLoadin
               <Box sx={{ flex: 1 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                   <AutoAwesomeIcon color="primary" fontSize="small" />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                     Generate with AI
                   </Typography>
                 </Stack>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="subtitle1" color="text.secondary">
                   Describe your ad in one sentence and we'll fill in the objective, audience, budget and copy.
                 </Typography>
               </Box>
@@ -204,7 +204,7 @@ export function ObjectiveStep({ value, onChange, hasWaba, onAiGenerate, aiLoadin
         </Card>
       )}
 
-      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
         What is the goal of this campaign?
       </Typography>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -225,10 +225,10 @@ export function ObjectiveStep({ value, onChange, hasWaba, onAiGenerate, aiLoadin
               <CardActionArea disabled={disabled} onClick={() => onChange(o.key)} sx={{ p: 2.5, height: '100%' }}>
                 <Stack spacing={1.5}>
                   <Box sx={{ color: selected ? 'primary.main' : 'text.secondary' }}>{o.icon}</Box>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  <Typography variant="subtitle2">
                     {o.title}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="subtitle1" color="text.secondary">
                     {o.description}
                   </Typography>
                   {disabled && (

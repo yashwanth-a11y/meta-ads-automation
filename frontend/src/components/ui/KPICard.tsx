@@ -15,14 +15,14 @@ export function KPICard({ title, value, delta, icon, glow }: KPICardProps) {
     <GlassCard glow={glow} sx={{ p: 2.5, height: '100%' }}>
       <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+          <Typography variant="subtitle1" color="text.secondary" sx={{ fontWeight: 600 }}>
             {title}
           </Typography>
           <Typography variant="h4" sx={{ mt: 1, fontWeight: 700, letterSpacing: '-0.03em' }}>
             {value}
           </Typography>
           {delta ? (
-            <Typography variant="caption" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
+            <Typography variant="subtitle1" sx={{ mt: 1, display: 'block', color: 'success.main' }}>
               {delta}
             </Typography>
           ) : null}

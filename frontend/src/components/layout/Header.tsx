@@ -47,7 +47,7 @@ export function Header({ title, onMenu }: HeaderProps) {
           <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.12em', fontSize: '0.65rem' }}>
             Workspace
           </Typography>
-          <Typography variant="h4" component="p" sx={{ fontWeight: 700, letterSpacing: '-0.02em' }}>
+          <Typography variant="h4" component="p" sx={{ letterSpacing: '-0.02em' }}>
             {title}
           </Typography>
         </Box>

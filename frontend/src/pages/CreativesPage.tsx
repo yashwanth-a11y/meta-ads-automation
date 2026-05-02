@@ -31,7 +31,7 @@ export function CreativesPage() {
             {generating ? (
               <SkeletonBlock lines={5} />
             ) : (
-              <Typography variant="body2" sx={{ mt: 1, mb: 3, whiteSpace: 'pre-line' }}>
+              <Typography variant="body1" sx={{ mt: 1, mb: 3, whiteSpace: 'pre-line' }}>
                 {`Hook: You’re not bad at ads — your angles are expired.\n\nBody: In 48 hours we rebuilt creative velocity with PhotonX: hooks sourced from live trends, captions matched to tone, and variants scaled automatically.\n\nCTA: Tap to see the workflow founders use before they scale spend.`}
               </Typography>
             )}
@@ -42,7 +42,7 @@ export function CreativesPage() {
             {generating ? (
               <GeneratingIndicator variant="shimmer" />
             ) : (
-              <Typography variant="body2" sx={{ mt: 1, mb: 3 }}>
+              <Typography variant="body1" sx={{ mt: 1, mb: 3 }}>
                 “Stop guessing angles — ship the ones the feed already rewards.”
               </Typography>
             )}
@@ -53,7 +53,7 @@ export function CreativesPage() {
             {generating ? (
               <GeneratingIndicator label="Polishing caption" />
             ) : (
-              <Typography variant="body2" sx={{ mt: 1 }}>
+              <Typography variant="body1" sx={{ mt: 1 }}>
                 PhotonX turns trend signal into creative drafts your team can approve in minutes — built
                 for founders who want speed without sacrificing brand voice.
               </Typography>

@@ -142,12 +142,13 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
                 borderRadius: "8px",
                 mb: 0.5,
                 py: 1.1,
+                fontSize:"14px !important",
                 px: isCollapsed ? 1 : 1.5,
                 justifyContent: isCollapsed ? 'center' : 'flex-start',
-                color: '#475569', // Slate 600
+                // color: '#475569', // Slate 600
                 transition: 'all 220ms ease',
                 '& .MuiListItemIcon-root': { 
-                  color: '#475569', 
+                  // color: '#475569', 
                   minWidth: isCollapsed ? 0 : 40,
                   justifyContent: 'center',
                 },
@@ -170,7 +171,7 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
               {!isCollapsed && (
                 <ListItemText
                   primary={label}
-                  slotProps={{ primary: { variant: 'body2', sx: { fontWeight: 600 } } }}
+                  slotProps={{ primary: { variant: 'subtitle1', sx: { fontWeight: 600 } } }}
                 />
               )}
             </ListItemButton>
@@ -205,7 +206,7 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
             {!isCollapsed && (
               <ListItemText
                 primary="Logout"
-                slotProps={{ primary: { variant: 'body2', sx: { fontWeight: 600 } } }}
+                slotProps={{ primary: { variant: 'subtitle1', sx: { fontWeight: 600 } } }}
               />
             )}
           </ListItemButton>
@@ -217,7 +218,7 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
       <Stack 
         direction={isCollapsed ? "column" : "row"} 
         spacing={1.25} 
-        sx={{ px: isCollapsed ? 0.5 : 1, py: 1, alignItems: 'center' }}
+        sx={{ px: isCollapsed ? 0.5 : 1, pt: 1, alignItems: 'flex-start' }}
       >
         <Tooltip title={isCollapsed ? displayName : ''} placement="right" arrow disableHoverListener={!isCollapsed}>
           <Avatar
@@ -236,10 +237,10 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
         </Tooltip>
         {!isCollapsed && (
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="body2" noWrap sx={{ color: '#0F172A', fontWeight: 600 }}>
+            <Typography variant="subtitle1" noWrap sx={{ color: '#0F172A', fontWeight: 600 }}>
               {displayName}
             </Typography>
-            <Typography variant="caption" sx={{ color: '#64748B' }} noWrap>
+            <Typography variant="subtitle2" sx={{ color: '#64748B' }} noWrap>
               Logged in user
             </Typography>
           </Box>
@@ -258,7 +259,7 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
             <SettingsOutlined fontSize="small" />
           </IconButton>
         </Tooltip>
-        <Tooltip title="Sign out" placement={isCollapsed ? "right" : "top"} arrow>
+        {/* <Tooltip title="Sign out" placement={isCollapsed ? "right" : "top"} arrow>
           <IconButton
             size="small"
             onClick={handleLogout}
@@ -269,7 +270,7 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
           >
             <LogoutOutlined fontSize="small" />
           </IconButton>
-        </Tooltip>
+        </Tooltip> */}
       </Stack>
     </Stack>
   )

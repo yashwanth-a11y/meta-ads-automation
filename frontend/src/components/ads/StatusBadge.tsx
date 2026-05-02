@@ -44,7 +44,7 @@ export function StatusBadge({ status, effectiveStatus, reason }: Props) {
       label={variant.label}
       color={variant.color}
       variant={variant.variant}
-      sx={{ fontWeight: 700 }}
+      sx={{ fontWeight: 700, borderRadius: '4px' }}
     />
   )
   return tip ? <Tooltip title={tip} arrow>{chip}</Tooltip> : chip

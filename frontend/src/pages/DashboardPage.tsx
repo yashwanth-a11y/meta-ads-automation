@@ -109,7 +109,7 @@ export function DashboardPage() {
                   fontWeight: 700,
                 }}
               />
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="subtitle1" color="text.secondary">
                 Live optimization is active across 12 ad sets with stable CPA and rising conversion quality.
               </Typography>
             </Stack>
@@ -131,14 +131,14 @@ export function DashboardPage() {
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <BoltOutlinedIcon sx={{ color: '#22D3EE', fontSize: 18 }} />
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="body1" color="text.secondary">
                 Sync pulse
               </Typography>
             </Stack>
             <Typography variant="h4" sx={{ mt: 0.5 }}>
               99.3%
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="body1" color="text.secondary">
               channels healthy in the last 24h
             </Typography>
           </GlassCard>
@@ -159,7 +159,7 @@ export function DashboardPage() {
               }}
             >
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="subtitle1" color="text.secondary">
                   {item.label}
                 </Typography>
                 <Chip

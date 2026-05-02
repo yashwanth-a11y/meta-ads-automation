@@ -219,7 +219,17 @@ export function AdsPage() {
       )}
 
       {campaigns.length > 0 && (
-        <Stack spacing={1.5}>
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 2,
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              md: 'repeat(3, minmax(0, 1fr))',
+            },
+          }}
+        >
           {campaigns.map((c) => (
             <CampaignRow
               key={c.id}
@@ -230,7 +240,7 @@ export function AdsPage() {
               }}
             />
           ))}
-        </Stack>
+        </Box>
       )}
     </Stack>
   )
@@ -286,61 +296,92 @@ function CampaignRow({
 
   return (
     <>
-      <GlassCard sx={{ borderRadius: 3, bgcolor: (t) => alpha(t.palette.background.paper, 0.94) }}>
-        <Box sx={{ py: 2 }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'center' } }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 0.5 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
-                  {campaign.name}
-                </Typography>
-                <StatusBadge status={campaign.status} effectiveStatus={campaign.effective_status} />
-              </Stack>
-              <Typography variant="caption" color="text.secondary">
-                {summaryLine}
+      <GlassCard
+        sx={{
+          bgcolor: (t) => alpha(t.palette.background.paper, 0.94),
+          height: '100%',
+          display: 'flex',
+        }}
+      >
+        <Stack spacing={1} sx={{ p: 2.5, flex: 1, minWidth: 0 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}
+          >
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                variant="subtitle1"
+                sx={{ fontWeight: 700, mb: 1.5 }}
+                noWrap
+                title={campaign.name}
+              >
+                {campaign.name}
               </Typography>
+              <StatusBadge
+                status={campaign.status}
+                effectiveStatus={campaign.effective_status}
+              />
             </Box>
+            <IconButton
+              size="small"
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              sx={{ mt: -0.5, mr: -0.5 }}
+            >
+              <MoreVertIcon fontSize="small" />
+            </IconButton>
+          </Stack>
 
-            <Stack direction="row" spacing={1}>
-              {campaign.meta_campaign_id && (
-                <Chip
+          <Typography variant="caption" color="text.secondary">
+            {summaryLine}
+          </Typography>
+
+          <Box sx={{ flex: 1 }} />
+
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            {campaign.meta_campaign_id ? (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`Meta · ${campaign.meta_campaign_id.slice(-8)}`}
+                sx={{ maxWidth: '60%' }}
+              />
+            ) : (
+              <Box />
+            )}
+            <Tooltip title={isActive ? 'Pause' : 'Resume'}>
+              <span>
+                <IconButton
                   size="small"
-                  variant="outlined"
-                  label={`Meta ID ${campaign.meta_campaign_id.slice(-8)}`}
-                />
-              )}
-              <Tooltip title={isActive ? 'Pause' : 'Resume'}>
-                <span>
-                  <IconButton
-                    size="small"
-                    color={isActive ? 'warning' : 'success'}
-                    onClick={() => toggleMutation.mutate()}
-                    disabled={toggleMutation.isPending || !campaign.meta_campaign_id}
-                  >
-                    {isActive ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <IconButton size="small" onClick={(e) => setAnchorEl(e.currentTarget)}>
-                <MoreVertIcon fontSize="small" />
-              </IconButton>
-            </Stack>
+                  color={isActive ? 'warning' : 'success'}
+                  onClick={() => toggleMutation.mutate()}
+                  disabled={toggleMutation.isPending || !campaign.meta_campaign_id}
+                >
+                  {isActive ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+                </IconButton>
+              </span>
+            </Tooltip>
           </Stack>
 
           {actionError && (
-            <Alert
-              severity="error"
-              onClose={() => setActionError(null)}
-              sx={{ mt: 1.5 }}
-            >
+            <Alert severity="error" onClose={() => setActionError(null)}>
               {actionError}
             </Alert>
           )}
-        </Box>
+        </Stack>
       </GlassCard>
 
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} sx={{
+        
+      }}>
         <MenuItem
+        sx={{
+          color: '#0F172A',
+        }}
           onClick={() => {
             if (campaign.meta_campaign_id) {
               window.open(
@@ -352,15 +393,17 @@ function CampaignRow({
           }}
           disabled={!campaign.meta_campaign_id}
         >
-          <OpenInNewIcon fontSize="small" sx={{ mr: 1 }} /> Open in Ads Manager
+           Open in Ads Manager
         </MenuItem>
-        <MenuItem
+        <MenuItem  sx={{
+          color: '#0F172A',
+        }}
           onClick={() => {
             setAnchorEl(null)
             setConfirmDelete(true)
           }}
         >
-          <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} /> Delete
+           Delete
         </MenuItem>
       </Menu>
 

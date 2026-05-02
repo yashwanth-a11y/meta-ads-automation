@@ -1,4 +1,65 @@
+import type * as React from 'react'
 import { createTheme, alpha } from '@mui/material/styles'
+
+const BaseFontStack = [
+  "'Raleway'",
+  '-apple-system',
+  'BlinkMacSystemFont',
+  '"Segoe UI"',
+  '"Helvetica Neue"',
+  'Arial',
+  'sans-serif',
+  '"Apple Color Emoji"',
+  '"Segoe UI Emoji"',
+  '"Segoe UI Symbol"',
+].join(',')
+
+export const SecondaryFontStack = BaseFontStack
+
+export const fontWeightStyles = {
+  regular: { fontWeight: 400 },
+  medium: { fontWeight: 500 },
+  semiBold: { fontWeight: 600 },
+  bold: { fontWeight: 700 },
+}
+
+export const fontStyles = {
+  b36: { ...fontWeightStyles.bold, fontSize: '36px', lineHeight: '60px' },
+  b30: { ...fontWeightStyles.bold, fontSize: '30px', lineHeight: '30px' },
+  b24: { ...fontWeightStyles.bold, fontSize: '24px', lineHeight: '28px' },
+  b20: { ...fontWeightStyles.bold, fontSize: '20px', lineHeight: '24px' },
+  b18: { ...fontWeightStyles.bold, fontSize: '18px', lineHeight: '22px' },
+  b16: { ...fontWeightStyles.bold, fontSize: '16px', lineHeight: '20px' },
+  b14: { ...fontWeightStyles.bold, fontSize: '14px', lineHeight: '20px' },
+  b12: { ...fontWeightStyles.bold, fontSize: '12px', lineHeight: '18px' },
+
+  sb30: { ...fontWeightStyles.semiBold, fontSize: '30px', lineHeight: '40px' },
+  sb24: { ...fontWeightStyles.semiBold, fontSize: '24px', lineHeight: '24px' },
+  sb20: { ...fontWeightStyles.semiBold, fontSize: '20px', lineHeight: '26px' },
+  sb18: { ...fontWeightStyles.semiBold, fontSize: '18px', lineHeight: '24px' },
+  sb16: { ...fontWeightStyles.semiBold, fontSize: '16px', lineHeight: '21px' },
+  sb14: { ...fontWeightStyles.semiBold, fontSize: '14px', lineHeight: '24px' },
+  sb12: { ...fontWeightStyles.semiBold, fontSize: '12px', lineHeight: '16px' },
+
+  m24: { ...fontWeightStyles.medium, fontSize: '24px', lineHeight: '30px' },
+  m20: { ...fontWeightStyles.medium, fontSize: '20px', lineHeight: '26px' },
+  m18: { ...fontWeightStyles.medium, fontSize: '18px', lineHeight: '24px' },
+  m16: { ...fontWeightStyles.medium, fontSize: '16px', lineHeight: '21px' },
+  m14: { ...fontWeightStyles.medium, fontSize: '14px', lineHeight: '16px' },
+  m13: { ...fontWeightStyles.medium, fontSize: '13px', lineHeight: '17px' },
+  m12: { ...fontWeightStyles.medium, fontSize: '12px', lineHeight: '16px' },
+  m10: { ...fontWeightStyles.medium, fontSize: '10px', lineHeight: '18px' },
+
+  r50: { ...fontWeightStyles.regular, fontSize: '50px', lineHeight: 'normal' },
+  r32: { ...fontWeightStyles.regular, fontSize: '32px', lineHeight: 'normal' },
+  r24: { ...fontWeightStyles.regular, fontSize: '24px', lineHeight: '30px' },
+  r20: { ...fontWeightStyles.regular, fontSize: '20px', lineHeight: 'normal' },
+  r18: { ...fontWeightStyles.regular, fontSize: '18px', lineHeight: '24px' },
+  r16: { ...fontWeightStyles.regular, fontSize: '16px', lineHeight: '21px' },
+  r14: { ...fontWeightStyles.regular, fontSize: '14px', lineHeight: '16px' },
+  r12: { ...fontWeightStyles.regular, fontSize: '12px', lineHeight: '16px' },
+  r10: { ...fontWeightStyles.regular, fontSize: '10px', lineHeight: '14px' },
+}
 
 declare module '@mui/material/styles' {
   interface Palette {
@@ -30,6 +91,76 @@ declare module '@mui/material/styles' {
       accentTo: string
       accentMuted: string
     }
+  }
+
+  interface TypographyVariants {
+    b36: React.CSSProperties
+    b30: React.CSSProperties
+    b24: React.CSSProperties
+    b20: React.CSSProperties
+    b18: React.CSSProperties
+    b16: React.CSSProperties
+    b14: React.CSSProperties
+    b12: React.CSSProperties
+    sb30: React.CSSProperties
+    sb24: React.CSSProperties
+    sb20: React.CSSProperties
+    sb18: React.CSSProperties
+    sb16: React.CSSProperties
+    sb14: React.CSSProperties
+    sb12: React.CSSProperties
+    m24: React.CSSProperties
+    m20: React.CSSProperties
+    m18: React.CSSProperties
+    m16: React.CSSProperties
+    m14: React.CSSProperties
+    m13: React.CSSProperties
+    m12: React.CSSProperties
+    m10: React.CSSProperties
+    r50: React.CSSProperties
+    r32: React.CSSProperties
+    r24: React.CSSProperties
+    r20: React.CSSProperties
+    r18: React.CSSProperties
+    r16: React.CSSProperties
+    r14: React.CSSProperties
+    r12: React.CSSProperties
+    r10: React.CSSProperties
+  }
+
+  interface TypographyVariantsOptions {
+    b36?: React.CSSProperties
+    b30?: React.CSSProperties
+    b24?: React.CSSProperties
+    b20?: React.CSSProperties
+    b18?: React.CSSProperties
+    b16?: React.CSSProperties
+    b14?: React.CSSProperties
+    b12?: React.CSSProperties
+    sb30?: React.CSSProperties
+    sb24?: React.CSSProperties
+    sb20?: React.CSSProperties
+    sb18?: React.CSSProperties
+    sb16?: React.CSSProperties
+    sb14?: React.CSSProperties
+    sb12?: React.CSSProperties
+    m24?: React.CSSProperties
+    m20?: React.CSSProperties
+    m18?: React.CSSProperties
+    m16?: React.CSSProperties
+    m14?: React.CSSProperties
+    m13?: React.CSSProperties
+    m12?: React.CSSProperties
+    m10?: React.CSSProperties
+    r50?: React.CSSProperties
+    r32?: React.CSSProperties
+    r24?: React.CSSProperties
+    r20?: React.CSSProperties
+    r18?: React.CSSProperties
+    r16?: React.CSSProperties
+    r14?: React.CSSProperties
+    r12?: React.CSSProperties
+    r10?: React.CSSProperties
   }
 }
 
@@ -80,44 +211,20 @@ export const theme = createTheme({
     },
   },
   typography: {
-    fontFamily: '"Raleway", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    h1: {
-      fontWeight: 700,
-      letterSpacing: '-0.03em',
-      fontSize: '2rem',
-      lineHeight: 1.2,
-    },
-    h2: {
-      fontWeight: 700,
-      letterSpacing: '-0.025em',
-      fontSize: '1.5rem',
-      lineHeight: 1.25,
-    },
-    h3: {
-      fontWeight: 600,
-      letterSpacing: '-0.02em',
-      fontSize: '1.25rem',
-      lineHeight: 1.3,
-    },
-    h4: {
-      fontWeight: 600,
-      letterSpacing: '-0.015em',
-      fontSize: '1.0625rem',
-      lineHeight: 1.35,
-    },
-    body1: { fontSize: '0.9375rem', lineHeight: 1.55 },
-    body2: { fontSize: '0.875rem', lineHeight: 1.5 },
-    caption: {
-      fontSize: '0.75rem',
-      lineHeight: 1.45,
-      letterSpacing: '0.02em',
-      color: '#A3A3A3',
-    },
-    button: {
-      fontWeight: 600,
-      letterSpacing: '0.02em',
-      textTransform: 'none' as const,
-    },
+    ...fontStyles,
+    fontFamily: BaseFontStack,
+    h1: { ...fontStyles.b24 },
+    h2: { ...fontStyles.b20 },
+    h3: { ...fontStyles.b16 },
+    h4: { ...fontStyles.m18 },
+    h5: { ...fontStyles.b16 },
+    h6: { ...fontStyles.b14 },
+    subtitle1: { ...fontStyles.m14 },
+    subtitle2: { ...fontStyles.sb14 },
+    body1: { ...fontStyles.r14, color: '#808CA0' },
+    body2: { ...fontStyles.sb18 },
+    caption: { fontSize: '10px' },
+    
   },
   shape: {
     borderRadius: 8,
