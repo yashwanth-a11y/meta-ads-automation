@@ -32,7 +32,16 @@ export class UserRepository {
     const [row] = await this.db
       .select()
       .from(users)
-      .where(sql`lower(${users.email}) = lower(${email})`)
+      .where(sql`lower(${users.email}) = lower(${String(email).trim()})`)
+      .limit(1);
+    return row || null;
+  }
+
+  async findByPhone(phone) {
+    const [row] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.phone, String(phone).trim()))
       .limit(1);
     return row || null;
   }

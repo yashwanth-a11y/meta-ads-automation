@@ -6,6 +6,7 @@ import { CtwaConversationRepository } from '../Repositories/CtwaConversationRepo
 import { CtwaConversionRepository } from '../Repositories/CtwaConversionRepository.js';
 import { CtwaInsightsRepository } from '../Repositories/CtwaInsightsRepository.js';
 import { UserRepository } from '../Repositories/UserRepository.js';
+import { PasswordResetTokenRepository } from '../Repositories/PasswordResetTokenRepository.js';
 import { AdsService } from '../services/AdsService.js';
 import { AuthService } from '../services/AuthService.js';
 import { AdsController } from '../Controllers/AdsController.js';
@@ -15,6 +16,7 @@ import { AdsController } from '../Controllers/AdsController.js';
 // only ever pull `fastify.adsController` / `fastify.authService`.
 async function plugin(app) {
   const userRepository = new UserRepository(db);
+  const passwordResetTokenRepository = new PasswordResetTokenRepository(db);
   const metaAdAccountRepository = new MetaAdAccountRepository(db);
   const ctwaCampaignRepository = new CtwaCampaignRepository(db);
   const ctwaConversationRepository = new CtwaConversationRepository(db);
@@ -23,6 +25,8 @@ async function plugin(app) {
 
   const authService = new AuthService({
     userRepository,
+    passwordResetTokenRepository,
+    db,
     jwt: app.jwt,
     logger: app.log,
   });

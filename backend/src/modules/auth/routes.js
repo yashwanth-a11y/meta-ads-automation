@@ -1,7 +1,23 @@
 import { notImplemented, forbidden } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 
+// Trim leading/trailing whitespace on every string field in the body so
+// '  Alice@Example.com  ' is normalized BEFORE Ajv's `format: email` rejects
+// it. Runs as a per-route preValidation hook, scoped to this plugin only.
+function trimStringsInBody(request, _reply, done) {
+  const body = request.body;
+  if (body && typeof body === 'object' && !Array.isArray(body)) {
+    for (const k of Object.keys(body)) {
+      if (typeof body[k] === 'string') body[k] = body[k].trim();
+    }
+  }
+  done();
+}
+
 export default async function routes(app) {
+  // Apply the trim hook to every route in this plugin (auth only).
+  app.addHook('preValidation', trimStringsInBody);
+
   // --- Signup ---
   // Schema validation runs first (Fastify Ajv): if email is missing/malformed,
   // password is too short, etc., we return 400 VALIDATION_ERROR via the global
@@ -59,6 +75,64 @@ export default async function routes(app) {
     },
     async (request, reply) => {
       const result = await app.authService.login(request.body);
+      return reply.send({ success: true, data: result });
+    },
+  );
+
+  // --- Forgot password ---
+  // Always returns 200 with a generic message — no email-existence enumeration.
+  // 5 requests per minute per IP. Sends a reset link by email (TODO: wire
+  // email provider) AND logs it. In development the response also includes
+  // the raw token + link so the FE can complete the flow without email.
+  app.post(
+    '/forgot-password',
+    {
+      config: {
+        rateLimit: { max: 5, timeWindow: '1 minute' },
+      },
+      schema: {
+        description: 'Request a password reset link. Always returns 200.',
+        body: {
+          type: 'object',
+          required: ['email'],
+          additionalProperties: false,
+          properties: {
+            email: { type: 'string', format: 'email', maxLength: 255 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await app.authService.forgotPassword(request.body);
+      return reply.send(result);
+    },
+  );
+
+  // --- Reset password ---
+  // Consumes a reset token issued by /forgot-password, sets a new password,
+  // marks the token used (single-use), and returns a fresh JWT (auto-login).
+  app.post(
+    '/reset-password',
+    {
+      config: {
+        rateLimit: { max: 10, timeWindow: '1 minute' },
+      },
+      schema: {
+        description: 'Set a new password using a token from /forgot-password.',
+        body: {
+          type: 'object',
+          required: ['token', 'password', 'confirm_password'],
+          additionalProperties: false,
+          properties: {
+            token: { type: 'string', minLength: 32, maxLength: 256 },
+            password: { type: 'string', minLength: 8, maxLength: 200 },
+            confirm_password: { type: 'string', minLength: 8, maxLength: 200 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await app.authService.resetPassword(request.body);
       return reply.send({ success: true, data: result });
     },
   );
