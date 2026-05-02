@@ -36,4 +36,7 @@ export const qk = {
   funding: ['ads', 'funding'] as const,
   searchInterests: (q: string) => ['ads', 'search', 'interests', q] as const,
   searchLocations: (q: string) => ['ads', 'search', 'locations', q] as const,
+  channels: ['channels'] as const,
+  topTrends: (channelId: string, minScore?: number) =>
+    ['trends', 'top', channelId, minScore] as const,
 }

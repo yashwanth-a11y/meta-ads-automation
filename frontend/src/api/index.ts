@@ -1,4 +1,6 @@
 export { http, get, post, patch, del, unwrap, ApiError, getAuthToken, setAuthToken, clearAuthToken } from './client'
 export { adsApi } from './ads'
+export { trendsApi } from './trends'
+export type { Channel, TrendWithScore, CreativeBundle, PipelineResult, CreateChannelInput, QualityScores } from './trends'
 export { queryClient, qk } from './queryClient'
 export type * from './types'
