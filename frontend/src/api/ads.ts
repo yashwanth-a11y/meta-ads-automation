@@ -1,6 +1,7 @@
 import { http, unwrap, get, post, patch, del } from './client'
 import type {
   AccountBalance,
+  AiGeneratedCampaign,
   AvailableAdAccount,
   CampaignList,
   CampaignSummary,
@@ -77,6 +78,10 @@ export const adsApi = {
     post<{ data: InterestSuggestion[] }>('/ads/search/interests', { query }),
   searchLocations: (query: string) =>
     post<{ data: LocationSuggestion[] }>('/ads/search/locations', { query }),
+
+  // --- AI generation ---
+  aiGenerateCampaign: (prompt: string) =>
+    post<AiGeneratedCampaign>('/ads/ai/generate-campaign', { prompt }),
 
   // --- Lead Gen forms ---
   getLeadForms: () => get<{ data: LeadForm[] }>('/ads/leads/forms'),

@@ -506,6 +506,24 @@ export class AdsController {
     return reply.send({ success: true, data: result });
   }
 
+  // Full campaign generator: prompt in → structured WizardForm-shaped data out.
+  async aiGenerateCampaign(request, reply) {
+    try {
+      const result = await this.adsService.generateCampaignFromPrompt(
+        request.user.organization_id,
+        request.body || {},
+      );
+      return reply.send({ success: true, data: result });
+    } catch (err) {
+      const code = err?.code >= 400 && err?.code < 600 ? err.code : 500;
+      this.logger?.error({ err: err?.message }, "aiGenerateCampaign failed");
+      return reply.status(code).send({
+        success: false,
+        error: err?.message || "AI campaign generation failed",
+      });
+    }
+  }
+
   // === CAMPAIGN DETAIL ===
 
   async getMetaCampaignDetail(request, reply) {

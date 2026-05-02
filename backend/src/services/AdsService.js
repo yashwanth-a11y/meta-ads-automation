@@ -811,6 +811,13 @@ export class AdsService {
     throw { code: 400, message: `Unknown objective: ${objective}` };
   }
 
+  // Clamp helper used by AI generation normalization.
+  static _clampInt(value, min, max, fallback) {
+    const n = typeof value === "number" ? Math.round(value) : parseInt(value, 10);
+    if (Number.isNaN(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
   // Coerces a date-string or unix-second value to unix seconds; if the
   // result is in the past, bumps it to now+5min so Meta doesn't reject it.
   static _toUnixTs(value) {
@@ -857,6 +864,30 @@ export class AdsService {
     adset.end_time = data.end_date
       ? Math.floor(new Date(data.end_date).getTime() / 1000)
       : undefined;
+
+    // Bid strategy. Default 'LOWEST_COST_WITHOUT_CAP' is set in the resolver.
+    // Meta requires bid_amount in account-currency MINOR units when using
+    // LOWEST_COST_WITH_BID_CAP or COST_CAP. roas_average_floor is a basis-points
+    // multiplier (1.5 → pass 1500) for LOWEST_COST_WITH_MIN_ROAS.
+    if (data.bid_strategy && data.bid_strategy !== "LOWEST_COST_WITHOUT_CAP") {
+      adset.bid_strategy = data.bid_strategy;
+      if (
+        (data.bid_strategy === "LOWEST_COST_WITH_BID_CAP" ||
+          data.bid_strategy === "COST_CAP") &&
+        typeof data.bid_amount === "number" &&
+        data.bid_amount > 0
+      ) {
+        adset.bid_amount = Math.round(data.bid_amount * 100);
+      }
+      if (
+        data.bid_strategy === "LOWEST_COST_WITH_MIN_ROAS" &&
+        typeof data.roas_average_floor === "number" &&
+        data.roas_average_floor > 0
+      ) {
+        // Meta expects roas_average_floor as basis points (1.5 = 1500).
+        adset.bid_constraints = { roas_average_floor: Math.round(data.roas_average_floor * 1000) };
+      }
+    }
 
     const execOptions = dryRun ? ["validate_only"] : undefined;
 
@@ -2175,6 +2206,191 @@ Return ONLY valid JSON array with no markdown formatting:
       this.logger?.warn({ text }, "Failed to parse AI response");
       return [{ primary_text: text, headline: "", description: "", cta_text: "Send WhatsApp Message" }];
     }
+  }
+
+  // === AI: full campaign generation from a free-text prompt ===
+  //
+  // Asks GPT-4o-mini to draft a complete campaign config (objective, audience,
+  // budget, creative copy + CTA, optional lead-form questions) from one
+  // sentence-or-paragraph prompt. Uses OpenAI's response_format json_object
+  // so we get back valid JSON without prose around it.
+  //
+  // The wizard then maps this onto its `WizardForm` shape and jumps straight
+  // to the Review step. Media (image/video) is NOT generated — the user
+  // uploads on Review before publishing.
+  async generateCampaignFromPrompt(organizationId, { prompt }) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) throw { code: 500, message: "OpenAI API key not configured" };
+    if (!prompt || typeof prompt !== "string" || prompt.trim().length < 10) {
+      throw { code: 400, message: "Prompt must be at least 10 characters." };
+    }
+
+    // Pull account context so the model can pick a sane currency / locale.
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    const currency = account?.currency || "USD";
+    const pageName = account?.page_name || null;
+    const wabaLinked = Boolean(account?.waba_id);
+
+    const systemPrompt = `You are an expert Meta Ads strategist. Convert a user's plain-English brief into a complete, production-ready Meta ad campaign configuration. Reply with VALID JSON ONLY matching the schema below — no prose, no markdown.
+
+CONTEXT:
+- Connected Page: ${pageName || "unknown"}
+- Account currency: ${currency}
+- WhatsApp linked to Page: ${wabaLinked ? "yes" : "no"} (only suggest CTWA objective when this is yes)
+
+OBJECTIVE OPTIONS (pick exactly one):
+- "WEBSITE_TRAFFIC" — drive clicks to a landing page (most common SMB choice)
+- "LEAD_GEN" — collect leads via Meta's instant form
+- "CTWA" — open WhatsApp conversation (only when WhatsApp linked = yes)
+
+CTA OPTIONS by objective:
+- WEBSITE_TRAFFIC: LEARN_MORE | SHOP_NOW | SIGN_UP | BOOK_NOW | DOWNLOAD | GET_OFFER | GET_QUOTE | CONTACT_US
+- LEAD_GEN: SIGN_UP | LEARN_MORE | GET_QUOTE | APPLY_NOW | GET_OFFER | SUBSCRIBE
+- CTWA: WHATSAPP_MESSAGE
+
+BUDGET RULES:
+- Use account currency (${currency}). Output amount as a number in MAJOR units (e.g. 100 = ₹100, not 10000 paise).
+- For INR, daily minimum is usually around 100. For USD, around 5. For most accounts, 200 is a safe daily floor.
+- Default to "daily" budget unless the user specifies a campaign run length.
+
+OUTPUT JSON SCHEMA:
+{
+  "name": "Short descriptive campaign name (max 80 chars)",
+  "objective": "WEBSITE_TRAFFIC|LEAD_GEN|CTWA",
+  "audience": {
+    "country_codes": ["IN", "US"],     // ISO-3166-1 alpha-2 codes; default ["IN"] if unsure
+    "age_min": 18,                      // integer 13-65
+    "age_max": 65,                      // integer 13-65, >= age_min
+    "genders": "all|male|female",
+    "interest_keywords": ["string"],    // free-text suggestions, user will look up in Meta later
+    "advantage_audience": true,
+    "special_ad_categories": ["NONE"]   // ["NONE"] OR one of: CREDIT, EMPLOYMENT, HOUSING, FINANCIAL_PRODUCTS_SERVICES, ISSUES_ELECTIONS_POLITICS, ONLINE_GAMBLING_AND_GAMING
+  },
+  "budget": {
+    "type": "daily|lifetime",
+    "amount": 200,                      // number in major currency units
+    "start_date": null,                 // ISO 8601 string, or null for "start when published"
+    "end_date": null                    // ISO 8601 string, or null. REQUIRED if type === "lifetime"
+  },
+  "creative": {
+    "headline": "Max 40 chars",
+    "primary_text": "Max 125 chars; the body of the ad",
+    "description": "Max 30 chars; sub-headline",
+    "cta_type": "LEARN_MORE",           // from CTA OPTIONS above, valid for the chosen objective
+    "destination_url": "https://..."    // REQUIRED for WEBSITE_TRAFFIC; null for LEAD_GEN and CTWA
+  },
+  "lead_form_suggestion": {             // ONLY include this object when objective = LEAD_GEN
+    "name": "Form name",
+    "questions": [                      // pick 3-5 useful questions
+      {"type": "FULL_NAME"},
+      {"type": "EMAIL"},
+      {"type": "PHONE"}
+    ]
+  },
+  "rationale": "1-2 sentence explanation of why these choices fit the brief"
+}
+
+If the user mentions a website URL in their brief, use it for destination_url and lean toward WEBSITE_TRAFFIC.
+If they mention 'WhatsApp' / 'chat' / 'message' AND WhatsApp is linked, choose CTWA.
+If they mention 'leads' / 'enquiries' / 'sign-ups' / 'form', choose LEAD_GEN.
+Otherwise choose WEBSITE_TRAFFIC.`;
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 1200,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      this.logger?.error({ err }, "[Ads.AI] OpenAI request failed");
+      throw { code: 502, message: err.error?.message || "AI generation failed" };
+    }
+
+    const result = await response.json();
+    const text = result.choices?.[0]?.message?.content?.trim();
+    if (!text) throw { code: 502, message: "AI returned empty response." };
+
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      this.logger?.warn({ text }, "[Ads.AI] Failed to parse JSON");
+      throw { code: 502, message: "AI response was not valid JSON. Try rephrasing your brief." };
+    }
+
+    // Defensive normalization. The model is usually obedient but we don't
+    // want a single malformed field to break the whole flow.
+    const objective = ["WEBSITE_TRAFFIC", "LEAD_GEN", "CTWA"].includes(parsed.objective)
+      ? parsed.objective
+      : "WEBSITE_TRAFFIC";
+
+    // Force CTWA → WEBSITE_TRAFFIC if no WABA is linked (model isn't always
+    // disciplined about the constraint we put in the system prompt).
+    const safeObjective = objective === "CTWA" && !wabaLinked ? "WEBSITE_TRAFFIC" : objective;
+
+    const audience = parsed.audience || {};
+    const budget = parsed.budget || {};
+    const creative = parsed.creative || {};
+
+    const normalized = {
+      name: String(parsed.name || "AI campaign").slice(0, 80),
+      objective: safeObjective,
+      audience: {
+        country_codes: Array.isArray(audience.country_codes) && audience.country_codes.length > 0
+          ? audience.country_codes.map((c) => String(c).toUpperCase().slice(0, 2))
+          : ["IN"],
+        age_min: AdsService._clampInt(audience.age_min, 13, 65, 18),
+        age_max: AdsService._clampInt(audience.age_max, 13, 65, 65),
+        genders: ["all", "male", "female"].includes(audience.genders) ? audience.genders : "all",
+        interest_keywords: Array.isArray(audience.interest_keywords)
+          ? audience.interest_keywords.map(String).slice(0, 8)
+          : [],
+        advantage_audience: audience.advantage_audience !== false,
+        special_ad_categories: Array.isArray(audience.special_ad_categories) && audience.special_ad_categories.length > 0
+          ? audience.special_ad_categories
+          : ["NONE"],
+      },
+      budget: {
+        type: budget.type === "lifetime" ? "lifetime" : "daily",
+        amount: typeof budget.amount === "number" && budget.amount > 0 ? budget.amount : 200,
+        start_date: budget.start_date || null,
+        end_date: budget.end_date || null,
+      },
+      creative: {
+        headline: String(creative.headline || "").slice(0, 40),
+        primary_text: String(creative.primary_text || "").slice(0, 125),
+        description: String(creative.description || "").slice(0, 30),
+        cta_type: String(creative.cta_type || "LEARN_MORE"),
+        destination_url:
+          safeObjective === "WEBSITE_TRAFFIC" ? (creative.destination_url || "") : null,
+      },
+      lead_form_suggestion:
+        safeObjective === "LEAD_GEN" && parsed.lead_form_suggestion
+          ? {
+              name: String(parsed.lead_form_suggestion.name || "Leads").slice(0, 100),
+              questions: Array.isArray(parsed.lead_form_suggestion.questions)
+                ? parsed.lead_form_suggestion.questions.filter((q) => q && q.type)
+                : [{ type: "FULL_NAME" }, { type: "EMAIL" }, { type: "PHONE" }],
+            }
+          : null,
+      rationale: String(parsed.rationale || ""),
+      account_currency: currency,
+    };
+
+    return normalized;
   }
 
   // === CAMPAIGN DETAIL (Ad Sets + Ads for a single campaign) ===

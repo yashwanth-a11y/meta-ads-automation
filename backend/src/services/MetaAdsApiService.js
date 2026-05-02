@@ -177,6 +177,7 @@ export class MetaAdsApiService {
     if (params.lifetime_budget) data.lifetime_budget = params.lifetime_budget;
     if (params.end_time) data.end_time = params.end_time;
     if (params.bid_amount) data.bid_amount = params.bid_amount;
+    if (params.bid_constraints) data.bid_constraints = params.bid_constraints;
     if (params.execution_options) data.execution_options = params.execution_options;
     return this._request("POST", `/act_${adAccountId}/adsets`, data);
   }

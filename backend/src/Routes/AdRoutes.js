@@ -526,6 +526,22 @@ export async function adsRoutes(fastify, options) {
 
   // === AI GENERATION ===
 
+  // AI: generate a full campaign config from a free-text brief. The frontend
+  // wizard maps this onto its form and skips straight to the Review step.
+  fastify.post("/ads/ai/generate-campaign", {
+    schema: {
+      description: "Generate a complete campaign config from a natural-language prompt.",
+      tags: ["ads"],
+      body: {
+        type: "object",
+        required: ["prompt"],
+        properties: {
+          prompt: { type: "string", minLength: 10, maxLength: 4000 },
+        },
+      },
+    },
+  }, (req, reply) => controller.aiGenerateCampaign(req, reply));
+
   fastify.post("/ads/generate-copy", {
     schema: {
       description: "Generate ad copy using AI",

@@ -151,10 +151,15 @@ export type TargetingSpec = {
   age_max?: number
   genders?: number[]                       // 1=male, 2=female; omit for all
   interests?: { id: string; name: string }[]
-  publisher_platforms?: string[]
+  // Meta locale ids (e.g. 6 = English (US), 24 = Hindi). See FB targeting
+  // search type=adlocale to enumerate available ids.
+  locales?: number[]
+  publisher_platforms?: string[]           // facebook | instagram | audience_network | messenger
   facebook_positions?: string[]
   instagram_positions?: string[]
-  device_platforms?: string[]
+  messenger_positions?: string[]
+  audience_network_positions?: string[]
+  device_platforms?: string[]              // mobile | desktop
   targeting_automation?: { advantage_audience?: 0 | 1 }
 }
 
@@ -193,6 +198,16 @@ export type CreateCampaignInput = {
   lifetime_budget?: number
   start_date?: string                      // ISO 8601
   end_date?: string                        // ISO 8601
+  // Bid strategy & associated cap. `bid_amount` is in account-currency major
+  // units; backend converts to minor units when calling Meta. `roas_average_floor`
+  // is a multiplier (e.g. 1.5 = 150%) used only with LOWEST_COST_WITH_MIN_ROAS.
+  bid_strategy?:
+    | 'LOWEST_COST_WITHOUT_CAP'
+    | 'LOWEST_COST_WITH_BID_CAP'
+    | 'COST_CAP'
+    | 'LOWEST_COST_WITH_MIN_ROAS'
+  bid_amount?: number
+  roas_average_floor?: number
   targeting_spec?: TargetingSpec
   creative_spec?: CreativeSpec
   special_ad_categories?: SpecialAdCategory[]
@@ -284,6 +299,44 @@ export type CreateLeadFormInput = {
     style?: string
     button_text?: string
   }
+}
+
+// --- AI generation ---
+
+// Backend response for POST /ads/ai/generate-campaign. Mirrors the JSON
+// schema enforced inside AdsService.generateCampaignFromPrompt — names are
+// kept neutral so the wizard can map them onto its own WizardForm shape.
+export type AiGeneratedCampaign = {
+  name: string
+  objective: 'WEBSITE_TRAFFIC' | 'LEAD_GEN' | 'CTWA'
+  audience: {
+    country_codes: string[]              // ISO-3166-1 alpha-2
+    age_min: number
+    age_max: number
+    genders: 'all' | 'male' | 'female'
+    interest_keywords: string[]          // free-text suggestions, NOT Meta interest IDs
+    advantage_audience: boolean
+    special_ad_categories: string[]
+  }
+  budget: {
+    type: 'daily' | 'lifetime'
+    amount: number                       // in account major currency units
+    start_date: string | null
+    end_date: string | null
+  }
+  creative: {
+    headline: string
+    primary_text: string
+    description: string
+    cta_type: string
+    destination_url: string | null
+  }
+  lead_form_suggestion: {
+    name: string
+    questions: { type: string; key?: string; label?: string }[]
+  } | null
+  rationale: string
+  account_currency: string
 }
 
 // --- Image upload ---

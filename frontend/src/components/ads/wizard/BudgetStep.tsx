@@ -1,11 +1,15 @@
 import {
   Alert,
+  Divider,
   FormControl,
   FormControlLabel,
+  FormHelperText,
   FormLabel,
   InputAdornment,
+  MenuItem,
   Radio,
   RadioGroup,
+  Select,
   Stack,
   TextField,
   Typography,
@@ -108,6 +112,87 @@ export function BudgetStep({ budget, currency, onChange }: Props) {
 
       {budget.amount > 0 && budget.amount < 1 && (
         <Alert severity="warning">Most ad accounts require at least 1.00 of account currency per day.</Alert>
+      )}
+
+      <Divider sx={{ my: 1 }} />
+
+      {/* Bid strategy. Default = "Lowest cost" (no cap), which is what 95%
+          of SMBs want. The other strategies require an explicit bid_amount
+          (or roas_average_floor for ROAS) — surface those inputs only when
+          the corresponding strategy is selected. */}
+      <FormControl fullWidth>
+        <FormLabel sx={{ mb: 1 }}>Bidding</FormLabel>
+        <Select
+          value={budget.bid_strategy}
+          onChange={(e) =>
+            onChange({
+              ...budget,
+              bid_strategy: e.target.value as WizardForm['budget']['bid_strategy'],
+              // Reset cap inputs when switching to a strategy that doesn't use them.
+              ...(e.target.value === 'LOWEST_COST_WITHOUT_CAP'
+                ? { bid_amount: undefined, roas_average_floor: undefined }
+                : {}),
+            })
+          }
+        >
+          <MenuItem value="LOWEST_COST_WITHOUT_CAP">
+            Lowest cost (recommended) — Meta spends to get the most results
+          </MenuItem>
+          <MenuItem value="LOWEST_COST_WITH_BID_CAP">
+            Bid cap — never bid above your cap
+          </MenuItem>
+          <MenuItem value="COST_CAP">
+            Cost cap — keep avg cost-per-result around your cap
+          </MenuItem>
+          <MenuItem value="LOWEST_COST_WITH_MIN_ROAS">
+            Min ROAS — only spend when projected ROAS clears your floor
+          </MenuItem>
+        </Select>
+        <FormHelperText>
+          Lowest cost is what most advertisers should pick. Other strategies require historical performance to work well.
+        </FormHelperText>
+      </FormControl>
+
+      {(budget.bid_strategy === 'LOWEST_COST_WITH_BID_CAP' ||
+        budget.bid_strategy === 'COST_CAP') && (
+        <TextField
+          label={budget.bid_strategy === 'COST_CAP' ? 'Cost cap' : 'Bid cap'}
+          type="number"
+          value={budget.bid_amount ?? ''}
+          slotProps={{
+            input: {
+              startAdornment: <InputAdornment position="start">{symbol}</InputAdornment>,
+            },
+            htmlInput: { min: 0.01, step: 0.01 },
+          }}
+          onChange={(e) =>
+            onChange({
+              ...budget,
+              bid_amount: e.target.value ? Math.max(0, parseFloat(e.target.value)) : undefined,
+            })
+          }
+          helperText={
+            budget.bid_strategy === 'COST_CAP'
+              ? 'Target average cost per result. Meta keeps it close on average — daily fluctuations expected.'
+              : 'Hard ceiling on the bid in any individual auction.'
+          }
+        />
+      )}
+
+      {budget.bid_strategy === 'LOWEST_COST_WITH_MIN_ROAS' && (
+        <TextField
+          label="Minimum ROAS"
+          type="number"
+          value={budget.roas_average_floor ?? ''}
+          slotProps={{ htmlInput: { min: 0.01, max: 10, step: 0.05 } }}
+          onChange={(e) =>
+            onChange({
+              ...budget,
+              roas_average_floor: e.target.value ? Math.max(0, parseFloat(e.target.value)) : undefined,
+            })
+          }
+          helperText="e.g. 1.5 = bid such that projected return is at least 150% of spend. Requires Pixel events with value."
+        />
       )}
     </Stack>
   )

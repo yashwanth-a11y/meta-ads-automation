@@ -7,7 +7,7 @@ import {
   Paper,
   Stack,
   Step,
-  StepLabel,
+  StepButton,
   Stepper,
   Typography,
 } from '@mui/material'
@@ -23,7 +23,7 @@ import { CreativeStep } from '../components/ads/wizard/CreativeStep'
 import { LeadFormStep } from '../components/ads/wizard/LeadFormStep'
 import { ObjectiveStep } from '../components/ads/wizard/ObjectiveStep'
 import { ReviewStep } from '../components/ads/wizard/ReviewStep'
-import { DEFAULT_FORM, type WizardForm } from '../components/ads/wizard/types'
+import { aiResultToWizardForm, DEFAULT_FORM, type WizardForm } from '../components/ads/wizard/types'
 
 type StepKey = 'objective' | 'audience' | 'budget' | 'creative' | 'leadform' | 'review'
 
@@ -55,6 +55,8 @@ export function AdsCreatePage() {
   const [form, setForm] = useState<WizardForm>(DEFAULT_FORM)
   const [stepIdx, setStepIdx] = useState(0)
   const [stepError, setStepError] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const steps = useMemo(() => buildSteps(form.objective), [form.objective])
   const currentKey = steps[stepIdx]
@@ -108,6 +110,30 @@ export function AdsCreatePage() {
 
   const setup = setupQuery.data
   const hasWaba = Boolean(setup.waba_id)
+
+  // AI generation: prompt → backend OpenAI call → fill form → jump to Review.
+  // Lead Gen with AI lands on the Lead Form step instead so the user can
+  // pick or create the form before reviewing (AI can't pick which form).
+  const onAiGenerate = async (prompt: string) => {
+    setAiError(null)
+    setAiLoading(true)
+    try {
+      const ai = await adsApi.aiGenerateCampaign(prompt)
+      const filled = aiResultToWizardForm(ai, form)
+      setForm(filled)
+      setStepError(null)
+      const nextSteps = buildSteps(filled.objective)
+      // Jump to Lead Form step for LEAD_GEN (form selection still needed),
+      // otherwise straight to Review.
+      const targetKey: StepKey = filled.objective === 'LEAD_GEN' ? 'leadform' : 'review'
+      const targetIdx = nextSteps.indexOf(targetKey)
+      setStepIdx(targetIdx >= 0 ? targetIdx : nextSteps.length - 1)
+    } catch (err) {
+      setAiError(err instanceof ApiError ? err.message : (err as Error).message)
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   const validateStep = (key: StepKey): string | null => {
     switch (key) {
@@ -163,10 +189,18 @@ export function AdsCreatePage() {
         subtitle="Build a Meta ad in a few steps. Validation runs against Meta before publish."
       />
 
-      <Stepper activeStep={stepIdx} alternativeLabel sx={{ mb: 1 }}>
-        {steps.map((s) => (
+      {/* Clickable stepper — lets the user jump back to any step to edit
+          AI-filled values, then return to Review. We always allow going
+          backward; forward jumps are also allowed (the per-step `next()`
+          validation runs whenever they actually try to publish anyway). */}
+      <Stepper activeStep={stepIdx} alternativeLabel nonLinear sx={{ mb: 1 }}>
+        {steps.map((s, i) => (
           <Step key={s}>
-            <StepLabel>{STEP_LABEL[s]}</StepLabel>
+            <StepButton
+              onClick={() => { setStepError(null); setStepIdx(i) }}
+            >
+              {STEP_LABEL[s]}
+            </StepButton>
           </Step>
         ))}
       </Stepper>
@@ -184,6 +218,9 @@ export function AdsCreatePage() {
             value={form.objective}
             onChange={(o) => setForm((f) => ({ ...f, objective: o }))}
             hasWaba={hasWaba}
+            onAiGenerate={onAiGenerate}
+            aiLoading={aiLoading}
+            aiError={aiError}
           />
         )}
         {currentKey === 'audience' && (
@@ -215,6 +252,14 @@ export function AdsCreatePage() {
         {currentKey === 'review' && (
           <ReviewStep
             form={form}
+            onCreativeChange={(creative) => setForm((f) => ({ ...f, creative }))}
+            onEditStep={(key) => {
+              const idx = steps.indexOf(key)
+              if (idx >= 0) {
+                setStepError(null)
+                setStepIdx(idx)
+              }
+            }}
             onPublishComplete={() => navigate(paths.ads)}
           />
         )}
