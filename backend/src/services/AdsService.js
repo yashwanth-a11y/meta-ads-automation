@@ -2184,7 +2184,7 @@ Return ONLY valid JSON array with no markdown formatting:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: env.OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.8,
         max_tokens: 1000,
@@ -2210,7 +2210,7 @@ Return ONLY valid JSON array with no markdown formatting:
 
   // === AI: full campaign generation from a free-text prompt ===
   //
-  // Asks GPT-4o-mini to draft a complete campaign config (objective, audience,
+  // Asks OpenAI (see OPENAI_MODEL, default gpt-4o-mini) to draft a complete campaign config (objective, audience,
   // budget, creative copy + CTA, optional lead-form questions) from one
   // sentence-or-paragraph prompt. Uses OpenAI's response_format json_object
   // so we get back valid JSON without prose around it.
@@ -2302,7 +2302,7 @@ Otherwise choose WEBSITE_TRAFFIC.`;
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: env.OPENAI_MODEL,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: systemPrompt },
@@ -2494,7 +2494,7 @@ Provide a concise, actionable answer. If recommending changes, be specific about
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: env.OPENAI_MODEL,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
         max_tokens: 800,

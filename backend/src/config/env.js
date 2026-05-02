@@ -53,6 +53,11 @@ const schema = z.object({
   // LLM
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
+  /** Chat Completions model id (e.g. gpt-4o-mini, gpt-4o, gpt-4-turbo) */
+  OPENAI_MODEL: z
+    .string()
+    .optional()
+    .transform((v) => (typeof v === 'string' && v.trim() ? v.trim() : 'gpt-4o-mini')),
 
   // X / Twitter
   X_BEARER_TOKEN: z.string().optional(),

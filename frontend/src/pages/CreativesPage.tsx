@@ -8,7 +8,10 @@ import {
   Typography,
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
+import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded'
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
+import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GlassCard } from '../components/ui/GlassCard'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -42,13 +45,67 @@ async function parseJson<T>(r: Response): Promise<T> {
   return r.json() as Promise<T>
 }
 
+const SCRIPT_MAX_CHARS = 12000
+
+/** Parse our SSE relay from POST /generate-script-stream (data: JSON lines). */
+async function consumeGenerateScriptSse(
+  res: Response,
+  onText: (chunk: string) => void,
+): Promise<void> {
+  const reader = res.body?.getReader()
+  if (!reader) throw new Error('No response body')
+
+  const dec = new TextDecoder()
+  let carry = ''
+
+  const processBlock = (block: string): boolean => {
+    for (const line of block.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed.startsWith('data:')) continue
+      const raw = trimmed.slice(5).trim()
+      if (raw === '[DONE]') return true
+      let data: { t?: string; done?: boolean; error?: string }
+      try {
+        data = JSON.parse(raw) as { t?: string; done?: boolean; error?: string }
+      } catch {
+        continue
+      }
+      if (typeof data.error === 'string' && data.error) throw new Error(data.error)
+      if (data.done === true) return true
+      if (typeof data.t === 'string' && data.t) onText(data.t)
+    }
+    return false
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    carry += dec.decode(value, { stream: true })
+    for (;;) {
+      const idx = carry.indexOf('\n\n')
+      if (idx < 0) break
+      const block = carry.slice(0, idx)
+      carry = carry.slice(idx + 2)
+      if (processBlock(block)) return
+    }
+  }
+  const tail = carry.trim()
+  if (tail) {
+    if (processBlock(tail)) return
+  }
+}
+
 export function CreativesPage() {
   const [creative, setCreative] = useState<Creative | null>(null)
   const [scriptDraft, setScriptDraft] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [enhancing, setEnhancing] = useState(false)
+  const [generatingScript, setGeneratingScript] = useState(false)
+  const [briefDraft, setBriefDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const streamAbortRef = useRef<AbortController | null>(null)
 
   const stopPoll = () => {
     if (pollRef.current) {
@@ -114,7 +171,10 @@ export function CreativesPage() {
 
   useEffect(() => {
     void bootstrap()
-    return () => stopPoll()
+    return () => {
+      stopPoll()
+      streamAbortRef.current?.abort()
+    }
   }, [bootstrap])
 
   useEffect(() => {
@@ -135,7 +195,72 @@ export function CreativesPage() {
     return () => stopPoll()
   }, [creative?.id, creative?.render?.status, fetchRenderStatus])
 
-  /** Create creative from script and start Kling render. */
+  const handleGenerateScriptFromBrief = async () => {
+    const prompt = briefDraft.trim()
+    if (!prompt) {
+      setError('Enter a short idea or product brief first.')
+      return
+    }
+    streamAbortRef.current?.abort()
+    const ac = new AbortController()
+    streamAbortRef.current = ac
+    setGeneratingScript(true)
+    setError(null)
+    setScriptDraft('')
+    try {
+      const res = await apiFetch('/api/v1/creatives/generate-script-stream', {
+        method: 'POST',
+        body: JSON.stringify({ prompt }),
+        signal: ac.signal,
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        const msg =
+          (err as { error?: { message?: string } })?.error?.message ??
+          (err as { message?: string })?.message ??
+          `Request failed (${res.status})`
+        throw new Error(msg)
+      }
+      await consumeGenerateScriptSse(res, (chunk) => {
+        flushSync(() => {
+          setScriptDraft((prev) => {
+            const next = prev + chunk
+            return next.length > SCRIPT_MAX_CHARS ? next.slice(0, SCRIPT_MAX_CHARS) : next
+          })
+        })
+      })
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return
+      setError(e instanceof Error ? e.message : 'Generate script failed')
+    } finally {
+      setGeneratingScript(false)
+      streamAbortRef.current = null
+    }
+  }
+
+  const handleEnhanceScript = async () => {
+    const script = scriptDraft.trim()
+    if (!script) {
+      setError('Paste your voiceover or storyboard script first.')
+      return
+    }
+    setEnhancing(true)
+    setError(null)
+    try {
+      const res = await apiFetch('/api/v1/creatives/enhance-script', {
+        method: 'POST',
+        body: JSON.stringify({ script }),
+      })
+      const data = await parseJson<{ script: string }>(res)
+      setScriptDraft(data.script)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Enhance script failed')
+    } finally {
+      setEnhancing(false)
+    }
+  }
+
+  /** Create creative from script and start render (Models Lab / Replicate / Kling). */
   const handleGenerateVideoFromScript = async () => {
     const script = scriptDraft.trim()
     if (!script) {
@@ -176,7 +301,7 @@ export function CreativesPage() {
     <Stack spacing={3}>
       <PageHeader
         title="Creatives"
-        subtitle="Paste your voiceover or storyboard script — the backend sends it to Kling text-to-video (KLING_ACCESS_KEY + KLING_SECRET_KEY required)."
+        subtitle="Describe an idea — the script streams in from OpenAI as it is written. Edit, optionally enhance, then generate video. Video backends: Models Lab, HeyGen (avatar + voice), Replicate, or Kling — see backend .env for keys."
       />
 
       {error ? (
@@ -187,6 +312,35 @@ export function CreativesPage() {
 
       <GlassCard glow sx={{ p: 3 }}>
         <Typography variant="overline" color="text.secondary">
+          Idea or brief (generate script)
+        </Typography>
+        <TextField
+          fullWidth
+          multiline
+          minRows={2}
+          maxRows={5}
+          placeholder="e.g. Skincare serum for busy moms — 15% off first order, warm UGC tone, 30s vertical."
+          value={briefDraft}
+          onChange={(e) => setBriefDraft(e.target.value)}
+          sx={{ mt: 1, mb: 1.5 }}
+          disabled={busy || enhancing || generatingScript}
+          slotProps={{
+            input: { sx: { fontFamily: 'inherit', fontSize: '0.875rem' } },
+          }}
+        />
+        <Button
+          variant="outlined"
+          color="secondary"
+          size="medium"
+          startIcon={<ArticleRoundedIcon />}
+          onClick={() => void handleGenerateScriptFromBrief()}
+          disabled={busy || enhancing || generatingScript || loading || !briefDraft.trim()}
+          sx={{ mb: 3 }}
+        >
+          Generate script (live)
+        </Button>
+
+        <Typography variant="overline" color="text.secondary">
           Your script (voiceover / storyboard)
         </Typography>
         <TextField
@@ -194,7 +348,7 @@ export function CreativesPage() {
           multiline
           minRows={8}
           maxRows={22}
-          placeholder={`Paste narration, scene beats, on-screen text cues, and timing notes — everything Kling should interpret as one video brief.
+          placeholder={`Paste narration, scene beats, on-screen text cues, and timing notes — one brief for the video model.
 
 Example:
 SECTION 3 — Narration: "…"
@@ -204,20 +358,40 @@ VIDEO 2: …`}
           value={scriptDraft}
           onChange={(e) => setScriptDraft(e.target.value)}
           sx={{ mt: 1, mb: 2 }}
-          disabled={busy}
+          disabled={busy || enhancing || generatingScript}
           slotProps={{
             input: { sx: { fontFamily: 'inherit', fontSize: '0.875rem' } },
           }}
         />
-        <Button
-          variant="contained"
-          color="primary"
-          size="large"
-          onClick={() => void handleGenerateVideoFromScript()}
-          disabled={busy || loading || !scriptDraft.trim()}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: 1.5,
+            alignItems: { xs: 'stretch', sm: 'center' },
+          }}
         >
-          Generate video from script
-        </Button>
+          <Button
+            variant="outlined"
+            color="primary"
+            size="large"
+            startIcon={<AutoAwesomeRoundedIcon />}
+            onClick={() => void handleEnhanceScript()}
+            disabled={busy || enhancing || generatingScript || loading || !scriptDraft.trim()}
+          >
+            Enhance script
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            size="large"
+            startIcon={<PlayArrowRoundedIcon />}
+            onClick={() => void handleGenerateVideoFromScript()}
+            disabled={busy || enhancing || generatingScript || loading || !scriptDraft.trim()}
+          >
+            Generate video
+          </Button>
+        </Box>
       </GlassCard>
 
       <GlassCard glow sx={{ p: 3 }}>

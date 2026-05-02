@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { badRequest, notFound } from '../lib/errors.js';
+import { AppError, badRequest, notFound } from '../lib/errors.js';
 import {
   buildKlingPrompt,
   createKlingClient,
@@ -8,6 +8,39 @@ import {
   klingGenerateAndPoll,
   resolveKlingConfig,
 } from './klingClient.js';
+import {
+  buildModelsLabPrompt,
+  createModelsLabClient,
+  formatModelsLabRenderError,
+  modelsLabGenerateAndPoll,
+  modelsLabGenerateImageToVideoAndPoll,
+  resolveModelsLabConfig,
+} from './modelsLabClient.js';
+import {
+  buildShotstackVideoStitchPayload,
+  pollShotstackRenderUntilDone,
+  resolveShotstackEditConfig,
+  submitShotstackRender,
+} from './shotstackClient.js';
+import { parseScenesFromScript } from './storyboardSceneParser.js';
+import {
+  formatHeyGenRenderError,
+  heyGenGenerateAvatarVideoFromScript,
+  resolveHeyGenConfig,
+} from './heygenClient.js';
+import {
+  createReplicateClient,
+  formatReplicateRenderError,
+  replicateGenerateTextToVideo,
+  replicateGenerateImageToVideo,
+  resolveReplicateConfig,
+} from './replicateVideoClient.js';
+import {
+  createOpenAIClient,
+  enhancePromptForVideo,
+  generateStoryboardScriptFromBrief,
+  resolveOpenAIConfig,
+} from './promptEnhancerService.js';
 
 const MAX_SCRIPT_CHARS = 12000;
 
@@ -79,6 +112,73 @@ export class CreativeService {
           }
         : null,
     };
+  }
+
+  /**
+   * Rewrite script via OpenAI for clearer scene/visual direction (requires OPENAI_API_KEY).
+   */
+  async enhanceScript(_organizationId, body = {}) {
+    const raw = typeof body.script === 'string' ? body.script : '';
+    const trimmed = raw.trim();
+    if (!trimmed) throw badRequest('Provide a non-empty script to enhance.');
+
+    const oa = resolveOpenAIConfig();
+    if (!oa) {
+      throw new AppError('Script enhancement requires OPENAI_API_KEY in the backend environment.', {
+        statusCode: 503,
+        code: 'SERVICE_UNAVAILABLE',
+      });
+    }
+
+    const client = createOpenAIClient(oa);
+    let enhanced;
+    try {
+      enhanced = await enhancePromptForVideo(client, trimmed, oa, { throwOnFailure: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Script enhancement failed';
+      throw new AppError(msg, { statusCode: 502, code: 'ENHANCEMENT_FAILED' });
+    }
+
+    const capped =
+      enhanced.length > MAX_SCRIPT_CHARS ? enhanced.slice(0, MAX_SCRIPT_CHARS) : enhanced;
+    const bundle = bundleFromUserScript({ script: capped });
+    if (!bundle) throw badRequest('Enhancement produced an empty script.');
+    return { script: bundle.script, hook: bundle.hook, caption: bundle.caption };
+  }
+
+  /**
+   * Draft a voiceover/storyboard script from a short idea (requires OPENAI_API_KEY).
+   */
+  async generateScriptFromBrief(_organizationId, body = {}) {
+    const raw = typeof body.prompt === 'string' ? body.prompt : '';
+    const trimmed = raw.trim();
+    if (!trimmed) throw badRequest('Provide a non-empty prompt or brief to generate a script.');
+
+    const styleRaw = typeof body.style === 'string' ? body.style.trim() : '';
+    const style = styleRaw ? styleRaw.slice(0, 120) : 'cinematic';
+
+    const oa = resolveOpenAIConfig();
+    if (!oa) {
+      throw new AppError('Script generation requires OPENAI_API_KEY in the backend environment.', {
+        statusCode: 503,
+        code: 'SERVICE_UNAVAILABLE',
+      });
+    }
+
+    const client = createOpenAIClient(oa);
+    let generated;
+    try {
+      generated = await generateStoryboardScriptFromBrief(client, trimmed, oa, style);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Script generation failed';
+      throw new AppError(msg, { statusCode: 502, code: 'SCRIPT_GENERATION_FAILED' });
+    }
+
+    const capped =
+      generated.length > MAX_SCRIPT_CHARS ? generated.slice(0, MAX_SCRIPT_CHARS) : generated;
+    const bundle = bundleFromUserScript({ script: capped });
+    if (!bundle) throw badRequest('Generation produced an empty script.');
+    return { script: bundle.script, hook: bundle.hook, caption: bundle.caption };
   }
 
   async generate(organizationId, body = {}) {
@@ -157,16 +257,157 @@ export class CreativeService {
     };
   }
 
-  /** Script → Kling text-to-video only (no other providers). */
+  /**
+   * Start image-to-video render (Models Lab only)
+   */
+  startImageToVideoRender(organizationId, creativeId, body = {}) {
+    const m = orgMap(this._byOrg, organizationId);
+    const existing = m.get(creativeId);
+    if (!existing) throw notFound('Creative not found');
+
+    const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : '';
+    if (!imageUrl) throw badRequest('Provide a valid image URL for image-to-video generation');
+
+    const incomingScript = typeof body.script === 'string' ? body.script.trim() : '';
+    if (incomingScript) {
+      const bundle = bundleFromUserScript(body);
+      if (bundle) {
+        existing.script = bundle.script;
+        existing.hook = bundle.hook;
+        existing.caption = bundle.caption;
+        existing.updatedAt = new Date().toISOString();
+      }
+    }
+
+    const jobId = randomUUID();
+    existing.render = {
+      jobId,
+      status: 'queued',
+      progress: 0,
+      videoUrl: null,
+      error: null,
+      generationType: 'image-to-video',
+    };
+    existing.updatedAt = new Date().toISOString();
+
+    void this._runImageToVideoRenderPipeline(m, creativeId, jobId, existing, imageUrl);
+
+    return {
+      jobId,
+      status: existing.render.status,
+      creativeId,
+      generationType: 'image-to-video',
+    };
+  }
+
+  async _runImageToVideoRenderPipeline(map, creativeId, jobId, row, imageUrl) {
+    const modelsLabCfg = resolveModelsLabConfig();
+    const replicateCfg = resolveReplicateConfig();
+
+    // Priority: Models Lab → Replicate
+    if (modelsLabCfg) {
+      try {
+        await this._runModelsLabImageToVideoRender(map, creativeId, jobId, modelsLabCfg, row, imageUrl);
+      } catch (err) {
+        const detail = formatModelsLabRenderError(err);
+        this._touchRender(map, creativeId, jobId, {
+          status: 'failed',
+          progress: 0,
+          videoUrl: null,
+          error: detail,
+        });
+        this.log?.error?.({ err, creativeId, jobId }, 'Models Lab image-to-video render failed');
+      }
+      return;
+    }
+
+    if (!replicateCfg) {
+      this._touchRender(map, creativeId, jobId, {
+        status: 'failed',
+        progress: 0,
+        videoUrl: null,
+        error: 'Image-to-video generation requires MODELS_LAB_API_KEY or REPLICATE_API_KEY in the backend environment.',
+      });
+      return;
+    }
+
+    try {
+      await this._runReplicateImageToVideoRender(map, creativeId, jobId, replicateCfg, row, imageUrl);
+    } catch (err) {
+      const detail = formatReplicateRenderError(err);
+      this._touchRender(map, creativeId, jobId, {
+        status: 'failed',
+        progress: 0,
+        videoUrl: null,
+        error: detail,
+      });
+      this.log?.error?.({ err, creativeId, jobId }, 'Replicate image-to-video render failed');
+    }
+  }
+
+  /** Script → Models Lab, HeyGen (avatar+TTS), Replicate, or Kling. */
   async _runRenderPipeline(map, creativeId, jobId, row) {
+    const modelsLabCfg = resolveModelsLabConfig();
+    const heyGenCfg = resolveHeyGenConfig();
+    const replicateCfg = resolveReplicateConfig();
     const klingCfg = resolveKlingConfig();
+
+    // Priority: Models Lab → HeyGen → Replicate → Kling
+    if (modelsLabCfg) {
+      try {
+        await this._runModelsLabRender(map, creativeId, jobId, modelsLabCfg, row);
+      } catch (err) {
+        const detail = formatModelsLabRenderError(err);
+        this._touchRender(map, creativeId, jobId, {
+          status: 'failed',
+          progress: 0,
+          videoUrl: null,
+          error: detail,
+        });
+        this.log?.error?.({ err, creativeId, jobId }, 'Models Lab render failed');
+      }
+      return;
+    }
+
+    if (heyGenCfg) {
+      try {
+        await this._runHeyGenRender(map, creativeId, jobId, heyGenCfg, row);
+      } catch (err) {
+        const detail = formatHeyGenRenderError(err);
+        this._touchRender(map, creativeId, jobId, {
+          status: 'failed',
+          progress: 0,
+          videoUrl: null,
+          error: detail,
+        });
+        this.log?.error?.({ err, creativeId, jobId }, 'HeyGen render failed');
+      }
+      return;
+    }
+
+    if (replicateCfg) {
+      try {
+        await this._runReplicateRender(map, creativeId, jobId, replicateCfg, row);
+      } catch (err) {
+        const detail = formatReplicateRenderError(err);
+        this._touchRender(map, creativeId, jobId, {
+          status: 'failed',
+          progress: 0,
+          videoUrl: null,
+          error: detail,
+        });
+        this.log?.error?.({ err, creativeId, jobId }, 'Replicate render failed');
+      }
+      return;
+    }
+
     if (!klingCfg) {
       this._touchRender(map, creativeId, jobId, {
         status: 'failed',
         progress: 0,
         videoUrl: null,
         error:
-          'Video generation uses Kling only. Set KLING_ACCESS_KEY and KLING_SECRET_KEY in the backend environment.',
+          'Video generation requires MODELS_LAB_API_KEY, HeyGen (HEYGEN_API_KEY + HEYGEN_AVATAR_ID + HEYGEN_VOICE_ID), REPLICATE_API_KEY, or KLING keys in the backend environment.',
       });
       return;
     }
@@ -213,6 +454,226 @@ export class CreativeService {
       videoUrl: url,
     });
     this.log?.info?.({ creativeId, jobId }, 'Kling render completed');
+  }
+
+  async _runHeyGenRender(map, creativeId, jobId, cfg, row) {
+    const script = typeof row.script === 'string' ? row.script : '';
+    const hook = typeof row.hook === 'string' ? row.hook : '';
+    const caption = typeof row.caption === 'string' ? row.caption : '';
+
+    this._touchRender(map, creativeId, jobId, { status: 'processing', progress: 6 });
+
+    const url = await heyGenGenerateAvatarVideoFromScript(
+      { script, hook, caption },
+      cfg,
+      {
+        isCancelled: () => {
+          const cur = map.get(creativeId);
+          return !cur?.render || cur.render.jobId !== jobId;
+        },
+        onProgress: (n) => this._touchRender(map, creativeId, jobId, { progress: n }),
+      },
+    );
+
+    this._touchRender(map, creativeId, jobId, {
+      status: 'completed',
+      progress: 100,
+      videoUrl: url,
+    });
+    this.log?.info?.({ creativeId, jobId }, 'HeyGen render completed');
+  }
+
+  async _runModelsLabRender(map, creativeId, jobId, cfg, row) {
+    const { script } = row;
+
+    const maxScenesRaw = parseInt(process.env.MODELS_LAB_MAX_SCENES?.trim() || '24', 10);
+    const maxScenes = Number.isFinite(maxScenesRaw)
+      ? Math.min(32, Math.max(1, maxScenesRaw))
+      : 24;
+    const allScenes = parseScenesFromScript(script);
+    const scenes = allScenes.slice(0, maxScenes);
+
+    this._touchRender(map, creativeId, jobId, { status: 'processing', progress: 6 });
+
+    const isCancelled = () => {
+      const cur = map.get(creativeId);
+      return !cur?.render || cur.render.jobId !== jobId;
+    };
+
+    if (scenes.length >= 2) {
+      const stitchCfg = resolveShotstackEditConfig();
+      if (!stitchCfg) {
+        throw new Error(
+          'Multi-scene scripts need SHOTSTACK_API_KEY or SHOTSTACK_STAGE_API_KEY in the backend environment to merge scene clips. Models Lab only outputs a few seconds per clip.',
+        );
+      }
+
+      const client = createModelsLabClient(cfg);
+      const clipMeta = [];
+      const span = 82;
+
+      for (let i = 0; i < scenes.length; i++) {
+        const scene = scenes[i];
+        const sceneCfg = { ...cfg, clipTargetSec: scene.targetDurationSec };
+        const base = 6 + (i / scenes.length) * span;
+
+        const url = await modelsLabGenerateAndPoll(
+          client,
+          scene.prompt,
+          sceneCfg,
+          {
+            isCancelled,
+            onProgress: (n) => {
+              const p = base + (n / 100) * (span / scenes.length);
+              this._touchRender(map, creativeId, jobId, { progress: Math.min(92, Math.round(p)) });
+            },
+          },
+          { external_task_id: `${creativeId}_${jobId}_s${scene.index}` },
+        );
+
+        clipMeta.push({
+          src: url,
+          lengthSec: Math.min(8, Math.max(2, scene.targetDurationSec)),
+        });
+      }
+
+      this._touchRender(map, creativeId, jobId, { progress: 90 });
+
+      const payload = buildShotstackVideoStitchPayload(clipMeta);
+      const renderId = await submitShotstackRender(stitchCfg, payload);
+
+      const finalUrl = await pollShotstackRenderUntilDone(stitchCfg, renderId, {
+        isCancelled,
+        onProgress: (n) =>
+          this._touchRender(map, creativeId, jobId, { progress: 90 + Math.round(n * 0.1) }),
+      });
+
+      this._touchRender(map, creativeId, jobId, {
+        status: 'completed',
+        progress: 100,
+        videoUrl: finalUrl,
+      });
+      this.log?.info?.(
+        { creativeId, jobId, sceneCount: scenes.length },
+        'Models Lab multi-scene render completed',
+      );
+      return;
+    }
+
+    const client = createModelsLabClient(cfg);
+    const singleScene = scenes.length === 1 ? scenes[0] : null;
+    const prompt = singleScene ? singleScene.prompt : buildModelsLabPrompt(script);
+    const runCfg = singleScene
+      ? { ...cfg, clipTargetSec: singleScene.targetDurationSec }
+      : cfg;
+
+    const url = await modelsLabGenerateAndPoll(
+      client,
+      prompt,
+      runCfg,
+      {
+        isCancelled,
+        onProgress: (n) => this._touchRender(map, creativeId, jobId, { progress: n }),
+      },
+      { external_task_id: `${creativeId}_${jobId}` },
+    );
+
+    this._touchRender(map, creativeId, jobId, {
+      status: 'completed',
+      progress: 100,
+      videoUrl: url,
+    });
+    this.log?.info?.({ creativeId, jobId }, 'Models Lab render completed');
+  }
+
+  async _runModelsLabImageToVideoRender(map, creativeId, jobId, cfg, row, imageUrl) {
+    this._touchRender(map, creativeId, jobId, { status: 'processing', progress: 6 });
+
+    const client = createModelsLabClient(cfg);
+    const prompt = row.script ? buildModelsLabPrompt(row.script) : '';
+
+    const url = await modelsLabGenerateImageToVideoAndPoll(
+      client,
+      imageUrl,
+      prompt,
+      cfg,
+      {
+        isCancelled: () => {
+          const cur = map.get(creativeId);
+          return !cur?.render || cur.render.jobId !== jobId;
+        },
+        onProgress: (n) => this._touchRender(map, creativeId, jobId, { progress: n }),
+      },
+      { external_task_id: `${creativeId}_${jobId}` },
+    );
+
+    this._touchRender(map, creativeId, jobId, {
+      status: 'completed',
+      progress: 100,
+      videoUrl: url,
+    });
+    this.log?.info?.({ creativeId, jobId }, 'Models Lab image-to-video render completed');
+  }
+
+  async _runReplicateRender(map, creativeId, jobId, cfg, row) {
+    const { script } = row;
+
+    this._touchRender(map, creativeId, jobId, { status: 'processing', progress: 6 });
+
+    const client = createReplicateClient(cfg);
+    const prompt = (script || '').trim() || 'A serene landscape';
+
+    const url = await replicateGenerateTextToVideo(
+      client,
+      prompt,
+      cfg,
+      {
+        isCancelled: () => {
+          const cur = map.get(creativeId);
+          return !cur?.render || cur.render.jobId !== jobId;
+        },
+        onProgress: (n) => this._touchRender(map, creativeId, jobId, { progress: n }),
+      },
+      { seed: Math.floor(Math.random() * 1000000) },
+    );
+
+    this._touchRender(map, creativeId, jobId, {
+      status: 'completed',
+      progress: 100,
+      videoUrl: url,
+    });
+    this.log?.info?.({ creativeId, jobId }, 'Replicate render completed');
+  }
+
+  async _runReplicateImageToVideoRender(map, creativeId, jobId, cfg, row, imageUrl) {
+    this._touchRender(map, creativeId, jobId, { status: 'processing', progress: 6 });
+
+    const client = createReplicateClient(cfg);
+    const prompt = row.script ? (row.script.trim() || 'Continue the motion naturally') : 'Continue the motion naturally';
+
+    const i2vCfg = { ...cfg, model: cfg.imageModel || cfg.model };
+
+    const url = await replicateGenerateImageToVideo(
+      client,
+      imageUrl,
+      prompt,
+      i2vCfg,
+      {
+        isCancelled: () => {
+          const cur = map.get(creativeId);
+          return !cur?.render || cur.render.jobId !== jobId;
+        },
+        onProgress: (n) => this._touchRender(map, creativeId, jobId, { progress: n }),
+      },
+      { seed: Math.floor(Math.random() * 1000000) },
+    );
+
+    this._touchRender(map, creativeId, jobId, {
+      status: 'completed',
+      progress: 100,
+      videoUrl: url,
+    });
+    this.log?.info?.({ creativeId, jobId }, 'Replicate image-to-video render completed');
   }
 
   _touchRender(map, creativeId, jobId, patch) {
