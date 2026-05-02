@@ -103,13 +103,30 @@ async function _runPipeline(log) {
   };
 
   try {
-    // ── 1. Ingest from all sources ──────────────────────────────────────────
+    // ── 1. Ingest from universal sources ───────────────────────────────────
     log.info({ runId }, '[Scheduler] Step 1: Ingesting trends');
     const ingestResult = await trendIngestionService.runAll();
     stats.ingested = ingestResult.ingested;
     stats.skipped = ingestResult.skipped;
     if (ingestResult.errors?.length) stats.errors.push(...ingestResult.errors);
-    log.info({ runId, ...ingestResult }, '[Scheduler] Ingestion done');
+    log.info({ runId, ...ingestResult }, '[Scheduler] Universal ingestion done');
+
+    // ── 1b. Ingest Reddit per channel (brand-specific subreddits) ──────────
+    log.info({ runId }, '[Scheduler] Step 1b: Ingesting brand-specific Reddit per channel');
+    const allChannelsForReddit = await db.select().from(channels).where(eq(channels.status, 'active'));
+    await Promise.allSettled(
+      allChannelsForReddit.map(async (ch) => {
+        try {
+          const r = await trendIngestionService.ingestRedditForChannel(ch);
+          stats.ingested += r.ingested;
+          stats.skipped += r.skipped;
+          log.info({ runId, channel: ch.name, ...r }, '[Scheduler] Reddit ingestion done for channel');
+        } catch (err) {
+          stats.errors.push(`reddit channel ${ch.name}: ${err.message}`);
+          log.error({ runId, err }, `[Scheduler] Reddit ingestion failed for channel ${ch.name}`);
+        }
+      }),
+    );
 
     // ── 2. Classify unprocessed candidates ─────────────────────────────────
     log.info({ runId }, '[Scheduler] Step 2: Classifying candidates');

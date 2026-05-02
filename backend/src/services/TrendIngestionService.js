@@ -31,18 +31,19 @@ const RSS_FEEDS = [
   { name: 'VentureBeat', url: 'https://feeds.feedburner.com/venturebeat/SZYF' },
 ];
 
-// Subreddits to monitor for viral format + cultural trends
-const REDDIT_SUBREDDITS = ['memes', 'funny', 'aww', 'videos', 'interestingasfuck', 'technology'];
+// Fallback subreddits used only when AI generation fails
+const REDDIT_FALLBACK = ['entrepreneur', 'startups', 'marketing', 'technology', 'business'];
+// Cache TTL — regenerate subreddits after 7 days
+const SUBREDDIT_CACHE_DAYS = 7;
 
 const FRESHNESS_HOURS = 48;
 
 export class TrendIngestionService {
-  // Main entry: run full ingestion across all enabled sources
+  // Main entry: universal sources only (Reddit is channel-specific via ingestRedditForChannel)
   async runAll() {
     const results = await Promise.allSettled([
       this.ingestRSS(),
       this.ingestGoogleTrends(),
-      this.ingestReddit(),
       this.ingestProductHunt(),
       this.ingestWikipediaTrending(),
       this.ingestHackerNews(),
@@ -130,8 +131,82 @@ export class TrendIngestionService {
     return { ingested, skipped };
   }
 
-  // --- Reddit hot posts (organic viral + format signals) ---
-  async ingestReddit(subreddits = REDDIT_SUBREDDITS) {
+  // --- Generate brand-specific subreddits via OpenAI (cached per channel) ---
+  async getSubredditsForChannel(channel) {
+    const cached = channel.brand_assets?.reddit_subreddits;
+    const cachedAt = channel.brand_assets?.reddit_subreddits_updated_at;
+    const cacheExpired = !cachedAt || Date.now() - new Date(cachedAt).getTime() > SUBREDDIT_CACHE_DAYS * 24 * 60 * 60 * 1000;
+
+    if (cached?.length && !cacheExpired) {
+      return cached;
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      console.warn('[TrendIngestion] No OPENAI_API_KEY — using fallback subreddits');
+      return REDDIT_FALLBACK;
+    }
+
+    try {
+      const brandContext = [
+        `Brand: ${channel.brand_name}`,
+        channel.industry        ? `Industry: ${channel.industry}`               : null,
+        channel.niche           ? `Niche: ${channel.niche}`                     : null,
+        channel.target_audience ? `Target audience: ${channel.target_audience}` : null,
+        channel.products?.length ? `Products: ${channel.products.join(', ')}`   : null,
+        channel.tone            ? `Tone: ${channel.tone}`                       : null,
+      ].filter(Boolean).join('\n');
+
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          response_format: { type: 'json_object' },
+          messages: [
+            {
+              role: 'system',
+              content: `You are a Reddit expert. Given a brand profile, suggest 8-12 subreddits where their target audience is most active and where trending content would be valuable for their content strategy.
+
+Rules:
+- Only real, active subreddits with 100k+ members
+- Mix: industry subreddits, audience interest subreddits, niche communities
+- No generic ones like memes, funny, aww — keep it brand-relevant
+- Return JSON: { "subreddits": ["name1", "name2", ...] } — names only, no r/ prefix`,
+            },
+            { role: 'user', content: `Find the best subreddits for this brand:\n\n${brandContext}` },
+          ],
+        }),
+      });
+
+      if (!res.ok) throw new Error(`OpenAI ${res.status}`);
+      const data = await res.json();
+      const result = JSON.parse(data.choices[0].message.content);
+      const subreddits = result.subreddits ?? REDDIT_FALLBACK;
+
+      // Cache on the channel
+      const updatedAssets = {
+        ...(channel.brand_assets ?? {}),
+        reddit_subreddits: subreddits,
+        reddit_subreddits_updated_at: new Date().toISOString(),
+      };
+      await db.update(channels).set({ brand_assets: updatedAssets, updated_at: new Date() }).where(eq(channels.id, channel.id));
+
+      console.log(`[TrendIngestion] Generated subreddits for ${channel.brand_name}: ${subreddits.join(', ')}`);
+      return subreddits;
+    } catch (err) {
+      console.error('[TrendIngestion] Subreddit generation failed:', err.message);
+      return REDDIT_FALLBACK;
+    }
+  }
+
+  // --- Reddit ingestion for a specific channel (uses AI-generated subreddits) ---
+  async ingestRedditForChannel(channel) {
+    const subreddits = await this.getSubredditsForChannel(channel);
+    return this.ingestReddit(subreddits);
+  }
+
+  // --- Reddit hot posts ---
+  async ingestReddit(subreddits = REDDIT_FALLBACK) {
     let ingested = 0, skipped = 0;
 
     for (const sub of subreddits) {
