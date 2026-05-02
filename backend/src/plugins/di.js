@@ -7,6 +7,7 @@ import { CtwaConversionRepository } from '../Repositories/CtwaConversionReposito
 import { CtwaInsightsRepository } from '../Repositories/CtwaInsightsRepository.js';
 import { AdsService } from '../services/AdsService.js';
 import { AdsController } from '../Controllers/AdsController.js';
+import { CreativeService } from '../services/CreativeService.js';
 
 // Build the DI graph for the Meta Ads slice and decorate the Fastify instance.
 // Keep this file as the *only* place that knows how the pieces are wired
@@ -36,10 +37,12 @@ async function plugin(app) {
   });
 
   const adsController = new AdsController(adsService, app.log);
+  const creativeService = new CreativeService({ logger: app.log });
 
   app.decorate('db', db);
   app.decorate('adsService', adsService);
   app.decorate('adsController', adsController);
+  app.decorate('creativeService', creativeService);
 }
 
 export default fp(plugin, { name: 'di', dependencies: ['auth'] });

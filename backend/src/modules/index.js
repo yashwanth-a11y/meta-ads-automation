@@ -7,7 +7,7 @@ import creativesRoutes from './creatives/routes.js';
 import approvalsRoutes from './approvals/routes.js';
 import publishingRoutes from './publishing/routes.js';
 import metaRoutes from './meta/routes.js';
-import adsRoutes from '../Routes/AdRoutes.js';
+import { adsRoutes } from '../Routes/AdRoutes.js';
 import leadsRoutes from './leads/routes.js';
 import analyticsRoutes from './analytics/routes.js';
 import webhooksRoutes from './webhooks/routes.js';

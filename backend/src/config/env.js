@@ -61,6 +61,16 @@ const schema = z.object({
   ELEVENLABS_API_KEY: z.string().optional(),
   AZURE_TTS_KEY: z.string().optional(),
 
+  // AWS (IAM user keys — picked up by AWS SDK via env; optional if using instance/profile roles)
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_REGION: z.string().optional(),
+  AWS_S3_BUCKET: z.string().optional(),
+  USE_S3: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+
   // Email
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
