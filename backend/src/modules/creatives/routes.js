@@ -12,6 +12,7 @@ function requireTenant(request) {
 // MS1 — creative bundle + render job (in-memory per org; swap for DB + queue later).
 export default async function routes(app) {
   const service = app.creativeService;
+  const adsService = app.adsService;
 
   app.addHook('onRequest', app.authenticate);
 
@@ -262,6 +263,49 @@ export default async function routes(app) {
       const { creativeId } = request.params;
       const creative = await service.regenerate(orgId, creativeId, request.body ?? {});
       return { creative };
+    },
+  );
+
+  app.post(
+    '/:creativeId/publish-meta',
+    {
+      schema: {
+        description:
+          'Upload the rendered video to the connected Meta ad account, create an ad creative (Page + video), and return Ads Manager link.',
+        tags: ['creatives'],
+        params: {
+          type: 'object',
+          required: ['creativeId'],
+          properties: { creativeId: { type: 'string' } },
+        },
+        body: {
+          type: 'object',
+          properties: {
+            headline: { type: 'string', description: 'Creative title (maps to video title).' },
+            primaryText: { type: 'string', description: 'Body copy on the creative.' },
+            destinationUrl: { type: 'string', description: 'Optional https link for LEARN_MORE CTA.' },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const orgId = requireTenant(request);
+      const { creativeId } = request.params;
+      const creative = service.get(orgId, creativeId);
+      const r = creative.render;
+      if (!r || r.status !== 'completed' || !r.videoUrl) {
+        throw badRequest('Video must finish rendering before publishing to Meta.');
+      }
+
+      const body = request.body ?? {};
+      const result = await adsService.publishStudioRenderVideoToMeta(orgId, {
+        videoUrl: r.videoUrl,
+        name: creative.hook || `Creative ${creativeId.slice(0, 8)}`,
+        headline: typeof body.headline === 'string' ? body.headline : creative.hook,
+        primaryText: typeof body.primaryText === 'string' ? body.primaryText : creative.caption,
+        destinationUrl: typeof body.destinationUrl === 'string' ? body.destinationUrl : undefined,
+      });
+      return { publish: result };
     },
   );
 

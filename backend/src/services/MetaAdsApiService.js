@@ -476,6 +476,11 @@ export class MetaAdsApiService {
     return response.data;
   }
 
+  /** Marketing API AdVideo — thumbnails for creative `video_data.image_url`. */
+  async getAdVideo(videoId, fields = "thumbnails,picture") {
+    return this._request("GET", `/${videoId}`, { fields });
+  }
+
   // === BUSINESS ===
 
   async getBusinesses() {

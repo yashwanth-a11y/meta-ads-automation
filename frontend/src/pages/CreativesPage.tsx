@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   LinearProgress,
+  Link,
   Stack,
   TextField,
   Typography,
@@ -10,6 +11,7 @@ import {
 import { alpha } from '@mui/material/styles'
 import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded'
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded'
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded'
 import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -103,6 +105,12 @@ export function CreativesPage() {
   const [enhancing, setEnhancing] = useState(false)
   const [generatingScript, setGeneratingScript] = useState(false)
   const [briefDraft, setBriefDraft] = useState('')
+  const [publishingToMeta, setPublishingToMeta] = useState(false)
+  const [publishMetaSuccess, setPublishMetaSuccess] = useState<{
+    url: string
+    creativeId: string
+    videoId: string
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const streamAbortRef = useRef<AbortController | null>(null)
@@ -269,6 +277,7 @@ export function CreativesPage() {
     }
     setBusy(true)
     setError(null)
+    setPublishMetaSuccess(null)
     stopPoll()
     try {
       const gen = await apiFetch('/api/v1/creatives/generate', {
@@ -296,6 +305,36 @@ export function CreativesPage() {
     creative?.render?.status === 'queued' || creative?.render?.status === 'processing'
   const videoUrl = creative?.render?.videoUrl ?? null
   const progress = creative?.render?.progress ?? 0
+  const videoReadyForMeta =
+    Boolean(creative?.id && creative.render?.status === 'completed' && videoUrl)
+
+  const handlePublishToMeta = async () => {
+    if (!creative?.id || !videoUrl) return
+    setPublishingToMeta(true)
+    setPublishMetaSuccess(null)
+    setError(null)
+    try {
+      const res = await apiFetch(`/api/v1/creatives/${creative.id}/publish-meta`, {
+        method: 'POST',
+        body: JSON.stringify({
+          headline: creative.hook || undefined,
+          primaryText: creative.caption || undefined,
+        }),
+      })
+      const data = await parseJson<{
+        publish: { ads_manager_url: string; creative_id: string | null; video_id: string }
+      }>(res)
+      setPublishMetaSuccess({
+        url: data.publish.ads_manager_url,
+        creativeId: data.publish.creative_id ?? '',
+        videoId: data.publish.video_id,
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Publish to Meta failed')
+    } finally {
+      setPublishingToMeta(false)
+    }
+  }
 
   return (
     <Stack spacing={3}>
@@ -307,6 +346,40 @@ export function CreativesPage() {
       {error ? (
         <Alert severity="error" onClose={() => setError(null)}>
           {error}
+        </Alert>
+      ) : null}
+
+      {publishMetaSuccess ? (
+        <Alert
+          severity="success"
+          onClose={() => setPublishMetaSuccess(null)}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              href={publishMetaSuccess.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              endIcon={<OpenInNewRoundedIcon />}
+            >
+              Ads Manager
+            </Button>
+          }
+        >
+          Video uploaded and ad creative created in Meta. Creative ID{' '}
+          <Typography component="span" variant="body2" sx={{ fontFamily: 'monospace' }}>
+            {publishMetaSuccess.creativeId || '—'}
+          </Typography>
+          {publishMetaSuccess.videoId ? (
+            <>
+              {' '}
+              · Video ID{' '}
+              <Typography component="span" variant="body2" sx={{ fontFamily: 'monospace' }}>
+                {publishMetaSuccess.videoId}
+              </Typography>
+            </>
+          ) : null}
+          . Open Ads Manager to attach it to a campaign or ad set.
         </Alert>
       ) : null}
 
@@ -464,6 +537,30 @@ VIDEO 2: …`}
             value={progress}
             sx={{ mt: 2, borderRadius: 1, bgcolor: alpha('#FFF', 0.06) }}
           />
+        ) : null}
+
+        {videoReadyForMeta ? (
+          <Box sx={{ mt: 2 }}>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="large"
+              startIcon={<OpenInNewRoundedIcon />}
+              onClick={() => void handlePublishToMeta()}
+              disabled={
+                publishingToMeta || busy || enhancing || generatingScript || loading || renderBusy
+              }
+            >
+              {publishingToMeta ? 'Publishing to Meta…' : 'Publish to Meta Ads'}
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Uses your connected ad account and Facebook Page (see{' '}
+              <Link href="/ads/setup" target="_blank" rel="noopener noreferrer">
+                Ads setup
+              </Link>
+              ). Uploads this video and creates an ad creative you can attach in Ads Manager.
+            </Typography>
+          </Box>
         ) : null}
       </GlassCard>
     </Stack>
