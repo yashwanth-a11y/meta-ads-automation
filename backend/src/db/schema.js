@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   varchar,
@@ -19,6 +20,32 @@ const ts = (name) =>
   timestamp(name, { withTimezone: true, mode: 'date' })
     .notNull()
     .defaultNow();
+
+// --- Users ---
+// Individual users; no organization concept — each user owns their own data.
+// `organization_id` on the rest of the schema is set to `users.id` so the
+// existing per-tenant scoping (every Meta Ads repo filters by organization_id)
+// keeps working without modification.
+
+export const users = pgTable(
+  'users',
+  {
+    id: id(),
+    first_name: varchar('first_name', { length: 100 }).notNull(),
+    last_name: varchar('last_name', { length: 100 }).notNull(),
+    email: varchar('email', { length: 255 }).notNull(),
+    phone: varchar('phone', { length: 20 }).notNull(),
+    password_hash: text('password_hash').notNull(),
+    last_login_at: timestamp('last_login_at', { withTimezone: true, mode: 'date' }),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    // Case-insensitive uniqueness on email. We also lowercase before insert,
+    // but the index is the authoritative guard (and helps lookups).
+    email_lower_uq: uniqueIndex('users_email_lower_uq').on(sql`lower(${t.email})`),
+  }),
+);
 
 // --- Meta ad account connections (one active per organization, can be more historical) ---
 
