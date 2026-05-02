@@ -35,27 +35,27 @@ declare module '@mui/material/styles' {
 
 export const theme = createTheme({
   palette: {
-    mode: 'dark',
+    mode: 'light',
     primary: {
-      main: '#FAFAFA',
-      dark: '#E5E5E5',
-      light: '#FFFFFF',
-      contrastText: '#050505',
+      main: '#22D3EE',
+      dark: '#0EA5B7',
+      light: '#67E8F9',
+      contrastText: '#05242A',
     },
     secondary: {
-      main: '#737373',
-      contrastText: '#FAFAFA',
+      main: '#64748B',
+      contrastText: '#0F172A',
     },
     background: {
-      default: '#000000',
-      paper: '#0A0A0A',
+      default: '#F7FAFC',
+      paper: '#FFFFFF',
     },
     text: {
-      primary: '#F5F5F5',
-      secondary: '#A3A3A3',
-      disabled: '#525252',
+      primary: '#0F172A',
+      secondary: '#475569',
+      disabled: '#94A3B8',
     },
-    divider: '#262626',
+    divider: '#D8E1EA',
     error: {
       main: '#F87171',
     },
@@ -66,14 +66,14 @@ export const theme = createTheme({
       main: '#34D399',
     },
     surface: {
-      main: '#0A0A0A',
-      elevated: '#111111',
-      glass: alpha('#FFFFFF', 0.04),
+      main: '#FFFFFF',
+      elevated: '#F8FAFC',
+      glass: alpha('#0F172A', 0.03),
     },
     auth: {
-      pageBg: '#0B0F14',
-      panelBg: '#121821',
-      panelBorder: '#1F2937',
+      pageBg: '#F1F6FB',
+      panelBg: '#FFFFFF',
+      panelBorder: '#D8E1EA',
       accentFrom: '#2DD4BF',
       accentTo: '#22D3EE',
       accentMuted: alpha('#2DD4BF', 0.65),
@@ -126,7 +126,7 @@ export const theme = createTheme({
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          scrollbarColor: '#404040 #0a0a0a',
+          scrollbarColor: '#94A3B8 #F1F5F9',
           scrollbarWidth: 'thin',
         },
       },
@@ -134,6 +134,7 @@ export const theme = createTheme({
     MuiPaper: {
       styleOverrides: {
         root: {
+          border: '1px solid #dddddd57',
           borderRadius: 8,
           backgroundImage: 'none',
           transition: 'box-shadow 240ms ease, transform 240ms ease, border-color 240ms ease',
@@ -149,26 +150,28 @@ export const theme = createTheme({
           '&:active': { transform: 'scale(0.98)' },
         },
         contained: {
-          boxShadow: `0 0 0 1px ${alpha('#FFFFFF', 0.12)}, 0 8px 24px ${alpha('#000000', 0.5)}`,
+          boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
           '&.MuiButton-colorPrimary': {
             backgroundColor: '#22D3EE',
-            // backgroundColor: '#FAFAFA',
-            color: '#050505',
+            background: "#22D3EE !important",
+            color: '#FFF !important',
             '&:hover': {
               transform: 'translateY(-2px)',
               transition: 'transform 200ms ease',
-              // transform: 'scale(1.02)',
-              // backgroundColor: '#FFFFFF',
-              boxShadow: `0 0 0 1px ${alpha('#FFFFFF', 0.2)}, 0 12px 32px ${alpha('#000000', 0.55)}`,
+              // boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 14px 30px ${alpha('#22D3EE', 0.26)}`,
+            },
+            '&.Mui-disabled': {
+              backgroundColor: 'rgba(15, 23, 42, 0.05) !important',
+              color: "#ddd !important",
+              boxShadow: 'none',
             },
           },
         },
         outlined: {
-          borderColor: alpha('#FFFFFF', 0.14),
-          // borderColor: alpha('#FFFFFF', 0.14),
+          borderColor: alpha('#0F172A', 0.2),
           '&:hover': {
-            borderColor: alpha('#FFFFFF', 0.28),
-            backgroundColor: alpha('#FFFFFF', 0.04),
+            borderColor: alpha('#0F172A', 0.3),
+            backgroundColor: alpha('#0F172A', 0.03),
           },
         },
       },
@@ -182,19 +185,19 @@ export const theme = createTheme({
           borderRadius: 12,
           transition: 'box-shadow 220ms ease, border-color 220ms ease',
           '& .MuiOutlinedInput-notchedOutline': {
-            borderColor: alpha('#FFFFFF', 0.1),
+            borderColor: alpha('#0F172A', 0.2),
           },
           '&:hover .MuiOutlinedInput-notchedOutline': {
-            borderColor: alpha('#FFFFFF', 0.2),
+            borderColor: alpha('#0F172A', 0.3),
           },
           '&.Mui-focused': {
-            boxShadow: `0 0 0 3px ${alpha('#FFFFFF', 0.08)}`,
+            boxShadow: `0 0 0 3px ${alpha('#22D3EE', 0.2)}`,
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: alpha('#FFFFFF', 0.35),
+            borderColor: alpha('#22D3EE', 0.55),
           },
           '& .MuiInputBase-input:-webkit-autofill': {
-            '-webkit-text-fill-color': '#A3A3A3 !important',
+            '-webkit-text-fill-color': '#334155 !important',
             transition: 'background-color 5000s ease-in-out 0s !important',
             backgroundColor: 'transparent !important',
             '-webkit-box-shadow': 'unset !important',
@@ -205,10 +208,10 @@ export const theme = createTheme({
     },
     MuiTableCell: {
       styleOverrides: {
-        root: { borderColor: alpha('#FFFFFF', 0.06) },
+        root: { borderColor: alpha('#0F172A', 0.08) },
         head: {
           fontWeight: 600,
-          color: '#A3A3A3',
+          color: '#64748B',
           fontSize: '0.75rem',
           textTransform: 'uppercase',
           letterSpacing: '0.06em',
@@ -219,15 +222,15 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           transition: 'background-color 200ms ease',
-          '&:hover': { backgroundColor: alpha('#FFFFFF', 0.03) },
+          '&:hover': { backgroundColor: alpha('#0F172A', 0.02) },
         },
       },
     },
     MuiDrawer: {
       styleOverrides: {
         paper: {
-          borderRight: `1px solid ${alpha('#FFFFFF', 0.06)}`,
-          backgroundImage: `linear-gradient(180deg, ${alpha('#FFFFFF', 0.03)} 0%, transparent 40%)`,
+          borderRight: `1px solid ${alpha('#0F172A', 0.08)}`,
+          backgroundImage: `linear-gradient(180deg, ${alpha('#22D3EE', 0.08)} 0%, transparent 45%)`,
         },
       },
     },

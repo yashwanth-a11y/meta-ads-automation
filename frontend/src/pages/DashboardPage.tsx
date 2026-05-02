@@ -66,7 +66,8 @@ export function DashboardPage() {
               p: 2,
               borderRadius: '8px',
               border: `1px solid ${alpha('#FFFFFF', 0.1)}`,
-              bgcolor: alpha('#FFFFFF', 0.03),
+              bgcolor: '#FFFFFF',
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
               position: 'relative',
               overflow: 'hidden',
               '&::before': {
@@ -85,9 +86,12 @@ export function DashboardPage() {
             }}
           >
             <Stack
-              direction={{ xs: 'column', sm: 'row' }}
+              direction={{ xs: 'column', sm: 'row',
+                
+               }}
               spacing={1.2}
-              sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, position: 'relative', zIndex: 1 }}
+              sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, position: 'relative', zIndex: 1,
+             }}
             >
               <Chip
                 icon={<TrendingUpOutlinedIcon />}
@@ -111,7 +115,8 @@ export function DashboardPage() {
               p: 2,
               borderRadius: '8px',
               border: `1px solid ${alpha('#FFFFFF', 0.1)}`,
-              bgcolor: alpha('#FFFFFF', 0.03),
+              bgcolor: '#FFFFFF',
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
               height: '100%',
               display: 'flex',
               flexDirection: 'column',
@@ -142,7 +147,8 @@ export function DashboardPage() {
                 p: 2,
                 borderRadius: '8px',
                 border: `1px solid ${alpha('#FFFFFF', 0.08)}`,
-                bgcolor: alpha('#FFFFFF', 0.02),
+                bgcolor: '#FFFFFF',
+                boxShadow: `0 1px 2px ${alpha('#0F172A', 0.08)}, 0 10px 24px ${alpha('#22D3EE', 0.22)}`,
                 transition: 'transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease',
                 '&:hover': {
                   transform: 'translateY(-2px)',

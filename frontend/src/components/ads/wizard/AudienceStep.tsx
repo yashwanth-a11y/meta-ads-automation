@@ -60,7 +60,7 @@ export function AudienceStep({ audience, onChange }: Props) {
   const sacLocked = audience.special_ad_categories.some((c) => c !== 'NONE')
 
   return (
-    <Stack spacing={3}>
+    <Stack spacing={3} sx={{ mt: 2, }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Who should see this ad?</Typography>
 
       {sacLocked && (

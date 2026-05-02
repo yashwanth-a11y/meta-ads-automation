@@ -29,10 +29,11 @@ export function Header({ title, onMenu }: HeaderProps) {
       position="sticky"
       elevation={0}
       sx={{
-        bgcolor: alpha('#000000', 0.65),
+        bgcolor: alpha('#FFFFFF', 0.9),
+        borderRadius: "0px",
         backdropFilter: 'blur(14px)',
         WebkitBackdropFilter: 'blur(14px)',
-        borderBottom: `1px solid ${alpha('#FFFFFF', 0.06)}`,
+        borderBottom: `1px solid ${alpha('#0F172A', 0.08)}`,
       }}
     >
       <Toolbar sx={{ gap: 2, minHeight: { xs: 64, md: 72 }, px: { xs: 2, md: 3 } }}>
@@ -61,7 +62,7 @@ export function Header({ title, onMenu }: HeaderProps) {
             ml: { xs: 0, md: 'auto' },
             display: { xs: isSm ? 'none' : 'flex', md: 'flex' },
             '& .MuiOutlinedInput-root': {
-              bgcolor: alpha('#FFFFFF', 0.04),
+              bgcolor: alpha('#0F172A', 0.03),
             },
           }}
           slotProps={{

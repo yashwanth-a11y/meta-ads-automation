@@ -53,7 +53,7 @@ export function ObjectiveStep({ value, onChange, hasWaba }: Props) {
               variant="outlined"
               sx={{
                 flex: 1,
-                borderRadius: 3,
+                // borderRadius: 3,
                 borderColor: (t) => (selected ? t.palette.primary.main : alpha(t.palette.divider, 0.6)),
                 bgcolor: (t) => (selected ? alpha(t.palette.primary.main, 0.06) : 'transparent'),
                 opacity: disabled ? 0.5 : 1,

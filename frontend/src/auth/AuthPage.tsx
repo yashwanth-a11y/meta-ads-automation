@@ -23,6 +23,7 @@ import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { paths } from './constants'
+import logo from '../assets/logo.svg'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:4000'
 const SIGNUP_URL = `${API_BASE}/api/v1/auth/signup`
@@ -108,8 +109,8 @@ export function AuthPage() {
       boxShadow: `0 16px 48px ${alpha(auth.accentFrom, 0.35)}`,
     },
     '&.Mui-disabled': {
-      background: alpha('#FFFFFF', 0.08),
-      color: alpha('#FFFFFF', 0.35),
+      background: alpha('#0F172A', 0.12),
+      color: alpha('#0F172A', 0.35),
       boxShadow: 'none',
     },
   }
@@ -246,14 +247,23 @@ export function AuthPage() {
           flexDirection: 'column',
           justifyContent: 'center',
           borderRight: { md: `1px solid ${auth.panelBorder}` },
-          background: `radial-gradient(ellipse 80% 60% at 20% 20%, ${alpha(auth.accentFrom, 0.12)} 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 80% 80%, ${alpha(auth.accentTo, 0.08)} 0%, transparent 50%), ${auth.pageBg}`,
+          // background: `radial-gradient(ellipse 80% 65% at 20% 15%, ${alpha(auth.accentFrom, 0.22)} 0%, transparent 58%), radial-gradient(ellipse 72% 56% at 85% 82%, ${alpha(auth.accentTo, 0.16)} 0%, transparent 52%), linear-gradient(135deg, ${alpha('#FFFFFF', 0.85)} 0%, ${auth.pageBg} 56%)`,
+          
         }}
+        
       >
+         <Link href="https://www.virlo.com" target="_blank" sx={{ 
+          position: 'absolute', top: 40, left: 40,
+          }}>
+          <img src={logo} alt="Virlo" width="200px" />
+            </Link>
         <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 520 }}>
+         
           <Typography
             variant="overline"
             sx={{
-              ...gradientTextSx,
+              color: '#22D3EE',
+              // ...gradientTextSx,
               fontWeight: 800,
               letterSpacing: '0.35em',
               fontSize: '0.8125rem',
@@ -285,24 +295,23 @@ export function AuthPage() {
           </Typography>
         </Box>
 
-        <Typography
+        {/* <Typography
           sx={{
             position: 'absolute',
-            left: '0%',
-            transform: 'translateX(0%)',
-            bottom: '0%',
-            fontSize: '9rem' ,
+            left: '4%',
+            bottom: '-6%',
+            fontSize: { xs: '5rem', md: 'clamp(6rem, 14vw, 10rem)' },
             fontWeight: 800,
             letterSpacing: '-0.04em',
-            color: alpha('#FFFFFF', 0.045),
+            color: alpha('#0F172A', 0.06),
             userSelect: 'none',
             pointerEvents: 'none',
             lineHeight: 0.85,
             whiteSpace: 'nowrap',
           }}
         >
-          VIRLO
-        </Typography>
+          PHOTONX
+        </Typography> */}
       </Grid>
 
       <Grid
@@ -323,50 +332,31 @@ export function AuthPage() {
             position: 'absolute',
             inset: 0,
             pointerEvents: 'none',
-            opacity: 0.65,
+            opacity: 0.42,
             backgroundImage: `
               linear-gradient(${alpha('#22D3EE', 0.08)} 1px, transparent 1px),
               linear-gradient(90deg, ${alpha('#22D3EE', 0.08)} 1px, transparent 1px)
             `,
-            backgroundSize: '34px 34px',
+            backgroundSize: '28px 28px',
             maskImage: 'radial-gradient(circle at 50% 50%, black 44%, transparent 88%)',
           }}
         />
-        {/* <Stack
+        <Box
           aria-hidden
-          spacing={1.5}
           sx={{
             position: 'absolute',
-            top: { xs: 14, md: 26 },
-            right: { xs: 14, md: 28 },
-            width: { xs: 170, md: 210 },
+            top: '9%',
+            right: '-16%',
+            width: 320,
+            height: 320,
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${alpha('#22D3EE', 0.2)} 0%, transparent 68%)`,
+            filter: 'blur(6px)',
             pointerEvents: 'none',
             zIndex: 0,
           }}
-        >
-          {['Signal quality +18%', 'Creative output 642', 'Leads today 148'].map((label, idx) => (
-            <Box
-              key={label}
-              sx={{
-                px: 1.5,
-                py: 1,
-                borderRadius: '8px',
-                border: `1px solid ${alpha('#22D3EE', 0.35)}`,
-                bgcolor: alpha('#030712', 0.58),
-                color: alpha('#D9FBFF', 0.95),
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                letterSpacing: '0.02em',
-                backdropFilter: 'blur(8px)',
-                transform: `translateX(${idx * 10}px)`,
-                boxShadow: `0 10px 24px ${alpha('#000', 0.38)}`,
-              }}
-            >
-              {label}
-            </Box>
-          ))}
-        </Stack> */}
-        <Box
+        />
+        {/* <Box
           aria-hidden
           sx={{
             position: 'absolute',
@@ -375,21 +365,22 @@ export function AuthPage() {
             width: { xs: 170, md: 210 },
             p: 1.5,
             borderRadius: '8px',
-            border: `1px solid ${alpha('#FFFFFF', 0.16)}`,
-            bgcolor: alpha('#050505', 0.62),
+            border: `1px solid ${alpha('#22D3EE', 0.28)}`,
+            bgcolor: alpha('#FFFFFF', 0.82),
             backdropFilter: 'blur(8px)',
             pointerEvents: 'none',
             zIndex: 0,
+            boxShadow: `0 10px 30px ${alpha('#0F172A', 0.08)}`,
           }}
         >
-          <Typography sx={{ fontSize: '0.68rem', color: alpha('#FFFFFF', 0.7), mb: 0.8 }}>
+          <Typography sx={{ fontSize: '0.68rem', color: alpha('#0F172A', 0.62), mb: 0.8 }}>
             Pipeline readiness
           </Typography>
           <Box
             sx={{
               height: 7,
               borderRadius: 999,
-              bgcolor: alpha('#FFFFFF', 0.1),
+              bgcolor: alpha('#0F172A', 0.1),
               overflow: 'hidden',
               mb: 0.8,
             }}
@@ -406,19 +397,19 @@ export function AuthPage() {
           <Typography sx={{ fontSize: '0.74rem', color: alpha('#22D3EE', 0.95), fontWeight: 700 }}>
             78% healthy campaigns
           </Typography>
-        </Box>
+        </Box> */}
         <Paper
           elevation={0}
           sx={{
             position: 'relative',
             zIndex: 1,
             width: '100%',
-            maxWidth: 460,
+            maxWidth: "75%",
             p: { xs: 3, sm: 4 },
-            borderRadius: '8px',
+            borderRadius: '16px',
             bgcolor: auth.panelBg,
-            border: `1px solid ${auth.panelBorder}`,
-            boxShadow: `${alpha('#000000', 0.45)} 0 24px 64px, 0 0 0 1px ${alpha('#FFFFFF', 0.04)}`,
+            border: '1px solid #dddddd57',
+            boxShadow: `0 24px 60px ${alpha('#0F172A', 0.12)}, 0 1px 0 ${alpha('#FFFFFF', 0.7)} inset`,
             backdropFilter: 'blur(14px)',
           }}
         >
@@ -444,9 +435,9 @@ export function AuthPage() {
               mb: 3,
               p: 0.5,
               gap: 0.5,
-              bgcolor: alpha('#000000', 0.35),
+              bgcolor: alpha('#0F172A', 0.05),
               borderRadius: 999,
-              border: `1px solid ${auth.panelBorder}`,
+              // border: `1px solid ${auth.panelBorder}`,
               '& .MuiToggleButtonGroup-grouped': {
                 border: 0,
                 borderRadius: `${999}px !important`,
@@ -464,7 +455,8 @@ export function AuthPage() {
                 color: 'text.secondary',
                 '&.Mui-selected': {
                   bgcolor: alpha(auth.accentFrom, 0.14),
-                  color: auth.accentTo,
+                  backgroundColor: '#22D3EE',
+                  color: "#FFF",
                   boxShadow: `inset 0 0 0 1px ${alpha(auth.accentFrom, 0.55)}, 0 0 20px ${alpha(auth.accentFrom, 0.12)}`,
                   '&:hover': { bgcolor: alpha(auth.accentFrom, 0.18) },
                 },
@@ -482,7 +474,8 @@ export function AuthPage() {
                 color: 'text.secondary',
                 '&.Mui-selected': {
                   bgcolor: alpha(auth.accentFrom, 0.14),
-                  color: auth.accentTo,
+                  backgroundColor: '#22D3EE',
+                  color: "#FFF",
                   boxShadow: `inset 0 0 0 1px ${alpha(auth.accentFrom, 0.55)}, 0 0 20px ${alpha(auth.accentFrom, 0.12)}`,
                   '&:hover': { bgcolor: alpha(auth.accentFrom, 0.18) },
                 },
@@ -493,7 +486,7 @@ export function AuthPage() {
           </ToggleButtonGroup>
 
           {tab === 'login' ? (
-            <Stack spacing={3}>
+            <Stack spacing={1}>
               {loginError ? (
                 <Alert severity="error" onClose={() => setLoginError(null)}>
                   {loginError}
@@ -548,7 +541,7 @@ export function AuthPage() {
                   helperText={loginPassword.length > 0 && !loginPassOk ? 'At least 8 characters' : ' '}
                 />
               </Box>
-              <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: -1 }}>
+              <Stack direction="row" sx={{ justifyContent: 'flex-end', }}>
                 <Link
                   component="button"
                   type="button"
@@ -562,7 +555,9 @@ export function AuthPage() {
                 fullWidth
                 variant="contained"
                 disabled={!loginValid || loginLoading}
-                sx={ctaSx}
+                sx={{...ctaSx, 
+                  marginBottom:"20px !important",
+                }}
                 onClick={() => void handleLogin()}
               >
                 {loginLoading ? 'Signing in…' : 'Sign in now'}
@@ -574,7 +569,8 @@ export function AuthPage() {
                   type="button"
                   underline="hover"
                   onClick={() => setTab('signup')}
-                  sx={{ color: auth.accentTo, fontWeight: 700 }}
+                  sx={{ color: auth.accentTo, fontWeight: 700,
+                   }}
                 >
                   Sign up
                 </Link>
@@ -587,7 +583,7 @@ export function AuthPage() {
                   {signupError}
                 </Alert>
               ) : null}
-              <Grid container spacing={2}>
+              <Grid container spacing={1}>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
                     First name
@@ -624,112 +620,64 @@ export function AuthPage() {
                     helperText={lastName.length > 0 && !lnameOk ? 'Required' : ' '}
                   />
                 </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
+                    Email
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    autoComplete="new-email"
+                    placeholder="you@company.com"
+                    value={signupEmail}
+                    onChange={(e) => {
+                      clearSignupError()
+                      setSignupEmail(e.target.value)
+                    }}
+                    slotProps={inputSlotProps(<EmailOutlinedIcon fontSize="small" />)}
+                    error={signupEmail.length > 0 && !signupEmailOk}
+                    helperText={signupEmail.length > 0 && !signupEmailOk ? 'Must include @' : ' '}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>Phone</Typography>
+                  <TextField
+                    fullWidth
+                    autoComplete="off"
+                    placeholder="+14155552671"
+                    value={signupPhone}
+                    onChange={(e) => {
+                      clearSignupError()
+                      setSignupPhone(e.target.value)
+                    }}
+                    slotProps={inputSlotProps(<PhoneOutlinedIcon fontSize="small" />)}
+                    error={signupPhone.length > 0 && !phoneOk}
+                    helperText={signupPhone.length > 0 && !phoneOk ? 'E.164 format: + and country code, then digits (6–15 digits after +)' : ' '}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>Password</Typography>
+                  <TextField
+                    fullWidth
+                    autoComplete="new-password"
+                    type={showSignupPass ? 'text' : 'password'}
+                    placeholder="Minimum 8 characters"
+                    value={signupPassword}
+                  />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>Confirm password</Typography>
+                  <TextField
+                    fullWidth
+                    autoComplete="new-password"
+                    type={showConfirmPass ? 'text' : 'password'}
+                    placeholder="Re-enter password"
+                    value={confirmPassword}
+                  />
+                </Grid>
               </Grid>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
-                  Email
-                </Typography>
-                <TextField
-                  fullWidth
-                  autoComplete="new-email"
-                  placeholder="you@company.com"
-                  value={signupEmail}
-                  onChange={(e) => {
-                    clearSignupError()
-                    setSignupEmail(e.target.value)
-                  }}
-                  slotProps={inputSlotProps(<EmailOutlinedIcon fontSize="small" />)}
-                  error={signupEmail.length > 0 && !signupEmailOk}
-                  helperText={signupEmail.length > 0 && !signupEmailOk ? 'Must include @' : ' '}
-                />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
-                  Phone
-                </Typography>
-                <TextField
-                  fullWidth
-                  autoComplete="off"
-                  placeholder="+14155552671"
-                  value={signupPhone}
-                  onChange={(e) => {
-                    clearSignupError()
-                    setSignupPhone(e.target.value)
-                  }}
-                  slotProps={inputSlotProps(<PhoneOutlinedIcon fontSize="small" />)}
-                  error={signupPhone.length > 0 && !phoneOk}
-                  helperText={
-                    signupPhone.length > 0 && !phoneOk
-                      ? 'E.164 format: + and country code, then digits (6–15 digits after +)'
-                      : ' '
-                  }
-                />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
-                  Password
-                </Typography>
-                <TextField
-                  fullWidth
-                  autoComplete="new-password"
-                  type={showSignupPass ? 'text' : 'password'}
-                  placeholder="Minimum 8 characters"
-                  value={signupPassword}
-                  onChange={(e) => {
-                    clearSignupError()
-                    setSignupPassword(e.target.value)
-                  }}
-                  slotProps={inputSlotProps(
-                    <LockOutlinedIcon fontSize="small" />,
-                    <InputAdornment position="end">
-                      <IconButton
-                        edge="end"
-                        onClick={() => setShowSignupPass((v) => !v)}
-                        sx={{ color: auth.accentTo }}
-                      >
-                        {showSignupPass ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
-                      </IconButton>
-                    </InputAdornment>,
-                  )}
-                  error={signupPassword.length > 0 && !signupPassOk}
-                  helperText={
-                    signupPassword.length > 0 && !signupPassOk
-                      ? 'At least 8 characters, with at least one letter and one digit'
-                      : ' '
-                  }
-                />
-              </Box>
-              <Box>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>
-                  Confirm password
-                </Typography>
-                <TextField
-                  fullWidth
-                  autoComplete="new-password"
-                  type={showConfirmPass ? 'text' : 'password'}
-                  placeholder="Re-enter password"
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    clearSignupError()
-                    setConfirmPassword(e.target.value)
-                  }}
-                  slotProps={inputSlotProps(
-                    <LockOutlinedIcon fontSize="small" />,
-                    <InputAdornment position="end">
-                      <IconButton
-                        edge="end"
-                        onClick={() => setShowConfirmPass((v) => !v)}
-                        sx={{ color: auth.accentTo }}
-                      >
-                        {showConfirmPass ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
-                      </IconButton>
-                    </InputAdornment>,
-                  )}
-                  error={confirmPassword.length > 0 && !passwordsMatch}
-                  helperText={confirmPassword.length > 0 && !passwordsMatch ? 'Passwords must match' : ' '}
-                />
-              </Box>
+
               <Button
+              
                 fullWidth
                 variant="contained"
                 disabled={!basicsValid || signupLoading}
@@ -753,8 +701,8 @@ export function AuthPage() {
             </Stack>
           )}
 
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 4 }}>
-            © {new Date().getFullYear()} PhotonX GrowthOS. All rights reserved.
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt:2 }}>
+            © {new Date().getFullYear()} PhotonX GrowthOS - Virlo. All rights reserved.
           </Typography>
         </Paper>
       </Grid>

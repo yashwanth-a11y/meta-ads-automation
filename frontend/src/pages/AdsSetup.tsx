@@ -134,7 +134,7 @@ export function AdsSetupPage() {
   const isConnected = status?.connected === true
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
+    <Stack spacing={3} sx={{  width: '100%' }}>
       <PageHeader
         title="Meta Ads — Setup"
         subtitle="Connect a Meta Business ad account and Facebook Page so you can launch ads from GrowthOS."
@@ -148,7 +148,7 @@ export function AdsSetupPage() {
       )}
 
       {isConnected && step !== 'choosing' && (
-        <Paper sx={{ p: 3, borderRadius: 3 }}>
+        <Paper sx={{ borderRadius: 3 }}>
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center', mb: 2 }}>
             <Avatar sx={{ bgcolor: 'success.main' }}>
               <CheckCircleIcon />
@@ -219,7 +219,7 @@ export function AdsSetupPage() {
       )}
 
       {step === 'choosing' && oauthData && (
-        <Paper sx={{ p: 3, borderRadius: 3 }}>
+        <Paper sx={{ borderRadius: 3 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
             Pick an ad account and Facebook Page
           </Typography>
@@ -288,7 +288,7 @@ export function AdsSetupPage() {
             {errorMsg && <Alert severity="error">{errorMsg}</Alert>}
 
             <Stack direction="row" spacing={1.5} sx={{ justifyContent: 'flex-end' }}>
-              <Button onClick={() => { setStep('idle'); setOauthData(null) }}>Cancel</Button>
+              <Button variant="outlined" onClick={() => { setStep('idle'); setOauthData(null) }}>Cancel</Button>
               <Button
                 variant="contained"
                 onClick={onSaveSelection}

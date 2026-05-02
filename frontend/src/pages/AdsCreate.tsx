@@ -1,5 +1,6 @@
 import {
   Alert,
+  alpha,
   Box,
   Button,
   CircularProgress,
@@ -156,7 +157,7 @@ export function AdsCreatePage() {
   }
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 920, mx: 'auto', width: '100%' }}>
+    <Stack>
       <PageHeader
         title="Create campaign"
         subtitle="Build a Meta ad in a few steps. Validation runs against Meta before publish."
@@ -170,7 +171,14 @@ export function AdsCreatePage() {
         ))}
       </Stepper>
 
-      <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 3 }}>
+      <Paper sx={{ p: { xs: 2, sm: 3 },
+      mt: 2,
+          // border: "1px solid #dddddd57",
+        "&:hover": {
+          boxShadow: `0 8px 32px ${alpha('#000000', 0.45)}`,
+          bgcolor: 'transparent',
+        },
+      }}>
         {currentKey === 'objective' && (
           <ObjectiveStep
             value={form.objective}
@@ -214,7 +222,7 @@ export function AdsCreatePage() {
         {stepError && <Alert severity="error" sx={{ mt: 2 }}>{stepError}</Alert>}
 
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
-          <Button onClick={back} disabled={stepIdx === 0}>Back</Button>
+          <Button variant="outlined" onClick={back} disabled={stepIdx === 0}>Back</Button>
           {currentKey !== 'review' && (
             <Button variant="contained" onClick={next}>Next</Button>
           )}

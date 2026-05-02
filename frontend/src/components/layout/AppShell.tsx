@@ -59,7 +59,7 @@ export function AppShell() {
           bottom: 0,
           zIndex: theme.zIndex.drawer,
           bgcolor: 'background.paper',
-          borderRight: `1px solid ${alpha('#FFFFFF', 0.06)}`,
+          borderRight: `1px solid ${alpha('#0F172A', 0.08)}`,
         }}
       >
         {drawer}
@@ -100,7 +100,7 @@ export function AppShell() {
             py: { xs: 2, md: 3 },
             pb: { xs: 10, md: 4 },
             background: (t) =>
-              `radial-gradient(1200px 600px at 80% -10%, ${alpha('#FFFFFF', 0.06)} 0%, transparent 55%), radial-gradient(900px 480px at 0% 100%, ${alpha('#FFFFFF', 0.03)} 0%, transparent 50%), ${t.palette.background.default}`,
+              `radial-gradient(1200px 600px at 80% -10%, ${alpha('#22D3EE', 0.12)} 0%, transparent 55%), radial-gradient(900px 480px at 0% 100%, ${alpha('#0F172A', 0.05)} 0%, transparent 50%), ${t.palette.background.default}`,
           }}
         >
           <Outlet />

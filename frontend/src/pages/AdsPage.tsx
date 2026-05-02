@@ -169,7 +169,13 @@ export function AdsPage() {
       />
 
       {/* Account header */}
-      <Paper sx={{ p: 2.5, borderRadius: 3 }}>
+      <Paper sx={{ p: 2.5, border: '1px solid', borderColor: alpha('#FFFFFF', 0.08),
+        "&:hover": {
+          borderColor: alpha('#FFFFFF', 0.14),
+          boxShadow: `0 8px 32px ${alpha('#000000', 0.45)}`,
+          bgcolor: 'transparent',
+        },
+       }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'center' } }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="overline" color="text.secondary">Connected to</Typography>

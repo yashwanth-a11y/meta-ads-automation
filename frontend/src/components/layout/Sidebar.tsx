@@ -102,7 +102,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             end={to === paths.dashboard}
             onClick={onNavigate}
             sx={{
-              // borderRadius: 2,
+              borderRadius: "3px",
               mb: 0.5,
               py: 1.1,
               px: 1.25,
@@ -116,8 +116,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
               },
               '&.active': {
                 color: 'text.primary',
-                bgcolor: alpha('#FFFFFF', 0.08),
-                boxShadow: `inset 3px 0 0 #22D3EE, 0 0 24px ${alpha('#FFFFFF', 0.06)}`,
+                bgcolor: alpha('#22D3EE', 0.12),
+                borderLeft: '3px solid #22D3EE',
+                // boxShadow: `inset 3px 0 0 #22D3EE, 0 8px 20px ${alpha('#0F172A', 0.08)}`,
                 '& .MuiListItemIcon-root': { color: 'primary.main' },
               },
             }}
@@ -157,14 +158,14 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         </ListItemButton>
       </List>
 
-      <Divider sx={{ borderColor: alpha('#FFFFFF', 0.06), my: 1 }} />
+      <Divider sx={{ borderColor: alpha('#0F172A', 0.08), my: 1 }} />
 
       <Stack direction="row" spacing={1.25} sx={{ px: 1, py: 1, alignItems: 'center' }}>
         <Avatar
           sx={{
             width: 36,
             height: 36,
-            bgcolor: alpha('#FFFFFF', 0.12),
+            bgcolor: alpha('#22D3EE', 0.18),
             color: 'text.primary',
             fontWeight: 700,
             fontSize: '0.875rem',
@@ -188,7 +189,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             onClick={onNavigate}
             sx={{
               color: 'text.secondary',
-              '&:hover': { color: 'text.primary', bgcolor: alpha('#FFFFFF', 0.06) },
+              '&:hover': { color: 'text.primary', bgcolor: alpha('#0F172A', 0.06) },
             }}
           >
             <SettingsOutlined fontSize="small" />
@@ -200,7 +201,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             onClick={handleLogout}
             sx={{
               color: 'text.secondary',
-              '&:hover': { color: 'error.main', bgcolor: alpha('#FFFFFF', 0.06) },
+              '&:hover': { color: 'error.main', bgcolor: alpha('#0F172A', 0.06) },
             }}
           >
             <LogoutOutlined fontSize="small" />
