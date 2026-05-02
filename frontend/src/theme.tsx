@@ -7,12 +7,28 @@ declare module '@mui/material/styles' {
       elevated: string
       glass: string
     }
+    auth: {
+      pageBg: string
+      panelBg: string
+      panelBorder: string
+      accentFrom: string
+      accentTo: string
+      accentMuted: string
+    }
   }
   interface PaletteOptions {
     surface?: {
       main: string
       elevated: string
       glass: string
+    }
+    auth?: {
+      pageBg: string
+      panelBg: string
+      panelBorder: string
+      accentFrom: string
+      accentTo: string
+      accentMuted: string
     }
   }
 }
@@ -53,6 +69,14 @@ export const theme = createTheme({
       main: '#0A0A0A',
       elevated: '#111111',
       glass: alpha('#FFFFFF', 0.04),
+    },
+    auth: {
+      pageBg: '#0B0F14',
+      panelBg: '#121821',
+      panelBorder: '#1F2937',
+      accentFrom: '#2DD4BF',
+      accentTo: '#22D3EE',
+      accentMuted: alpha('#2DD4BF', 0.65),
     },
   },
   typography: {

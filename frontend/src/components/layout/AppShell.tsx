@@ -5,16 +5,17 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { AIAssistantFab } from '../ui/AIAssistantFab'
+import { paths } from '../../auth'
 
 const pathTitles: Record<string, string> = {
-  '/': 'Dashboard',
-  '/channels': 'Channels',
-  '/trends': 'Trends',
-  '/creatives': 'Creatives',
-  '/ads': 'Ads',
-  '/crm': 'CRM',
-  '/analytics': 'Analytics',
-  '/settings': 'Settings',
+  [paths.dashboard]: 'Dashboard',
+  [paths.channels]: 'Channels',
+  [paths.trends]: 'Trends',
+  [paths.creatives]: 'Creatives',
+  [paths.ads]: 'Ads',
+  [paths.crm]: 'CRM',
+  [paths.analytics]: 'Analytics',
+  [paths.settings]: 'Settings',
 }
 
 const SIDEBAR_WIDTH = 268

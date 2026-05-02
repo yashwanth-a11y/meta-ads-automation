@@ -23,16 +23,17 @@ import {
   VideoLibraryOutlined,
 } from '@mui/icons-material'
 import { NavLink } from 'react-router-dom'
-import logo from '../../assets/white-logo.svg'
+import logo from '../../assets/logo-1.svg'
+import { paths } from '../../auth'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: DashboardOutlined },
-  { to: '/channels', label: 'Channels', icon: HubOutlined },
-  { to: '/trends', label: 'Trends', icon: TrendingUpOutlined },
-  { to: '/creatives', label: 'Creatives', icon: VideoLibraryOutlined },
-  { to: '/ads', label: 'Ads', icon: CampaignOutlined },
-  { to: '/crm', label: 'CRM', icon: PeopleOutlined },
-  { to: '/analytics', label: 'Analytics', icon: AnalyticsOutlined },
+  { to: paths.dashboard, label: 'Dashboard', icon: DashboardOutlined },
+  { to: paths.channels, label: 'Channels', icon: HubOutlined },
+  { to: paths.trends, label: 'Trends', icon: TrendingUpOutlined },
+  { to: paths.creatives, label: 'Creatives', icon: VideoLibraryOutlined },
+  { to: paths.ads, label: 'Ads', icon: CampaignOutlined },
+  { to: paths.crm, label: 'CRM', icon: PeopleOutlined },
+  { to: paths.analytics, label: 'Analytics', icon: AnalyticsOutlined },
 ]
 
 type SidebarProps = {
@@ -61,7 +62,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             key={to}
             component={NavLink}
             to={to}
-            end={to === '/'}
+            end={to === paths.dashboard}
             onClick={onNavigate}
             sx={{
               // borderRadius: 2,
@@ -72,14 +73,14 @@ export function Sidebar({ onNavigate }: SidebarProps) {
               transition: 'background-color 220ms ease, color 220ms ease, box-shadow 220ms ease',
               '& .MuiListItemIcon-root': { color: 'text.secondary', minWidth: 40 },
               '&:hover': {
-                bgcolor: alpha('#FFFFFF', 0.06),
+                bgcolor: alpha('#22D3EE', 0.06),
                 color: 'text.primary',
                 '& .MuiListItemIcon-root': { color: 'text.primary' },
               },
               '&.active': {
                 color: 'text.primary',
                 bgcolor: alpha('#FFFFFF', 0.08),
-                boxShadow: `inset 3px 0 0 #FAFAFA, 0 0 24px ${alpha('#FFFFFF', 0.06)}`,
+                boxShadow: `inset 3px 0 0 #22D3EE, 0 0 24px ${alpha('#FFFFFF', 0.06)}`,
                 '& .MuiListItemIcon-root': { color: 'primary.main' },
               },
             }}
@@ -121,7 +122,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <Tooltip title="Settings">
           <IconButton
             component={NavLink}
-            to="/settings"
+            to={paths.settings}
             size="small"
             onClick={onNavigate}
             sx={{
