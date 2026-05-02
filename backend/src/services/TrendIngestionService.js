@@ -36,6 +36,9 @@ const REDDIT_FALLBACK = ['entrepreneur', 'startups', 'marketing', 'technology', 
 // Cache TTL — regenerate subreddits after 7 days
 const SUBREDDIT_CACHE_DAYS = 7;
 
+// Fallback Google News keywords when AI generation fails
+const NEWS_KEYWORD_FALLBACK = ['startup trends', 'marketing strategy', 'business growth', 'digital marketing'];
+
 const FRESHNESS_HOURS = 48;
 
 export class TrendIngestionService {
@@ -131,31 +134,31 @@ export class TrendIngestionService {
     return { ingested, skipped };
   }
 
-  // --- Generate brand-specific subreddits via OpenAI (cached per channel) ---
-  async getSubredditsForChannel(channel) {
-    const cached = channel.brand_assets?.reddit_subreddits;
-    const cachedAt = channel.brand_assets?.reddit_subreddits_updated_at;
+  // --- Single AI call: generate subreddits + Google News keywords for a channel ---
+  async getBrandSourcesForChannel(channel) {
+    const assets = channel.brand_assets ?? {};
+    const cachedAt = assets.brand_sources_updated_at;
     const cacheExpired = !cachedAt || Date.now() - new Date(cachedAt).getTime() > SUBREDDIT_CACHE_DAYS * 24 * 60 * 60 * 1000;
 
-    if (cached?.length && !cacheExpired) {
-      return cached;
+    if (assets.reddit_subreddits?.length && assets.google_news_keywords?.length && !cacheExpired) {
+      return { subreddits: assets.reddit_subreddits, keywords: assets.google_news_keywords };
     }
 
     if (!process.env.OPENAI_API_KEY) {
-      console.warn('[TrendIngestion] No OPENAI_API_KEY — using fallback subreddits');
-      return REDDIT_FALLBACK;
+      console.warn('[TrendIngestion] No OPENAI_API_KEY — using fallbacks');
+      return { subreddits: REDDIT_FALLBACK, keywords: NEWS_KEYWORD_FALLBACK };
     }
 
-    try {
-      const brandContext = [
-        `Brand: ${channel.brand_name}`,
-        channel.industry        ? `Industry: ${channel.industry}`               : null,
-        channel.niche           ? `Niche: ${channel.niche}`                     : null,
-        channel.target_audience ? `Target audience: ${channel.target_audience}` : null,
-        channel.products?.length ? `Products: ${channel.products.join(', ')}`   : null,
-        channel.tone            ? `Tone: ${channel.tone}`                       : null,
-      ].filter(Boolean).join('\n');
+    const brandContext = [
+      `Brand: ${channel.brand_name}`,
+      channel.industry         ? `Industry: ${channel.industry}`               : null,
+      channel.niche            ? `Niche: ${channel.niche}`                     : null,
+      channel.target_audience  ? `Target audience: ${channel.target_audience}` : null,
+      channel.products?.length ? `Products: ${channel.products.join(', ')}`    : null,
+      channel.tone             ? `Tone: ${channel.tone}`                       : null,
+    ].filter(Boolean).join('\n');
 
+    try {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
@@ -165,15 +168,13 @@ export class TrendIngestionService {
           messages: [
             {
               role: 'system',
-              content: `You are a Reddit expert. Given a brand profile, suggest 8-12 subreddits where their target audience is most active and where trending content would be valuable for their content strategy.
+              content: `You are a content strategist. Given a brand profile, return two things:
+1. 8-12 subreddits where the brand's target audience is most active (real, active, 100k+ members, no generic ones like memes/funny, names only without r/ prefix)
+2. 5-8 Google News search keywords that surface relevant trending news for their content strategy (2-4 words each, specific not broad)
 
-Rules:
-- Only real, active subreddits with 100k+ members
-- Mix: industry subreddits, audience interest subreddits, niche communities
-- No generic ones like memes, funny, aww — keep it brand-relevant
-- Return JSON: { "subreddits": ["name1", "name2", ...] } — names only, no r/ prefix`,
+Return JSON: { "subreddits": ["name1", ...], "keywords": ["keyword1", ...] }`,
             },
-            { role: 'user', content: `Find the best subreddits for this brand:\n\n${brandContext}` },
+            { role: 'user', content: brandContext },
           ],
         }),
       });
@@ -182,26 +183,29 @@ Rules:
       const data = await res.json();
       const result = JSON.parse(data.choices[0].message.content);
       const subreddits = result.subreddits ?? REDDIT_FALLBACK;
+      const keywords = result.keywords ?? NEWS_KEYWORD_FALLBACK;
 
-      // Cache on the channel
-      const updatedAssets = {
-        ...(channel.brand_assets ?? {}),
-        reddit_subreddits: subreddits,
-        reddit_subreddits_updated_at: new Date().toISOString(),
-      };
-      await db.update(channels).set({ brand_assets: updatedAssets, updated_at: new Date() }).where(eq(channels.id, channel.id));
+      await db.update(channels).set({
+        brand_assets: {
+          ...assets,
+          reddit_subreddits: subreddits,
+          google_news_keywords: keywords,
+          brand_sources_updated_at: new Date().toISOString(),
+        },
+        updated_at: new Date(),
+      }).where(eq(channels.id, channel.id));
 
-      console.log(`[TrendIngestion] Generated subreddits for ${channel.brand_name}: ${subreddits.join(', ')}`);
-      return subreddits;
+      console.log(`[TrendIngestion] Brand sources for ${channel.brand_name} — subreddits: ${subreddits.join(', ')} | keywords: ${keywords.join(', ')}`);
+      return { subreddits, keywords };
     } catch (err) {
-      console.error('[TrendIngestion] Subreddit generation failed:', err.message);
-      return REDDIT_FALLBACK;
+      console.error('[TrendIngestion] Brand source generation failed:', err.message);
+      return { subreddits: REDDIT_FALLBACK, keywords: NEWS_KEYWORD_FALLBACK };
     }
   }
 
-  // --- Reddit ingestion for a specific channel (uses AI-generated subreddits) ---
+  // --- Reddit ingestion for a specific channel ---
   async ingestRedditForChannel(channel) {
-    const subreddits = await this.getSubredditsForChannel(channel);
+    const { subreddits } = await this.getBrandSourcesForChannel(channel);
     return this.ingestReddit(subreddits);
   }
 
@@ -245,6 +249,51 @@ Rules:
         }
       } catch (err) {
         console.error(`[TrendIngestion] Reddit r/${sub} failed:`, err.message);
+      }
+    }
+    return { ingested, skipped };
+  }
+
+  // --- Google News ingestion for a specific channel ---
+  async ingestGoogleNewsForChannel(channel) {
+    const { keywords } = await this.getBrandSourcesForChannel(channel);
+    return this.ingestGoogleNews(keywords);
+  }
+
+  // --- Google News RSS per keyword ---
+  async ingestGoogleNews(keywords = NEWS_KEYWORD_FALLBACK) {
+    let ingested = 0, skipped = 0;
+
+    for (const keyword of keywords) {
+      try {
+        const url = `https://news.google.com/rss/search?q=${encodeURIComponent(keyword)}&hl=en-US&gl=US&ceid=US:en`;
+        const parsed = await rss.parseURL(url);
+
+        for (const item of parsed.items ?? []) {
+          const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+          if (pubDate < this._freshnessCutoff()) { skipped++; continue; }
+
+          // Recency-based velocity: 100 if <6h old, 50 if <24h, 20 if older
+          const ageHours = (Date.now() - pubDate.getTime()) / 3600000;
+          const velocity = ageHours < 6 ? 100 : ageHours < 24 ? 50 : 20;
+
+          const saved = await this._upsertCandidate({
+            source_type: 'google_news',
+            source_name: `Google News: ${keyword}`,
+            external_id: item.guid ?? item.link,
+            title: item.title,
+            summary: item.contentSnippet ?? item.title,
+            url: item.link ?? null,
+            image_url: null,
+            published_at: pubDate,
+            raw_data: { keyword, source: item.source ?? null },
+            velocity_score: velocity,
+            lifecycle_stage: ageHours < 6 ? 'peak' : ageHours < 24 ? 'sprout' : 'seed',
+          });
+          if (saved) ingested++; else skipped++;
+        }
+      } catch (err) {
+        console.error(`[TrendIngestion] Google News "${keyword}" failed:`, err.message);
       }
     }
     return { ingested, skipped };

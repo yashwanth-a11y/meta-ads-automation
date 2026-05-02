@@ -13,7 +13,7 @@
 import { desc, eq } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db/index.js';
-import { pipelineRuns, channels, trendScores, trendCandidates } from './db/schema.js';
+import { pipelineRuns, channels } from './db/schema.js';
 import { trendIngestionService } from './services/TrendIngestionService.js';
 import { contentIntelligenceService } from './services/ContentIntelligenceService.js';
 import { scriptGeneratorService } from './services/ScriptGeneratorService.js';
@@ -111,19 +111,33 @@ async function _runPipeline(log) {
     if (ingestResult.errors?.length) stats.errors.push(...ingestResult.errors);
     log.info({ runId, ...ingestResult }, '[Scheduler] Universal ingestion done');
 
-    // ── 1b. Ingest Reddit per channel (brand-specific subreddits) ──────────
-    log.info({ runId }, '[Scheduler] Step 1b: Ingesting brand-specific Reddit per channel');
+    // ── 1b. Ingest Reddit + Google News per channel (brand-specific) ────────
+    log.info({ runId }, '[Scheduler] Step 1b: Ingesting brand-specific Reddit + Google News per channel');
     const allChannelsForReddit = await db.select().from(channels).where(eq(channels.status, 'active'));
     await Promise.allSettled(
       allChannelsForReddit.map(async (ch) => {
         try {
-          const r = await trendIngestionService.ingestRedditForChannel(ch);
-          stats.ingested += r.ingested;
-          stats.skipped += r.skipped;
-          log.info({ runId, channel: ch.name, ...r }, '[Scheduler] Reddit ingestion done for channel');
+          const sources = await trendIngestionService.getBrandSourcesForChannel(ch);
+          const [reddit, news] = await Promise.allSettled([
+            trendIngestionService.ingestReddit(sources.subreddits),
+            trendIngestionService.ingestGoogleNews(sources.keywords),
+          ]);
+          if (reddit.status === 'fulfilled') {
+            stats.ingested += reddit.value.ingested;
+            stats.skipped += reddit.value.skipped;
+          } else {
+            stats.errors.push(`reddit channel ${ch.name}: ${reddit.reason?.message}`);
+          }
+          if (news.status === 'fulfilled') {
+            stats.ingested += news.value.ingested;
+            stats.skipped += news.value.skipped;
+          } else {
+            stats.errors.push(`google_news channel ${ch.name}: ${news.reason?.message}`);
+          }
+          log.info({ runId, channel: ch.name }, '[Scheduler] Reddit + Google News done for channel');
         } catch (err) {
-          stats.errors.push(`reddit channel ${ch.name}: ${err.message}`);
-          log.error({ runId, err }, `[Scheduler] Reddit ingestion failed for channel ${ch.name}`);
+          stats.errors.push(`channel sources ${ch.name}: ${err.message}`);
+          log.error({ runId, err }, `[Scheduler] Brand ingestion failed for channel ${ch.name}`);
         }
       }),
     );
