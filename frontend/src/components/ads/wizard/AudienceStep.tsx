@@ -16,7 +16,6 @@ import {
   Radio,
   RadioGroup,
   Select,
-  Slider,
   Stack,
   Switch,
   TextField,
@@ -66,9 +65,10 @@ export function AudienceStep({ audience, onChange }: Props) {
     onChange(applySpecialAdConstraints({ ...audience, ...patch }))
 
   const sacLocked = audience.special_ad_categories.some((c) => c !== 'NONE')
+  const ages = Array.from({ length: 53 }, (_, i) => i + 13) // 13 to 65
 
   return (
-    <Stack spacing={3} sx={{ mt: 2, }}>
+    <Stack spacing={4} sx={{ mt: 2 }}>
       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Who should see this ad?</Typography>
 
       {sacLocked && (
@@ -146,8 +146,8 @@ export function AudienceStep({ audience, onChange }: Props) {
             const cleaned = next.includes('NONE') && next.length > 1
               ? next.filter((c) => c !== 'NONE')
               : next.length === 0
-              ? (['NONE'] as SpecialAdCategory[])
-              : next
+                ? (['NONE'] as SpecialAdCategory[])
+                : next
             update({ special_ad_categories: cleaned })
           }}
         >
@@ -177,8 +177,8 @@ export function AudienceStep({ audience, onChange }: Props) {
             audience.device_platforms.length === 0
               ? 'all'
               : audience.device_platforms.length === 1
-              ? audience.device_platforms[0]
-              : 'all'
+                ? audience.device_platforms[0]
+                : 'all'
           }
           onChange={(e) => {
             const v = e.target.value

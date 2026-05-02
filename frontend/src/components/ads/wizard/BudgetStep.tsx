@@ -47,35 +47,38 @@ export function BudgetStep({ budget, currency, onChange }: Props) {
     <Stack spacing={3}>
       <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>How much do you want to spend?</Typography>
 
-      <FormControl>
-        <FormLabel sx={{ mb: 1 }}>Budget type</FormLabel>
-        <RadioGroup
-          row
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} alignItems="center">
+        <TextField
+          select
+          label="Budget type"
           value={budget.type}
+          sx={{ minWidth: { xs: '100%', sm: 180 } }}
           onChange={(e) => onChange({ ...budget, type: e.target.value as 'daily' | 'lifetime' })}
         >
-          <FormControlLabel value="daily" control={<Radio />} label="Daily" />
-          <FormControlLabel value="lifetime" control={<Radio />} label="Lifetime" />
-        </RadioGroup>
-      </FormControl>
+          <MenuItem value="daily">Daily</MenuItem>
+          <MenuItem value="lifetime">Lifetime</MenuItem>
+        </TextField>
 
-      <TextField
-        label={isLifetime ? `Lifetime budget (${currency || 'USD'})` : `Daily budget (${currency || 'USD'})`}
-        type="number"
-        value={budget.amount}
-        slotProps={{
-          input: {
-            startAdornment: <InputAdornment position="start">{symbol}</InputAdornment>,
-          },
-          htmlInput: { min: 1, step: 0.01 },
-        }}
-        onChange={(e) => onChange({ ...budget, amount: Math.max(0, parseFloat(e.target.value) || 0) })}
-        helperText={
-          isLifetime
-            ? 'Total spent across the campaign run. Requires an end date.'
-            : 'Average spent per day. Meta may go up to ~25% over on busy days.'
-        }
-      />
+        <TextField
+          sx={{ flexGrow: 1 }}
+          fullWidth
+          label={isLifetime ? `Lifetime budget (${currency || 'USD'})` : `Daily budget (${currency || 'USD'})`}
+          type="number"
+          value={budget.amount}
+          slotProps={{
+            input: {
+              startAdornment: <InputAdornment position="start">{symbol}</InputAdornment>,
+            },
+            htmlInput: { min: 1, step: 0.01 },
+          }}
+          onChange={(e) => onChange({ ...budget, amount: Math.max(0, parseFloat(e.target.value) || 0) })}
+          helperText={
+            isLifetime
+              ? 'Total spent across the campaign run. Requires an end date.'
+              : 'Average spent per day. Meta may go up to ~25% over on busy days.'
+          }
+        />
+      </Stack>
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
         <TextField
@@ -155,29 +158,29 @@ export function BudgetStep({ budget, currency, onChange }: Props) {
 
       {(budget.bid_strategy === 'LOWEST_COST_WITH_BID_CAP' ||
         budget.bid_strategy === 'COST_CAP') && (
-        <TextField
-          label={budget.bid_strategy === 'COST_CAP' ? 'Cost cap' : 'Bid cap'}
-          type="number"
-          value={budget.bid_amount ?? ''}
-          slotProps={{
-            input: {
-              startAdornment: <InputAdornment position="start">{symbol}</InputAdornment>,
-            },
-            htmlInput: { min: 0.01, step: 0.01 },
-          }}
-          onChange={(e) =>
-            onChange({
-              ...budget,
-              bid_amount: e.target.value ? Math.max(0, parseFloat(e.target.value)) : undefined,
-            })
-          }
-          helperText={
-            budget.bid_strategy === 'COST_CAP'
-              ? 'Target average cost per result. Meta keeps it close on average — daily fluctuations expected.'
-              : 'Hard ceiling on the bid in any individual auction.'
-          }
-        />
-      )}
+          <TextField
+            label={budget.bid_strategy === 'COST_CAP' ? 'Cost cap' : 'Bid cap'}
+            type="number"
+            value={budget.bid_amount ?? ''}
+            slotProps={{
+              input: {
+                startAdornment: <InputAdornment position="start">{symbol}</InputAdornment>,
+              },
+              htmlInput: { min: 0.01, step: 0.01 },
+            }}
+            onChange={(e) =>
+              onChange({
+                ...budget,
+                bid_amount: e.target.value ? Math.max(0, parseFloat(e.target.value)) : undefined,
+              })
+            }
+            helperText={
+              budget.bid_strategy === 'COST_CAP'
+                ? 'Target average cost per result. Meta keeps it close on average — daily fluctuations expected.'
+                : 'Hard ceiling on the bid in any individual auction.'
+            }
+          />
+        )}
 
       {budget.bid_strategy === 'LOWEST_COST_WITH_MIN_ROAS' && (
         <TextField
