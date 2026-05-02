@@ -22,8 +22,6 @@ import { env } from './config/env.js';
 
 const INTERVAL_MS = env.CRON_INTERVAL_HOURS * 60 * 60 * 1000;
 const MIN_SCORE = env.MIN_BRAND_FIT_SCORE;
-// Max new bundles to generate per channel per run (avoid flooding approvals)
-const MAX_BUNDLES_PER_CHANNEL = 2;
 
 export function startScheduler(logger) {
   const log = logger ?? console;
@@ -125,8 +123,10 @@ async function _runPipeline(log) {
     stats.scored = scoreResult.totalScored;
     log.info({ runId, scored: stats.scored }, '[Scheduler] Scoring done');
 
-    // ── 4. Generate bundles + send approval emails per active channel ────────
-    log.info({ runId }, '[Scheduler] Step 4: Generating bundles + sending approvals');
+    // ── 4. Send topic selection emails per active channel ───────────────────
+    // User picks a topic → bundle is generated → content review email → video → publish
+    // Exception: approval_mode='auto' skips the email and generates directly.
+    log.info({ runId }, '[Scheduler] Step 4: Sending topic selection emails');
 
     const activeChannels = await db
       .select()
@@ -138,7 +138,7 @@ async function _runPipeline(log) {
         const topTrends = await contentIntelligenceService.getTopForChannel(
           channel.id,
           channel.organization_id,
-          { limit: MAX_BUNDLES_PER_CHANNEL, minScore: MIN_SCORE },
+          { limit: 5, minScore: MIN_SCORE },
         );
 
         if (!topTrends.length) {
@@ -146,47 +146,48 @@ async function _runPipeline(log) {
           continue;
         }
 
-        for (const trend of topTrends) {
+        if (channel.approval_mode === 'auto') {
+          // Auto mode: pick top trend, generate bundle, publish if above threshold
+          const trend = topTrends[0];
           try {
             const bundle = await scriptGeneratorService.generateBundle(channel, trend);
             await scriptGeneratorService.scoreBundle(bundle, channel);
             stats.bundles_generated++;
 
-            // Check auto-publish threshold
             const qualityScore = Number(bundle.score_composite ?? 0);
-            if (
-              channel.approval_mode === 'auto' &&
-              qualityScore >= Number(channel.auto_publish_threshold ?? 8.5)
-            ) {
-              // Auto-publish: skip approval email, go straight to publish
-              log.info({ runId, bundleId: bundle.id, qualityScore }, '[Scheduler] Auto-publishing (above threshold)');
+            if (qualityScore >= Number(channel.auto_publish_threshold ?? 8.5)) {
+              log.info({ runId, bundleId: bundle.id, qualityScore }, '[Scheduler] Auto-publishing');
               const { publishingService } = await import('./services/PublishingService.js');
               await publishingService.publish(channel, bundle).catch((err) => {
                 stats.errors.push(`Auto-publish ${bundle.id}: ${err.message}`);
               });
             } else {
-              // Manual approval: send email
-              await approvalService.sendContentApproval(channel, bundle, trend);
+              // Below threshold — send for manual review (content review stage)
+              await approvalService.sendContentReviewEmail(channel, bundle, trend);
               stats.emails_sent++;
             }
 
-            // Mark topic as used (starts cooldown)
             await contentIntelligenceService.markTopicUsed(
-              channel.id,
-              channel.organization_id,
-              trend.title,
-              channel.topic_cooldown_days,
+              channel.id, channel.organization_id, trend.title, channel.topic_cooldown_days,
             );
           } catch (err) {
-            const msg = `bundle gen for channel ${channel.name}: ${err.message}`;
-            stats.errors.push(msg);
-            log.error({ runId, err }, `[Scheduler] ${msg}`);
+            stats.errors.push(`auto-generate channel ${channel.name}: ${err.message}`);
+            log.error({ runId, err }, '[Scheduler] Auto-generate failed');
+          }
+        } else {
+          // Manual mode: send topic selection email — user picks which trend to use
+          try {
+            await approvalService.sendTopicSelectionEmail(channel, topTrends);
+            stats.emails_sent++;
+            log.info({ runId, channel: channel.name, trends: topTrends.length }, '[Scheduler] Topic selection email sent');
+          } catch (err) {
+            stats.errors.push(`topic email channel ${channel.name}: ${err.message}`);
+            log.error({ runId, err }, '[Scheduler] Topic selection email failed');
           }
         }
       } catch (err) {
-        const msg = `channel ${channel.name}: ${err.message}`;
-        stats.errors.push(msg);
-        log.error({ runId, err }, `[Scheduler] Error for ${msg}`);
+        stats.errors.push(`channel ${channel.name}: ${err.message}`);
+        log.error({ runId, err }, `[Scheduler] Error for channel ${channel.name}`);
       }
     }
 

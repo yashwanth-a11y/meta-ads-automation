@@ -426,13 +426,18 @@ export const approvals = pgTable(
   {
     id: id(),
     organization_id: orgId(),
-    creative_bundle_id: varchar('creative_bundle_id', { length: 36 }).notNull(),
+    // null at topic_selection stage (no bundle yet)
+    creative_bundle_id: varchar('creative_bundle_id', { length: 36 }),
     approver_email: varchar('approver_email', { length: 255 }).notNull(),
     token_hash: varchar('token_hash', { length: 64 }).notNull(),
-    action: varchar('action', { length: 16 }),
-    // approve | reject | regenerate — null until acted on
+    // topic_selection | content_review | video_review
+    stage: varchar('stage', { length: 32 }).default('content_review').notNull(),
+    action: varchar('action', { length: 32 }),
+    // approve | reject | regenerate | select_topic — null until acted on
     action_taken_at: timestamp('action_taken_at', { withTimezone: true, mode: 'date' }),
     rejection_reason: text('rejection_reason'),
+    // stores: top trends list (topic_selection), user feedback (content/video review)
+    metadata: jsonb('metadata'),
     ip_address: varchar('ip_address', { length: 64 }),
     user_agent: text('user_agent'),
     expires_at: timestamp('expires_at', { withTimezone: true, mode: 'date' }).notNull(),

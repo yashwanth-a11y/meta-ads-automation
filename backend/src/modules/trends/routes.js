@@ -2,6 +2,7 @@ import { trendIngestionService } from '../../services/TrendIngestionService.js';
 import { contentIntelligenceService } from '../../services/ContentIntelligenceService.js';
 import { scriptGeneratorService } from '../../services/ScriptGeneratorService.js';
 import { channelService } from '../../services/ChannelService.js';
+import { approvalService } from '../../services/ApprovalService.js';
 import { env } from '../../config/env.js';
 
 // MS1 — trend pipeline: ingest → classify → score per channel → generate bundles
@@ -43,7 +44,7 @@ export default async function routes(app) {
   });
 
   // Manual trigger: run full ingestion pipeline
-  app.post('/ingest/run', async (req, reply) => {
+  app.post('/ingest/run', async (_req, reply) => {
     // Run async, return immediately with job status
     const summary = await trendIngestionService.runAll();
 
@@ -77,10 +78,6 @@ export default async function routes(app) {
 
     const channel = await channelService.get(orgId(req), req.params.channelId);
 
-    // Fetch trend with brand fit scores
-    const [top] = await contentIntelligenceService.getTopForChannel(
-      channel.id, orgId(req), { limit: 50, minScore: 0 },
-    );
     const { db } = await import('../../db/index.js');
     const { trendCandidates, trendScores } = await import('../../db/schema.js');
     const { eq, and } = await import('drizzle-orm');
@@ -111,6 +108,11 @@ export default async function routes(app) {
     // Start topic cooldown
     await contentIntelligenceService.markTopicUsed(
       channel.id, orgId(req), trendRow.title, channel.topic_cooldown_days,
+    );
+
+    // Send content review email (fire-and-forget)
+    approvalService.sendContentReviewEmail(channel, bundle, trendRow).catch((err) =>
+      console.error('[Trends] sendContentReviewEmail failed:', err.message),
     );
 
     return reply.code(201).send({ ...bundle, quality_scores: scores });

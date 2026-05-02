@@ -81,9 +81,9 @@ const schema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
-  // Email
-  RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().optional(),
+  // Email (Brevo / Sendinblue)
+  BREVO_API_KEY: z.string().optional(),
+  FROM_EMAIL: z.string().default('hussain@photonxtech.com'),
 
   // Feature flags
   FEATURE_ADS_ENABLED: z
