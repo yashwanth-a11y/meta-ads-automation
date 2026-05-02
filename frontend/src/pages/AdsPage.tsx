@@ -27,7 +27,7 @@ export function AdsPage() {
   }
 
   return (
-    <Stack spacing={3} sx={{ maxWidth: 920, mx: 'auto', width: '100%' }}>
+    <Stack spacing={3}>
       <PageHeader
         title="Ads"
         subtitle="Prompt-to-launch workflows with structured outputs your media team can ship."
@@ -48,7 +48,7 @@ export function AdsPage() {
         elevation={0}
         sx={{
           p: { xs: 2, sm: 3 },
-          borderRadius: 3,
+          borderRadius: '8px',
           bgcolor: alpha('#FFFFFF', 0.03),
           border: `1px solid ${alpha('#FFFFFF', 0.08)}`,
         }}
@@ -57,6 +57,7 @@ export function AdsPage() {
           Your brief
         </Typography>
         <TextField
+          autoComplete="off"
           multiline
           minRows={4}
           fullWidth
@@ -94,11 +95,11 @@ export function AdsPage() {
         </GlassCard>
 
         {loading ? (
-          <GlassCard sx={{ p: 2.5, alignSelf: 'flex-end', maxWidth: '92%', bgcolor: alpha('#FFF', 0.06) }}>
+          <GlassCard sx={{ p: 2.5, alignSelf: 'flex-start', bgcolor: alpha('#FFF', 0.06) }}>
             <GeneratingIndicator label="Generating" />
           </GlassCard>
         ) : (
-          <GlassCard glow sx={{ p: 3, alignSelf: 'flex-end', maxWidth: '92%' }}>
+          <GlassCard glow sx={{ p: 3, alignSelf: 'flex-start', width: '50%' }}>
             <Typography variant="overline" color="text.secondary">
               Output
             </Typography>

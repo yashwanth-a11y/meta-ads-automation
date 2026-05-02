@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { AdsPage } from './pages/AdsPage'
@@ -10,12 +11,48 @@ import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrendsPage } from './pages/TrendsPage'
 
+function isAuthenticated() {
+  const localToken = localStorage.getItem('auth_token')
+  const sessionToken = sessionStorage.getItem('auth_token')
+  return Boolean(localToken || sessionToken)
+}
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  if (!isAuthenticated()) {
+    return <Navigate to={paths.auth} replace />
+  }
+  return <>{children}</>
+}
+
+function PublicOnlyRoute({ children }: { children: ReactNode }) {
+  if (isAuthenticated()) {
+    return <Navigate to={paths.dashboard} replace />
+  }
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path={AUTH_ROUTE} element={<AuthPage />} />
-      <Route path="/" element={<Navigate to={paths.auth} replace />} />
-      <Route element={<AppShell />}>
+      <Route
+        path={AUTH_ROUTE}
+        element={
+          <PublicOnlyRoute>
+            <AuthPage />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path="/"
+        element={<Navigate to={isAuthenticated() ? paths.dashboard : paths.auth} replace />}
+      />
+      <Route
+        element={
+          <ProtectedRoute>
+            <AppShell />
+          </ProtectedRoute>
+        }
+      >
         <Route path={DASHBOARD_ROUTE} element={<DashboardPage />} />
         <Route path="channels" element={<ChannelsPage />} />
         <Route path="trends" element={<TrendsPage />} />
@@ -25,7 +62,10 @@ export default function App() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
-      <Route path="*" element={<Navigate to={paths.auth} replace />} />
+      <Route
+        path="*"
+        element={<Navigate to={isAuthenticated() ? paths.dashboard : paths.auth} replace />}
+      />
     </Routes>
   )
 }

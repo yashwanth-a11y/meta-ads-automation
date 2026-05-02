@@ -32,7 +32,7 @@ export function KPICard({ title, value, delta, icon, glow }: KPICardProps) {
             sx={{
               width: 44,
               height: 44,
-              borderRadius: 2,
+              borderRadius: '8px',
               display: 'grid',
               placeItems: 'center',
               bgcolor: (t) => t.palette.action.hover,

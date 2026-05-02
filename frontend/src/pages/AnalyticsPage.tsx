@@ -44,7 +44,7 @@ const pieColors = ['#FAFAFA', '#D4D4D4', '#A3A3A3', '#737373']
 const tip = {
   backgroundColor: '#111',
   border: '1px solid #262626',
-  borderRadius: 12,
+  borderRadius: 8,
   fontSize: 12,
 }
 

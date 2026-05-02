@@ -1,6 +1,27 @@
 import fp from 'fastify-plugin';
 import { AppError } from '../lib/errors.js';
 
+/** Walk AggregateError / pg pool errors so we surface DB outages as 503, not INTERNAL_ERROR. */
+function collectPgFailureSignals(err, acc = { codes: new Set(), messages: [] }) {
+  if (!err || typeof err !== 'object') return acc;
+  if (typeof err.code === 'string' && err.code) acc.codes.add(err.code);
+  if (typeof err.message === 'string' && err.message) acc.messages.push(err.message);
+  const nested = err.errors ?? err.aggregateErrors;
+  if (Array.isArray(nested)) {
+    for (const e of nested) collectPgFailureSignals(e, acc);
+  }
+  return acc;
+}
+
+function isDatabaseUnreachableError(err) {
+  const { codes, messages } = collectPgFailureSignals(err);
+  if (codes.has('ECONNREFUSED') || codes.has('ENOTFOUND') || codes.has('ETIMEDOUT')) return true;
+  if (messages.some((m) => /ECONNREFUSED|ECONNRESET|connection refused|connect timed out/i.test(m))) {
+    return true;
+  }
+  return false;
+}
+
 async function plugin(app) {
   app.setErrorHandler((err, request, reply) => {
     if (err instanceof AppError) {
@@ -39,6 +60,17 @@ async function plugin(app) {
       request.log.warn({ err }, 'client error');
       return reply.status(err.statusCode).send({
         error: { code: err.code || 'CLIENT_ERROR', message: err.message },
+      });
+    }
+
+    if (isDatabaseUnreachableError(err)) {
+      request.log.warn({ err }, 'database unreachable');
+      return reply.status(503).send({
+        error: {
+          code: 'DATABASE_UNAVAILABLE',
+          message:
+            'Cannot connect to PostgreSQL. Start Postgres on the host/port in your .env (DB_HOST, DB_PORT or DATABASE_URL), create the database if needed, then run npm run db:push from the backend folder.',
+        },
       });
     }
 
