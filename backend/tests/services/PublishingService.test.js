@@ -370,3 +370,47 @@ describe('PublishingService.publishMedia — video (feed)', () => {
     expect(axios.post.mock.calls[0][2].params.thumb_offset).toBe(1500);
   });
 });
+
+describe('PublishingService.publishMedia — reels', () => {
+  let svc;
+  const channel = { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER' };
+  beforeEach(() => {
+    svc = new PublishingService();
+    vi.spyOn(svc, '_getPageToken').mockResolvedValue('TOK');
+    vi.spyOn(svc, '_sleep').mockResolvedValue();
+  });
+
+  it('sends media_type=REELS with reels-only fields', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    await svc.publishMedia(channel, {
+      type: 'reels',
+      video_url: 'https://x/v.mp4',
+      cover_url: 'https://x/c.jpg',
+      share_to_feed: false,
+      audio_name: 'My Anthem',
+    });
+    const params = axios.post.mock.calls[0][2].params;
+    expect(params).toMatchObject({
+      media_type: 'REELS',
+      video_url: 'https://x/v.mp4',
+      cover_url: 'https://x/c.jpg',
+      share_to_feed: 'false',
+      audio_name: 'My Anthem',
+      access_token: 'TOK',
+    });
+  });
+
+  it('defaults share_to_feed to true when omitted', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    await svc.publishMedia(channel, { type: 'reels', video_url: 'https://x/v.mp4' });
+    expect(axios.post.mock.calls[0][2].params.share_to_feed).toBe('true');
+  });
+});
