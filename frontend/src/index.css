@@ -75,6 +75,11 @@ html {
   100% { width: 92%; }
 }
 
+@keyframes pxGradientShift {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -35,7 +35,7 @@ import {
 } from '@mui/icons-material'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link as RouterLink, useNavigate } from 'react-router-dom'
-import logo from '../assets/logo.svg'
+import logo from '../assets/logo-1.svg'
 import { paths } from '../auth'
 
 // ─── small reveal-on-scroll wrapper ─────────────────────────────────────────
@@ -163,15 +163,15 @@ export function LandingPage() {
     fontWeight: 700,
     textTransform: 'none' as const,
     fontSize: '0.98rem',
-    background: accent,
-    color: '#04282E',
-    boxShadow: `0 14px 40px ${alpha(auth.accentFrom, 0.35)}`,
+    background: '#22d3ee',
+    color: '#FFFFFF',
+    boxShadow: `0 14px 40px ${alpha('#22d3ee', 0.35)}`,
     transition: 'transform 240ms ease, box-shadow 240ms ease, filter 200ms ease',
     '&:hover': {
       filter: 'brightness(1.06)',
       transform: 'translateY(-2px)',
-      boxShadow: `0 20px 50px ${alpha(auth.accentFrom, 0.45)}`,
-      background: accent,
+      boxShadow: `0 20px 50px ${alpha('#22d3ee', 0.45)}`,
+      background: '#22d3ee',
     },
   }
 
@@ -182,13 +182,13 @@ export function LandingPage() {
     textTransform: 'none' as const,
     fontWeight: 600,
     fontSize: '0.98rem',
-    color: theme.palette.text.primary,
-    border: `1px solid ${alpha('#0F172A', 0.12)}`,
+    color: '#22d3ee',
+    border: `1px solid ${alpha('#22d3ee', 0.3)}`,
     bgcolor: alpha('#FFFFFF', 0.6),
     backdropFilter: 'blur(8px)',
     '&:hover': {
-      borderColor: alpha('#0F172A', 0.22),
-      bgcolor: alpha('#FFFFFF', 0.85),
+      borderColor: '#22d3ee',
+      bgcolor: alpha('#22d3ee', 0.05),
     },
   }
 
@@ -581,12 +581,22 @@ export function LandingPage() {
         }}
       >
         <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ minHeight: { xs: 64, md: 76 }, gap: 2 }}>
+          <Toolbar disableGutters sx={{ minHeight: { xs: 64, md: 76 }, gap: 2, position: 'relative' }}>
             <Box component={RouterLink} to="/" sx={{ display: 'inline-flex', alignItems: 'center' }}>
               <img src={logo} alt="PhotonX" style={{ height: 32 }} />
             </Box>
+
+            {/* Nav links – absolutely centered */}
             {isMd && (
-              <Stack direction="row" spacing={1.5} sx={{ ml: 4 }}>
+              <Stack
+                direction="row"
+                spacing={1.5}
+                sx={{
+                  position: 'absolute',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                }}
+              >
                 {navLinks.map((l) => (
                   <Box
                     key={l.href}
@@ -624,6 +634,7 @@ export function LandingPage() {
                 ))}
               </Stack>
             )}
+
             <Box sx={{ flex: 1 }} />
             {isMd ? (
               <Stack direction="row" spacing={1.2}>
@@ -649,195 +660,220 @@ export function LandingPage() {
         sx={{
           position: 'relative',
           pt: { xs: 6, md: 10 },
-          pb: { xs: 8, md: 14 },
+          pb: { xs: 6, md: 10 },
+          bgcolor: '#FAFBFF',
+          overflow: 'hidden',
         }}
       >
-        {/* animated background blobs */}
+        {/* glowing animated orbs */}
         <Box
-          aria-hidden
           sx={{
             position: 'absolute',
-            top: -160,
-            left: -120,
-            width: 540,
-            height: 540,
+            width: { xs: 300, md: 500 },
+            height: { xs: 300, md: 500 },
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(auth.accentFrom, 0.32)} 0%, transparent 65%)`,
-            filter: 'blur(8px)',
-            animation: 'pxOrbit 18s ease-in-out infinite',
+            background: alpha('#22d3ee', 0.15),
+            filter: 'blur(100px)',
+            top: '-10%',
+            left: '-10%',
+            animation: 'pxOrbit 14s infinite ease-in-out',
+            zIndex: 0,
+            pointerEvents: 'none',
           }}
         />
         <Box
-          aria-hidden
           sx={{
             position: 'absolute',
-            top: 80,
-            right: -160,
-            width: 460,
-            height: 460,
+            width: { xs: 400, md: 600 },
+            height: { xs: 400, md: 600 },
             borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(auth.accentTo, 0.24)} 0%, transparent 60%)`,
-            filter: 'blur(8px)',
-            animation: 'pxOrbit 22s ease-in-out reverse infinite',
+            background: alpha('#22d3ee', 0.12),
+            filter: 'blur(120px)',
+            bottom: '10%',
+            right: '-15%',
+            animation: 'pxFloat 10s infinite ease-in-out alternate',
+            zIndex: 0,
+            pointerEvents: 'none',
           }}
         />
-        {/* grid */}
+
+        {/* futuristic perspective grid */}
         <Box
           aria-hidden
           sx={{
             position: 'absolute',
             inset: 0,
-            opacity: 0.5,
             pointerEvents: 'none',
-            backgroundImage: `
-              linear-gradient(${alpha('#22D3EE', 0.08)} 1px, transparent 1px),
-              linear-gradient(90deg, ${alpha('#22D3EE', 0.08)} 1px, transparent 1px)
-            `,
-            backgroundSize: '34px 34px',
-            maskImage: 'radial-gradient(ellipse at 50% 30%, black 38%, transparent 78%)',
+            overflow: 'hidden',
           }}
-        />
+        >
+          {/* line grid with primary color gradient */}
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              maskImage: 'radial-gradient(ellipse 80% 70% at 50% 45%, black 20%, transparent 70%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 80% 70% at 50% 45%, black 20%, transparent 70%)',
+            }}
+          >
+            <Box
+              sx={{
+                position: 'absolute',
+                inset: 0,
+                opacity: 0.25,
+                background: `linear-gradient(135deg, ${auth.accentFrom}, ${auth.accentTo})`,
+                maskImage: `
+                  linear-gradient(black 1px, transparent 1px),
+                  linear-gradient(90deg, black 1px, transparent 1px)
+                `,
+                maskSize: '48px 48px',
+                WebkitMaskImage: `
+                  linear-gradient(black 1px, transparent 1px),
+                  linear-gradient(90deg, black 1px, transparent 1px)
+                `,
+                WebkitMaskSize: '48px 48px',
+              }}
+            />
+          </Box>
+          {/* horizontal scanlines */}
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              opacity: 0.06,
+              backgroundImage: `repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                ${alpha('#0F172A', 0.4)} 3px,
+                ${alpha('#0F172A', 0.4)} 4px
+              )`,
+              maskImage: 'linear-gradient(to bottom, transparent 10%, black 40%, black 60%, transparent 90%)',
+            }}
+          />
+        </Box>
 
-        <Container maxWidth="lg" sx={{ position: 'relative' }}>
-          <Grid container spacing={{ xs: 6, md: 4 }} sx={{ alignItems: 'center' }}>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Reveal>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{
-                    alignItems: 'center',
-                    px: 1.4,
-                    py: 0.6,
-                    width: 'fit-content',
-                    borderRadius: 999,
-                    bgcolor: alpha(auth.accentFrom, 0.1),
-                    border: `1px solid ${alpha(auth.accentFrom, 0.25)}`,
-                    mb: 3,
-                  }}
-                >
-                  <SpeedRounded sx={{ fontSize: 14, color: '#0EA5B7' }} />
-                  <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#0EA5B7' }}>
-                    PhotonX GrowthOS · trends → content → ads → leads
-                  </Typography>
-                </Stack>
-              </Reveal>
+        <Container maxWidth="md" sx={{ position: 'relative', textAlign: 'center' }}>
+          <Reveal>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                alignItems: 'center',
+                justifyContent: 'center',
+                px: 2,
+                py: 0.7,
+                width: 'fit-content',
+                mx: 'auto',
+                borderRadius: 999,
+                bgcolor: alpha(auth.accentFrom, 0.08),
+                border: `1px solid ${alpha(auth.accentFrom, 0.2)}`,
+                mb: 2,
+              }}
+            >
+              <SpeedRounded sx={{ fontSize: 16, color: '#0EA5B7' }} />
+              <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#0EA5B7', letterSpacing: '0.04em' }}>
+                PhotonX GrowthOS
+              </Typography>
+            </Stack>
+          </Reveal>
 
-              <Reveal delay={80}>
-                <Typography
-                  component="h1"
-                  sx={{
-                    fontWeight: 800,
-                    letterSpacing: '-0.035em',
-                    lineHeight: 1.02,
-                    fontSize: { xs: '2.4rem', sm: '3.2rem', md: '3.8rem' },
-                    mb: 2.2,
-                  }}
-                >
-                  AI marketing that turns{' '}
-                  <Box component="span" sx={{ ...gradientText, display: 'inline-block' }}>
-                    AI trends
+          <Reveal delay={80}>
+            <Typography
+              component="h1"
+              align="center"
+              sx={{
+                fontWeight: 900,
+                letterSpacing: '-0.04em',
+                lineHeight: 1.05,
+                fontSize: { xs: '2.6rem', sm: '3.6rem', md: '4.5rem' },
+                mb: 1.5,
+                color: '#0F172A',
+              }}
+            >
+              Trends to{' '}
+              <Box component="span" sx={{ color: '#22d3ee', display: 'inline' }}>
+                Revenue
+              </Box>
+              <br />
+              <Box
+                component="span"
+                sx={{
+                  position: 'relative',
+                  display: 'inline-block',
+                }}
+              >
+                Automated
+              </Box>
+            </Typography>
+          </Reveal>
+
+          <Reveal delay={160}>
+            <Typography
+              align="center"
+              sx={{
+                fontSize: { xs: '0.88rem', md: '0.97rem' },
+                color: '#0F172A',
+                lineHeight: 1.7,
+                maxWidth: 920,
+                mx: 'auto',
+                mb: 4,
+              }}
+            >
+              PhotonX GrowthOS is the AI marketing operating system that ingests real-time trends, generates viral Reels,
+              <br />
+              manages Meta ads, and converts leads — end to end, with human approval at every gate.
+            </Typography>
+          </Reveal>
+
+          <Reveal delay={220}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.6} sx={{ justifyContent: 'center' }}>
+              <Button onClick={goAuth} endIcon={<ArrowForwardRounded />} sx={ctaPrimarySx}>
+                Start free workspace
+              </Button>
+              <Button
+                onClick={() => {
+                  const el = document.getElementById('workflow')
+                  el?.scrollIntoView({ behavior: 'smooth' })
+                }}
+                startIcon={<PlayArrowRounded />}
+                sx={ctaGhostSx}
+              >
+                See how it works
+              </Button>
+            </Stack>
+          </Reveal>
+
+          <Reveal delay={300}>
+            <Stack direction="row" spacing={4} sx={{ mt: 6, justifyContent: 'center', flexWrap: 'wrap', rowGap: 1.4 }}>
+              {[
+                { k: '15 min', v: 'channel → live Reel' },
+                { k: '<60 s', v: 'lead → CRM' },
+                { k: '<2 min', v: 'brief → live Meta ad' },
+              ].map((s) => (
+                <Stack key={s.k} direction="row" spacing={1.2} sx={{ alignItems: 'center' }}>
+                  <CheckCircleRounded sx={{ color: '#22d3ee', fontSize: 18 }} />
+                  <Box>
+                    <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>{s.k}</Typography>
+                    <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
+                      {s.v}
+                    </Typography>
                   </Box>
-                  <br />
-                  into{' '}
-                  <Box
-                    component="span"
-                    sx={{
-                      position: 'relative',
-                      display: 'inline-block',
-                      '&::after': {
-                        content: '""',
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: 4,
-                        height: 10,
-                        borderRadius: 4,
-                        background: alpha(auth.accentFrom, 0.18),
-                        transform: 'skew(-8deg)',
-                        zIndex: -1,
-                      },
-                    }}
-                  >
-                    booked demos
-                  </Box>
-                  .
-                </Typography>
-              </Reveal>
-
-              <Reveal delay={160}>
-                <Typography
-                  sx={{
-                    fontSize: { xs: '1rem', md: '1.12rem' },
-                    color: 'text.secondary',
-                    lineHeight: 1.65,
-                    maxWidth: 560,
-                    mb: 4,
-                  }}
-                >
-                  Two coupled engines. The first ingests the AI launches breaking on X, generates
-                  scored Instagram Reels, and ships them after one-click email approval. The second
-                  spins up Meta campaigns from a sentence and pipes leads into a built-in CRM with
-                  full attribution — answered by a GenUI dashboard with auto-attached charts.
-                </Typography>
-              </Reveal>
-
-              <Reveal delay={220}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.6}>
-                  <Button onClick={goAuth} endIcon={<ArrowForwardRounded />} sx={ctaPrimarySx}>
-                    Start free workspace
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      const el = document.getElementById('workflow')
-                      el?.scrollIntoView({ behavior: 'smooth' })
-                    }}
-                    startIcon={<PlayArrowRounded />}
-                    sx={ctaGhostSx}
-                  >
-                    See how it works
-                  </Button>
                 </Stack>
-              </Reveal>
-
-              <Reveal delay={300}>
-                <Stack direction="row" spacing={3} sx={{ mt: 5, flexWrap: 'wrap', rowGap: 1.4 }}>
-                  {[
-                    { k: '15 min', v: 'channel → live Reel' },
-                    { k: '<60 s', v: 'lead → CRM' },
-                    { k: '<2 min', v: 'brief → live Meta ad' },
-                  ].map((s) => (
-                    <Stack key={s.k} direction="row" spacing={1.2} sx={{ alignItems: 'center' }}>
-                      <CheckCircleRounded sx={{ color: '#0EA5B7', fontSize: 18 }} />
-                      <Box>
-                        <Typography sx={{ fontWeight: 800, fontSize: '0.95rem' }}>{s.k}</Typography>
-                        <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>
-                          {s.v}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  ))}
-                </Stack>
-              </Reveal>
-            </Grid>
-
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Reveal delay={120} y={32}>
-                {HeroVisual}
-              </Reveal>
-            </Grid>
-          </Grid>
+              ))}
+            </Stack>
+          </Reveal>
         </Container>
       </Box>
 
       {/* ── trust marquee ── */}
-      <Box component="section" id="product" sx={{ py: { xs: 4, md: 5 }, position: 'relative' }}>
+      <Box component="section" id="product" sx={{ pt: { xs: 1, md: 2 }, pb: { xs: 4, md: 5 }, position: 'relative' }}>
         <Container maxWidth="lg">
           <Reveal>
             <Typography
               sx={{
                 textAlign: 'center',
-                color: 'text.secondary',
+                color: '#0F172A',
                 fontSize: '0.82rem',
                 fontWeight: 700,
                 letterSpacing: '0.32em',
@@ -892,7 +928,7 @@ export function LandingPage() {
                 <Typography
                   key={`${b}-${i}`}
                   sx={{
-                    fontWeight: 700,
+                    fontWeight: 600,
                     fontSize: '1.1rem',
                     color: alpha('#0F172A', 0.45),
                     whiteSpace: 'nowrap',
@@ -913,47 +949,54 @@ export function LandingPage() {
         component="section"
         id="workflow"
         sx={{
-          py: { xs: 10, md: 14 },
+          pt: { xs: 4, md: 6 },
+          pb: { xs: 10, md: 14 },
           position: 'relative',
         }}
       >
         <Container maxWidth="lg">
           <Reveal>
-            <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: 8 }}>
-              <Typography
+            <Box sx={{ textAlign: 'center', maxWidth: 900, mx: 'auto', mb: 8 }}>
+              <Box
                 sx={{
-                  ...gradientText,
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  letterSpacing: '0.3em',
-                  mb: 1.5,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  px: 2.5,
+                  py: 1,
+                  borderRadius: 999,
+                  bgcolor: '#FFFFFF',
+                  color: '#22d3ee',
+                  border: `1px solid ${alpha('#22d3ee', 0.2)}`,
+                  boxShadow: `0 4px 12px ${alpha('#22d3ee', 0.1)}`,
+                  mb: 3,
                 }}
               >
-                THE LOOP
-              </Typography>
+                <Typography
+                  sx={{
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.2em',
+                  }}
+                >
+                  THE LOOP
+                </Typography>
+              </Box>
               <Typography
                 component="h2"
                 sx={{
-                  fontWeight: 800,
+                  fontWeight: 700,
                   fontSize: { xs: '2rem', md: '2.7rem' },
                   letterSpacing: '-0.025em',
                   lineHeight: 1.1,
                   mb: 2,
+                  color: '#0F172A',
                 }}
               >
-                One pipeline from{' '}
-                <Box component="span" sx={gradientText}>
-                  trend
-                </Box>{' '}
-                to{' '}
-                <Box component="span" sx={gradientText}>
-                  booked demo
-                </Box>
-                .
+                One pipeline from trend to booked demo.
               </Typography>
               <Typography sx={{ color: 'text.secondary', fontSize: '1.02rem', lineHeight: 1.6 }}>
-                Each step is gated, observable, and reversible. No surprise spend, no rogue
-                publishes, no leaked PII.
+                Each step is gated, observable, and reversible. No surprise spend, no rogue publishes, no leaked PII.
               </Typography>
             </Box>
           </Reveal>
@@ -992,9 +1035,10 @@ export function LandingPage() {
                             borderRadius: 2,
                             display: 'grid',
                             placeItems: 'center',
-                            background: accent,
-                            color: '#fff',
-                            boxShadow: `0 8px 22px ${alpha(auth.accentFrom, 0.4)}`,
+                            bgcolor: alpha('#22d3ee', 0.12),
+                            color: '#22d3ee',
+                            border: `1px solid ${alpha('#22d3ee', 0.3)}`,
+                            boxShadow: `0 8px 22px ${alpha('#22d3ee', 0.1)}`,
                           }}
                         >
                           <Icon />
@@ -1003,37 +1047,14 @@ export function LandingPage() {
                           STEP 0{i + 1}
                         </Typography>
                       </Stack>
-                      <Typography sx={{ fontWeight: 800, fontSize: '1.12rem', mb: 0.8 }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: '1.12rem', mb: 0.8, color: '#0F172A' }}>
                         {s.title}
                       </Typography>
                       <Typography sx={{ color: 'text.secondary', fontSize: '0.92rem', lineHeight: 1.6 }}>
                         {s.copy}
                       </Typography>
 
-                      {/* connector arrow */}
-                      {i < workflowSteps.length - 1 && (
-                        <Box
-                          aria-hidden
-                          sx={{
-                            display: { xs: 'none', md: 'grid' },
-                            position: 'absolute',
-                            right: -18,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            placeItems: 'center',
-                            width: 36,
-                            height: 36,
-                            borderRadius: '50%',
-                            bgcolor: '#FFFFFF',
-                            color: '#0EA5B7',
-                            border: `1px solid ${alpha(auth.accentFrom, 0.3)}`,
-                            boxShadow: `0 6px 20px ${alpha('#0F172A', 0.08)}`,
-                            zIndex: 1,
-                          }}
-                        >
-                          <ChevronRightRounded fontSize="small" />
-                        </Box>
-                      )}
+
                     </Box>
                   </Reveal>
                 </Grid>
@@ -1057,25 +1078,40 @@ export function LandingPage() {
       >
         <Container maxWidth="lg">
           <Reveal>
-            <Box sx={{ textAlign: 'center', maxWidth: 760, mx: 'auto', mb: 8 }}>
-              <Typography
+            <Box sx={{ textAlign: 'center', maxWidth: 900, mx: 'auto', mb: 8 }}>
+              <Box
                 sx={{
-                  ...gradientText,
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  letterSpacing: '0.3em',
-                  mb: 1.5,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  px: 2.5,
+                  py: 1,
+                  borderRadius: 999,
+                  bgcolor: '#FFFFFF',
+                  color: '#22d3ee',
+                  border: `1px solid ${alpha('#22d3ee', 0.2)}`,
+                  boxShadow: `0 4px 12px ${alpha('#22d3ee', 0.1)}`,
+                  mb: 3,
                 }}
               >
-                TWO COUPLED ENGINES
-              </Typography>
+                <Typography
+                  sx={{
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.2em',
+                  }}
+                >
+                  TWO COUPLED ENGINES
+                </Typography>
+              </Box>
               <Typography
                 component="h2"
                 sx={{
-                  fontWeight: 800,
+                  fontWeight: 700,
                   fontSize: { xs: '2rem', md: '2.7rem' },
                   letterSpacing: '-0.025em',
                   lineHeight: 1.1,
+                  color: '#0F172A',
                 }}
               >
                 The growth surface, end to end.
@@ -1124,17 +1160,18 @@ export function LandingPage() {
                         borderRadius: 2,
                         display: 'grid',
                         placeItems: 'center',
-                        background: accent,
-                        color: '#fff',
+                        bgcolor: alpha('#22d3ee', 0.12),
+                        color: '#22d3ee',
+                        border: `1px solid ${alpha('#22d3ee', 0.3)}`,
                       }}
                     >
                       <GraphicEqRounded />
                     </Box>
-                    <Typography sx={{ ...gradientText, fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.2em' }}>
+                    <Typography sx={{ color: '#475567', fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.2em' }}>
                       ENGINE 01
                     </Typography>
                   </Stack>
-                  <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.4rem', md: '1.7rem' }, mb: 1.4 }}>
+                  <Typography sx={{ color: '#0F172A', fontWeight: 800, fontSize: { xs: '1.4rem', md: '1.7rem' }, mb: 1.4 }}>
                     Trend-to-Video Engine
                   </Typography>
                   <Typography sx={{ color: 'text.secondary', mb: 2.6, lineHeight: 1.65 }}>
@@ -1152,7 +1189,7 @@ export function LandingPage() {
                       'JWT-signed Approve / Reject / Regenerate links',
                     ].map((l) => (
                       <Stack key={l} direction="row" spacing={1.2} sx={{ alignItems: 'flex-start' }}>
-                        <CheckCircleRounded sx={{ color: '#0EA5B7', fontSize: 18, mt: '2px' }} />
+                        <CheckCircleRounded sx={{ color: '#22d3ee', fontSize: 18, mt: '2px' }} />
                         <Typography sx={{ fontSize: '0.94rem' }}>{l}</Typography>
                       </Stack>
                     ))}
@@ -1201,17 +1238,18 @@ export function LandingPage() {
                         borderRadius: 2,
                         display: 'grid',
                         placeItems: 'center',
-                        background: accent,
-                        color: '#fff',
+                        bgcolor: alpha('#22d3ee', 0.12),
+                        color: '#22d3ee',
+                        border: `1px solid ${alpha('#22d3ee', 0.3)}`,
                       }}
                     >
                       <RocketLaunchRounded />
                     </Box>
-                    <Typography sx={{ ...gradientText, fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.2em' }}>
+                    <Typography sx={{ color: '#475567', fontWeight: 800, fontSize: '0.78rem', letterSpacing: '0.2em' }}>
                       ENGINE 02
                     </Typography>
                   </Stack>
-                  <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.4rem', md: '1.7rem' }, mb: 1.4 }}>
+                  <Typography sx={{ color: '#0F172A', fontWeight: 800, fontSize: { xs: '1.4rem', md: '1.7rem' }, mb: 1.4 }}>
                     Meta Ads + CRM Intelligence
                   </Typography>
                   <Typography sx={{ color: 'text.secondary', mb: 2.6, lineHeight: 1.65 }}>
@@ -1228,7 +1266,7 @@ export function LandingPage() {
                       'GenUI analytics with tool-calling & auto-charts',
                     ].map((l) => (
                       <Stack key={l} direction="row" spacing={1.2} sx={{ alignItems: 'flex-start' }}>
-                        <CheckCircleRounded sx={{ color: '#0EA5B7', fontSize: 18, mt: '2px' }} />
+                        <CheckCircleRounded sx={{ color: '#22d3ee', fontSize: 18, mt: '2px' }} />
                         <Typography sx={{ fontSize: '0.94rem' }}>{l}</Typography>
                       </Stack>
                     ))}
@@ -1241,29 +1279,49 @@ export function LandingPage() {
       </Box>
 
       {/* ── feature grid ── */}
-      <Box component="section" sx={{ py: { xs: 10, md: 14 }, position: 'relative' }}>
+      <Box component="section"
+        sx={{
+          py: { xs: 10, md: 14 },
+          pb: "0 !important",
+          position: 'relative'
+        }}>
         <Container maxWidth="lg">
           <Reveal>
-            <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: 8 }}>
-              <Typography
+            <Box sx={{ textAlign: 'center', maxWidth: 900, mx: 'auto', mb: 8 }}>
+              <Box
                 sx={{
-                  ...gradientText,
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  letterSpacing: '0.3em',
-                  mb: 1.5,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  px: 2.5,
+                  py: 1,
+                  borderRadius: 999,
+                  bgcolor: '#FFFFFF',
+                  color: '#22d3ee',
+                  border: `1px solid ${alpha('#22d3ee', 0.2)}`,
+                  boxShadow: `0 4px 12px ${alpha('#22d3ee', 0.1)}`,
+                  mb: 3,
                 }}
               >
-                CAPABILITIES
-              </Typography>
+                <Typography
+                  sx={{
+                    fontSize: '0.82rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.2em',
+                  }}
+                >
+                  CAPABILITIES
+                </Typography>
+              </Box>
               <Typography
                 component="h2"
                 sx={{
-                  fontWeight: 800,
+                  fontWeight: 700,
                   fontSize: { xs: '2rem', md: '2.7rem' },
                   letterSpacing: '-0.025em',
                   lineHeight: 1.1,
                   mb: 2,
+                  color: '#0F172A',
                 }}
               >
                 Everything the loop needs.
@@ -1274,12 +1332,12 @@ export function LandingPage() {
             </Box>
           </Reveal>
 
-          <Grid container spacing={2.5}>
+          <Grid container spacing={2.5} sx={{ alignItems: 'stretch' }}>
             {featureCards.map((f, i) => {
               const Icon = f.icon
               return (
-                <Grid key={f.title} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Reveal delay={i * 70}>
+                <Grid key={f.title} size={{ xs: 12, sm: 6, md: 4 }} sx={{ display: 'flex' }}>
+                  <Reveal delay={i * 70} style={{ width: '100%', display: 'flex' }}>
                     <Box
                       sx={{
                         position: 'relative',
@@ -1326,9 +1384,9 @@ export function LandingPage() {
                           borderRadius: 2,
                           display: 'grid',
                           placeItems: 'center',
-                          color: '#0EA5B7',
-                          bgcolor: alpha(auth.accentFrom, 0.12),
-                          border: `1px solid ${alpha(auth.accentFrom, 0.3)}`,
+                          color: '#22d3ee',
+                          bgcolor: alpha('#22d3ee', 0.12),
+                          border: `1px solid ${alpha('#22d3ee', 0.3)}`,
                           mb: 2,
                           transition: 'transform 300ms ease',
                           'div:hover > &': { transform: 'rotate(-6deg) scale(1.05)' },
@@ -1336,7 +1394,7 @@ export function LandingPage() {
                       >
                         <Icon />
                       </Box>
-                      <Typography sx={{ fontWeight: 800, fontSize: '1.08rem', mb: 0.8 }}>
+                      <Typography sx={{ fontWeight: 800, fontSize: '1.08rem', mb: 0.8, color: '#0F172A' }}>
                         {f.title}
                       </Typography>
                       <Typography sx={{ color: 'text.secondary', fontSize: '0.92rem', lineHeight: 1.6 }}>
@@ -1397,10 +1455,10 @@ export function LandingPage() {
                         >
                           <Counter to={k.value} suffix={k.suffix} />
                         </Typography>
-                        <Typography sx={{ fontWeight: 800, mt: 1, fontSize: '0.98rem' }}>
+                        <Typography sx={{ fontWeight: 500, mt: 1, fontSize: '0.98rem', color: '#0F172A' }}>
                           {k.label}
                         </Typography>
-                        <Typography sx={{ color: 'text.secondary', fontSize: '0.84rem', mt: 0.3 }}>
+                        <Typography sx={{ color: '#0F172A', fontSize: '0.84rem', mt: 0.3, opacity: 0.6 }}>
                           {k.sub}
                         </Typography>
                       </Box>
@@ -1428,32 +1486,46 @@ export function LandingPage() {
           <Grid container spacing={6} sx={{ alignItems: 'center' }}>
             <Grid size={{ xs: 12, md: 5 }}>
               <Reveal>
-                <Typography
+                <Box
                   sx={{
-                    ...gradientText,
-                    fontSize: '0.82rem',
-                    fontWeight: 800,
-                    letterSpacing: '0.3em',
-                    mb: 1.5,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    px: 2.5,
+                    py: 1,
+                    borderRadius: 999,
+                    bgcolor: '#FFFFFF',
+                    color: '#22d3ee',
+                    border: `1px solid ${alpha('#22d3ee', 0.2)}`,
+                    boxShadow: `0 4px 12px ${alpha('#22d3ee', 0.1)}`,
+                    mb: 3,
                   }}
                 >
-                  SECURITY & TRUST
-                </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.2em',
+                    }}
+                  >
+                    SECURITY & TRUST
+                  </Typography>
+                </Box>
                 <Typography
                   component="h2"
                   sx={{
-                    fontWeight: 800,
+                    fontWeight: 700,
                     fontSize: { xs: '2rem', md: '2.6rem' },
                     letterSpacing: '-0.025em',
                     lineHeight: 1.1,
                     mb: 2.2,
+                    color: '#0F172A',
                   }}
                 >
                   Multi-tenant by default. Audit-ready by design.
                 </Typography>
                 <Typography sx={{ color: 'text.secondary', lineHeight: 1.7, mb: 3 }}>
-                  PhotonX is built for teams that ship under compliance scrutiny. Every approval is
-                  signed, every webhook is verified, and every PII access is logged for 12 months.
+                  PhotonX is built for teams that ship under compliance scrutiny. Every approval is signed, every webhook is verified, and every PII access is logged for 12 months.
                 </Typography>
                 <Button onClick={goAuth} sx={ctaPrimarySx} endIcon={<ArrowForwardRounded />}>
                   Talk to us
@@ -1461,12 +1533,12 @@ export function LandingPage() {
               </Reveal>
             </Grid>
             <Grid size={{ xs: 12, md: 7 }}>
-              <Grid container spacing={2}>
+              <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
                 {securityRows.map((s, i) => {
                   const Icon = s.icon
                   return (
-                    <Grid key={s.title} size={{ xs: 12, sm: 6 }}>
-                      <Reveal delay={i * 80}>
+                    <Grid key={s.title} size={{ xs: 12, sm: 6 }} sx={{ display: 'flex' }}>
+                      <Reveal delay={i * 80} style={{ width: '100%', display: 'flex' }}>
                         <Box
                           sx={{
                             p: 2.6,
@@ -1488,14 +1560,15 @@ export function LandingPage() {
                               borderRadius: 1.6,
                               display: 'grid',
                               placeItems: 'center',
-                              color: '#0EA5B7',
-                              bgcolor: alpha(auth.accentFrom, 0.1),
+                              color: '#22d3ee',
+                              bgcolor: alpha('#22d3ee', 0.12),
+                              border: `1px solid ${alpha('#22d3ee', 0.3)}`,
                               mb: 1.4,
                             }}
                           >
                             <Icon fontSize="small" />
                           </Box>
-                          <Typography sx={{ fontWeight: 800, fontSize: '0.98rem', mb: 0.6 }}>
+                          <Typography sx={{ color: '#0F172A', fontWeight: 800, fontSize: '0.98rem', mb: 0.6 }}>
                             {s.title}
                           </Typography>
                           <Typography sx={{ fontSize: '0.86rem', color: 'text.secondary', lineHeight: 1.55 }}>
@@ -1558,45 +1631,55 @@ export function LandingPage() {
                 }}
               />
               <Box sx={{ position: 'relative' }}>
-                <Typography
+                <Box
                   sx={{
-                    ...gradientText,
-                    fontWeight: 800,
-                    letterSpacing: '0.3em',
-                    fontSize: '0.82rem',
-                    mb: 2,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    px: 2.5,
+                    py: 1,
+                    borderRadius: 999,
+                    bgcolor: '#FFFFFF',
+                    color: '#22d3ee',
+                    border: `1px solid ${alpha('#22d3ee', 0.2)}`,
+                    boxShadow: `0 4px 12px ${alpha('#22d3ee', 0.1)}`,
+                    mb: 3,
                   }}
                 >
-                  READY WHEN YOU ARE
-                </Typography>
+                  <Typography
+                    sx={{
+                      fontSize: '0.82rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.2em',
+                    }}
+                  >
+                    READY WHEN YOU ARE
+                  </Typography>
+                </Box>
                 <Typography
                   component="h2"
                   sx={{
-                    fontWeight: 800,
+                    fontWeight: 700,
                     letterSpacing: '-0.03em',
                     lineHeight: 1.05,
                     fontSize: { xs: '2.2rem', md: '3.2rem' },
                     mb: 2.2,
+                    color: '#FFFFFF',
                   }}
                 >
-                  Your AI growth team,
-                  <br />
-                  <Box component="span" sx={gradientText}>
-                    on autopilot.
-                  </Box>
+                  Your AI growth team, on autopilot.
                 </Typography>
                 <Typography
                   sx={{
                     color: alpha('#F0FDFF', 0.75),
                     fontSize: '1.05rem',
                     lineHeight: 1.65,
-                    maxWidth: 560,
+                    maxWidth: 900,
                     mx: 'auto',
                     mb: 4,
                   }}
                 >
-                  Spin up a workspace in under a minute. Connect Meta in 90 seconds. Watch your
-                  first scored Reel go live the same afternoon.
+                  Spin up a workspace in under a minute. Connect Meta in 90 seconds. Watch your first scored Reel go live the same afternoon.
                 </Typography>
                 <Box direction={{ xs: 'column', sm: 'row' }} spacing={1.6} justifyContent="center">
                   <Button onClick={goAuth} sx={ctaPrimarySx} endIcon={<ArrowForwardRounded />}>
@@ -1648,7 +1731,7 @@ export function LandingPage() {
                 © {new Date().getFullYear()} PhotonX GrowthOS — Virlo. All rights reserved.
               </Typography>
             </Stack>
-            
+
           </Stack>
         </Container>
       </Box>
