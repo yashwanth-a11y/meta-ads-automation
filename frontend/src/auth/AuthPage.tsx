@@ -248,17 +248,17 @@ export function AuthPage() {
           justifyContent: 'center',
           borderRight: { md: `1px solid ${auth.panelBorder}` },
           // background: `radial-gradient(ellipse 80% 65% at 20% 15%, ${alpha(auth.accentFrom, 0.22)} 0%, transparent 58%), radial-gradient(ellipse 72% 56% at 85% 82%, ${alpha(auth.accentTo, 0.16)} 0%, transparent 52%), linear-gradient(135deg, ${alpha('#FFFFFF', 0.85)} 0%, ${auth.pageBg} 56%)`,
-          
+
         }}
-        
+
       >
-         <Link href="https://www.virlo.com" target="_blank" sx={{ 
+        <Link href="https://www.virlo.com" target="_blank" sx={{
           position: 'absolute', top: 40, left: 40,
-          }}>
+        }}>
           <img src={logo} alt="Virlo" width="200px" />
-            </Link>
+        </Link>
         <Box sx={{ position: 'relative', zIndex: 1, maxWidth: 520 }}>
-         
+
           <Typography
             variant="overline"
             sx={{
@@ -288,7 +288,7 @@ export function AuthPage() {
             <br />
             PHOTONX GROWTH OS
           </Typography>
-          <Typography variant="body1" sx={{ color: 'text.secondary', fontWeight: 500, maxWidth: 440 }}>
+          <Typography variant="subtitle2" sx={{ color: 'text.secondary', fontWeight: 500, maxWidth: 440 }}>
             Seamlessly enhance acquisition through AI-assisted campaigns, creatives, and CRM — built for
             teams who scale with clarity.
           </Typography>
@@ -414,11 +414,11 @@ export function AuthPage() {
           <Typography
             variant="h4"
             component="h2"
-            sx={{ fontWeight: 700, letterSpacing: '-0.02em', mb: 0.5 }}
+            sx={{ fontWeight: 600, letterSpacing: '-0.02em', mb: 0.5 }}
           >
             {tab === 'login' ? 'Welcome back' : 'Create your account'}
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 3 }}>
             {tab === 'login'
               ? 'Sign in to orchestrate campaigns or create your PhotonX workspace.'
               : 'Enter your basics — name, email, and password — to start.'}
@@ -553,22 +553,24 @@ export function AuthPage() {
                 fullWidth
                 variant="contained"
                 disabled={!loginValid || loginLoading}
-                sx={{...ctaSx, 
-                  marginBottom:"20px !important",
+                sx={{
+                  ...ctaSx,
+                  marginBottom: "20px !important",
                 }}
                 onClick={() => void handleLogin()}
               >
                 {loginLoading ? 'Signing in…' : 'Sign in now'}
               </Button>
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+              <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
                 Don&apos;t have access yet?{' '}
                 <Link
                   component="button"
                   type="button"
                   underline="hover"
                   onClick={() => setTab('signup')}
-                  sx={{ color: auth.accentTo, fontWeight: 700,
-                   }}
+                  sx={{
+                    color: auth.accentTo, fontWeight: 700,
+                  }}
                 >
                   Sign up
                 </Link>
@@ -683,8 +685,8 @@ export function AuthPage() {
                         : ' '
                     }
                   />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, mb: 1, display: 'block' }}>Confirm password</Typography>
                   <TextField
                     fullWidth
@@ -715,7 +717,7 @@ export function AuthPage() {
               </Grid>
 
               <Button
-              
+
                 fullWidth
                 variant="contained"
                 disabled={!basicsValid || signupLoading}
@@ -724,7 +726,7 @@ export function AuthPage() {
               >
                 {signupLoading ? 'Creating account…' : 'Create account'}
               </Button>
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+              <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center' }}>
                 Already onboard?{' '}
                 <Link
                   component="button"
@@ -739,7 +741,7 @@ export function AuthPage() {
             </Stack>
           )}
 
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt:2 }}>
+          <Typography variant="body1" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 2 }}>
             © {new Date().getFullYear()} PhotonX GrowthOS - Virlo. All rights reserved.
           </Typography>
         </GlassCard>

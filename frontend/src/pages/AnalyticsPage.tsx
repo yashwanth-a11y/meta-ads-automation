@@ -86,7 +86,7 @@ export function AnalyticsPage() {
                   Insight
                 </Typography>
               </Stack>
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography variant="body1" color="text.secondary">
                 Creative refresh cadence is outpacing audience fatigue — maintain +15% weekly net-new
                 angles to hold CPA band.
               </Typography>
@@ -95,7 +95,7 @@ export function AnalyticsPage() {
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 800 }}>
                 Recommendation
               </Typography>
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography variant="body1" color="text.secondary">
                 Shift 12% budget from broad prospecting to ascension retargeting while hooks emphasize
                 proof density.
               </Typography>
