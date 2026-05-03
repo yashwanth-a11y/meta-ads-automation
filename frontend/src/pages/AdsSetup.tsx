@@ -3,12 +3,10 @@ import {
   Avatar,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Divider,
   FormControl,
   InputLabel,
-  ListItemAvatar,
   ListItemText,
   MenuItem,
   Select,
@@ -17,7 +15,6 @@ import {
 } from '@mui/material'
 import FacebookIcon from '@mui/icons-material/Facebook'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import LinkOffIcon from '@mui/icons-material/LinkOff'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -25,7 +22,6 @@ import { useNavigate } from 'react-router-dom'
 import { adsApi, ApiError, qk } from '../api'
 import type {
   AvailableAdAccount,
-  AvailablePage,
   ConnectAdAccountInput,
   OAuthCallbackResult,
 } from '../api/types'
@@ -189,7 +185,7 @@ export function AdsSetupPage() {
       )}
 
       {!isConnected && step === 'idle' && (
-        <GlassCard sx={{ p: 3, borderRadius: 3 }}>
+        <GlassCard sx={{ p: 3}}>
           <Typography variant="body1" sx={{ mb: 2 }}>
             Sign in with Facebook to give GrowthOS permission to manage your ads.
             We will request <code>ads_management</code>, <code>pages_manage_ads</code>,
@@ -256,26 +252,10 @@ export function AdsSetupPage() {
                 value={selectedPageId}
                 onChange={(e) => setSelectedPageId(e.target.value as string)}
               >
-                {(oauthData.pages || []).map((p: AvailablePage) => (
+                {(oauthData.pages || []).map((p) => (
                   <MenuItem key={p.id} value={p.id}>
-                    <ListItemAvatar sx={{ minWidth: 36 }}>
-                      <Avatar src={p.picture?.data?.url} sx={{ width: 28, height: 28 }} />
-                    </ListItemAvatar>
                     <ListItemText
-                      primary={
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                          <span>{p.name}</span>
-                          {p.whatsapp_business_account?.id ? (
-                            <Chip
-                              size="small"
-                              icon={<WhatsAppIcon sx={{ fontSize: 14 }} />}
-                              label="WABA linked"
-                              color="success"
-                              variant="outlined"
-                            />
-                          ) : null}
-                        </Stack>
-                      }
+                      primary={p.name}
                       secondary={p.id}
                     />
                   </MenuItem>

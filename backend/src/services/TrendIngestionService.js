@@ -638,6 +638,203 @@ Return JSON: { "subreddits": ["name1", ...], "keywords": ["keyword1", ...] }`,
     return { ingested, skipped };
   }
 
+  // --- X / Twitter account monitoring — per channel ---
+  async ingestTwitterAccountsForChannel(channel) {
+    const handles = channel.brand_assets?.tracked_x_accounts ?? [];
+    if (!handles.length) return { ingested: 0, skipped: 0 };
+    return this._ingestTwitterAccounts(handles, channel.organization_id);
+  }
+
+  async _ingestTwitterAccounts(handles, organizationId = null) {
+    const bearerToken = process.env.X_BEARER_TOKEN;
+    if (!bearerToken) {
+      console.warn('[TrendIngestion] Twitter account monitoring skipped — X_BEARER_TOKEN not set');
+      return { ingested: 0, skipped: 0 };
+    }
+
+    let ingested = 0, skipped = 0;
+
+    // Resolve up to 100 handles to user IDs in one request
+    const cleanHandles = handles.map((h) => h.replace(/^@/, '')).slice(0, 100);
+    let userMap = {};
+    try {
+      const res = await fetch(
+        `https://api.twitter.com/2/users/by?usernames=${cleanHandles.join(',')}&user.fields=id,name,username`,
+        { headers: { Authorization: `Bearer ${bearerToken}` }, signal: AbortSignal.timeout(10000) },
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.title ?? `HTTP ${res.status}`);
+      for (const u of data.data ?? []) userMap[u.username.toLowerCase()] = u;
+    } catch (err) {
+      console.error('[TrendIngestion] Twitter user lookup failed:', err.message);
+      return { ingested: 0, skipped: 0 };
+    }
+
+    for (const handle of cleanHandles) {
+      const user = userMap[handle.toLowerCase()];
+      if (!user) { skipped++; continue; }
+
+      try {
+        const res = await fetch(
+          `https://api.twitter.com/2/users/${user.id}/tweets` +
+            `?max_results=10&exclude=retweets,replies` +
+            `&tweet.fields=created_at,public_metrics,entities`,
+          { headers: { Authorization: `Bearer ${bearerToken}` }, signal: AbortSignal.timeout(10000) },
+        );
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.title ?? `HTTP ${res.status}`);
+
+        for (const tweet of data.data ?? []) {
+          const pubDate = tweet.created_at ? new Date(tweet.created_at) : new Date();
+          if (pubDate < this._freshnessCutoff()) { skipped++; continue; }
+
+          const metrics = tweet.public_metrics ?? {};
+          const engagement = (metrics.like_count ?? 0) + (metrics.retweet_count ?? 0) * 3 + (metrics.reply_count ?? 0);
+          const ageHours = (Date.now() - pubDate.getTime()) / 3600000;
+          const velocity = ageHours > 0.1 ? Math.round(engagement / ageHours) : engagement;
+
+          const saved = await this._upsertCandidate({
+            source_type: 'twitter',
+            source_name: `@${user.username}`,
+            external_id: tweet.id,
+            title: tweet.text.slice(0, 200),
+            summary: tweet.text,
+            url: `https://x.com/${user.username}/status/${tweet.id}`,
+            image_url: null,
+            published_at: pubDate,
+            raw_data: { ...metrics, author: user.username, author_name: user.name },
+            velocity_score: velocity,
+            lifecycle_stage: velocity > 1000 ? 'peak' : velocity > 200 ? 'sprout' : 'seed',
+            organization_id: organizationId,
+          });
+          if (saved) ingested++; else skipped++;
+        }
+      } catch (err) {
+        console.error(`[TrendIngestion] Twitter @${handle} failed:`, err.message);
+        skipped++;
+      }
+    }
+    return { ingested, skipped };
+  }
+
+  // --- Watched websites — per channel (RSS first, falls back to headline scraping) ---
+  async ingestWatchedWebsitesForChannel(channel) {
+    const urls = channel.brand_assets?.watched_websites ?? [];
+    if (!urls.length) return { ingested: 0, skipped: 0 };
+    return this._ingestWatchedWebsites(urls, channel.organization_id);
+  }
+
+  async _ingestWatchedWebsites(urls, organizationId = null) {
+    let ingested = 0, skipped = 0;
+
+    for (const rawUrl of urls.slice(0, 20)) {
+      const base = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+      const tried = await this._tryRssForSite(base, organizationId);
+      if (tried !== null) {
+        ingested += tried.ingested;
+        skipped += tried.skipped;
+        continue;
+      }
+      // RSS not found — scrape headlines from the page
+      try {
+        const { data: html } = await axios.get(base, {
+          headers: { 'User-Agent': 'Virlo-GrowthOS/1.0' },
+          timeout: 10000,
+          responseType: 'text',
+        });
+        const headlines = this._extractHeadlines(html, base);
+        for (const h of headlines) {
+          const saved = await this._upsertCandidate({
+            source_type: 'website',
+            source_name: new URL(base).hostname,
+            external_id: h.url,
+            title: h.title,
+            summary: h.title,
+            url: h.url,
+            image_url: null,
+            published_at: new Date(),
+            raw_data: { source_url: base },
+            velocity_score: 20,
+            lifecycle_stage: 'seed',
+            organization_id: organizationId,
+          });
+          if (saved) ingested++; else skipped++;
+        }
+      } catch (err) {
+        console.error(`[TrendIngestion] Website scrape failed (${base}):`, err.message);
+        skipped++;
+      }
+    }
+    return { ingested, skipped };
+  }
+
+  async _tryRssForSite(baseUrl, organizationId) {
+    const origin = new URL(baseUrl).origin;
+    const candidates = [
+      `${baseUrl}/feed`,
+      `${baseUrl}/rss`,
+      `${baseUrl}/feed.xml`,
+      `${baseUrl}/atom.xml`,
+      `${baseUrl}/rss.xml`,
+      `${origin}/feed`,
+      `${origin}/rss`,
+    ];
+
+    for (const feedUrl of candidates) {
+      try {
+        const parsed = await rss.parseURL(feedUrl);
+        if (!parsed?.items?.length) continue;
+
+        let ingested = 0, skipped = 0;
+        for (const item of parsed.items.slice(0, 20)) {
+          const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
+          if (pubDate < this._freshnessCutoff()) { skipped++; continue; }
+          const ageHours = (Date.now() - pubDate.getTime()) / 3600000;
+          const velocity = ageHours < 6 ? 100 : ageHours < 24 ? 50 : 20;
+
+          const saved = await this._upsertCandidate({
+            source_type: 'website',
+            source_name: new URL(baseUrl).hostname,
+            external_id: item.guid ?? item.link,
+            title: item.title,
+            summary: item.contentSnippet ?? item.title,
+            url: item.link ?? null,
+            image_url: null,
+            published_at: pubDate,
+            raw_data: { feed_url: feedUrl, source_url: baseUrl },
+            velocity_score: velocity,
+            lifecycle_stage: ageHours < 6 ? 'peak' : ageHours < 24 ? 'sprout' : 'seed',
+            organization_id: organizationId,
+          });
+          if (saved) ingested++; else skipped++;
+        }
+        return { ingested, skipped };
+      } catch {
+        // Try next candidate
+      }
+    }
+    return null; // No RSS found
+  }
+
+  _extractHeadlines(html, baseUrl) {
+    const origin = new URL(baseUrl).origin;
+    const headlines = [];
+    // Match <a href="...">text</a> inside h1/h2/h3/article tags
+    const blockRe = /<(?:h[123]|article)[^>]*>([\s\S]*?)<\/(?:h[123]|article)>/gi;
+    let block;
+    while ((block = blockRe.exec(html)) !== null && headlines.length < 15) {
+      const linkRe = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i;
+      const m = linkRe.exec(block[1]);
+      if (!m) continue;
+      const rawHref = m[1];
+      const title = m[2].replace(/<[^>]+>/g, '').trim();
+      if (!title || title.length < 10) continue;
+      const url = rawHref.startsWith('http') ? rawHref : `${origin}${rawHref.startsWith('/') ? '' : '/'}${rawHref}`;
+      headlines.push({ title, url });
+    }
+    return headlines;
+  }
+
   // --- Brand-specific ingestion: custom keywords + competitor mentions via Tavily ---
   async ingestBrandKeywords(channel, tavilyApiKey) {
     if (!tavilyApiKey) return { ingested: 0, skipped: 0 };

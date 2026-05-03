@@ -23,6 +23,7 @@ import { ApprovalPublishingCard } from './channel/ApprovalPublishingCard'
 import { TrendSourcesCard } from './channel/TrendSourcesCard'
 import { ApproversCard } from './channel/ApproversCard'
 import { KeywordsCard } from './channel/KeywordsCard'
+import { MonitoringSourcesCard } from './channel/MonitoringSourcesCard'
 import type { ChannelApprover, ChannelTrendSources } from '../../api/trends'
 
 export function ChannelConfigSection() {
@@ -45,6 +46,8 @@ export function ChannelConfigSection() {
   const [products, setProducts] = useState<string[]>([])
   const [competitors, setCompetitors] = useState<string[]>([])
   const [trackedKeywords, setTrackedKeywords] = useState<string[]>([])
+  const [trackedXAccounts, setTrackedXAccounts] = useState<string[]>([])
+  const [watchedWebsites, setWatchedWebsites] = useState<string[]>([])
 
   const [snackMsg, setSnackMsg] = useState('')
   const [snackOpen, setSnackOpen] = useState(false)
@@ -62,6 +65,8 @@ export function ChannelConfigSection() {
     setProducts(channel.products ?? [])
     setCompetitors(channel.competitors ?? [])
     setTrackedKeywords(channel.tracked_keywords ?? [])
+    setTrackedXAccounts(channel.brand_assets?.tracked_x_accounts ?? [])
+    setWatchedWebsites(channel.brand_assets?.watched_websites ?? [])
     setSaveError(null)
   }, [channel?.id])
 
@@ -74,7 +79,12 @@ export function ChannelConfigSection() {
         topic_cooldown_days: cooldown,
         instagram_account_id: instagramId || undefined,
         trend_sources: trendSources,
-        brand_assets: { ...(channel?.brand_assets ?? {}), approvers },
+        brand_assets: {
+          ...(channel?.brand_assets ?? {}),
+          approvers,
+          tracked_x_accounts: trackedXAccounts,
+          watched_websites: watchedWebsites,
+        },
         products,
         competitors,
         tracked_keywords: trackedKeywords,
@@ -168,6 +178,13 @@ export function ChannelConfigSection() {
             setCompetitors={setCompetitors}
             trackedKeywords={trackedKeywords}
             setTrackedKeywords={setTrackedKeywords}
+          />
+
+          <MonitoringSourcesCard
+            trackedXAccounts={trackedXAccounts}
+            setTrackedXAccounts={setTrackedXAccounts}
+            watchedWebsites={watchedWebsites}
+            setWatchedWebsites={setWatchedWebsites}
           />
 
           {saveError && (

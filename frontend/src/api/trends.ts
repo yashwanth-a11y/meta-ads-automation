@@ -33,6 +33,8 @@ export type Channel = {
   brand_assets: {
     approvers?: ChannelApprover[]
     examples?: unknown[]
+    tracked_x_accounts?: string[]
+    watched_websites?: string[]
     [key: string]: unknown
   }
   instagram_account_id: string | null
@@ -147,8 +149,12 @@ export type PipelineResult = {
 
 // ─── API functions ────────────────────────────────────────────────────────────
 
+export type XHandleVerification = { valid: boolean; name?: string; username?: string }
+
 export const trendsApi = {
   listChannels: () => get<Channel[]>('/channels'),
+  verifyXHandle: (handle: string) =>
+    get<XHandleVerification>(`/trends/verify-x-handle/${encodeURIComponent(handle)}`),
   createChannel: (data: CreateChannelInput) => post<Channel>('/channels', data),
   updateChannel: (id: string, data: ChannelUpdateInput) =>
     patch<Channel>(`/channels/${id}`, data),

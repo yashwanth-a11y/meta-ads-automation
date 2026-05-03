@@ -86,4 +86,24 @@ export class CtwaConversationRepository {
       .set({ converted_at: new Date() })
       .where(eq(ctwaConversations.id, id));
   }
+
+  /** CTWA conversations grouped by referral_source for attribution-style charts. */
+  async countByReferralSource(organizationId, startDate, endDate) {
+    const conditions = [eq(ctwaConversations.organization_id, organizationId)];
+    if (startDate && endDate) {
+      conditions.push(between(ctwaConversations.initiated_at, startDate, endDate));
+    }
+
+    const sourceExpr = sql`COALESCE(NULLIF(TRIM(${ctwaConversations.referral_source}), ''), 'Direct / unknown')`;
+
+    return this.db
+      .select({
+        source: sourceExpr,
+        count: sql`COUNT(*)::int`,
+      })
+      .from(ctwaConversations)
+      .where(and(...conditions))
+      .groupBy(sourceExpr)
+      .orderBy(desc(sql`COUNT(*)`));
+  }
 }

@@ -90,6 +90,10 @@ const schema = z.object({
 
   // X / Twitter
   X_BEARER_TOKEN: z.string().optional(),
+  X_API_KEY: z.string().optional(),
+  X_API_SECRET: z.string().optional(),
+  X_ACCESS_TOKEN: z.string().optional(),
+  X_ACCESS_TOKEN_SECRET: z.string().optional(),
 
   // Voice / TTS
   ELEVENLABS_API_KEY: z.string().optional(),

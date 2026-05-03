@@ -36,6 +36,7 @@ import {
   type MessagePart,
   type OutboundMessage,
 } from '../api/genui'
+import logo from '../assets/favicon.svg'
 
 const uuidv4 = () => crypto.randomUUID()
 
@@ -298,7 +299,7 @@ export default function GenUIPage() {
   return (
     <Stack spacing={2} sx={{ height: 'calc(100vh - 80px)' }}>
       <PageHeader
-        title="AI Assistant"
+        title="VIRLO AI Assistant"
         subtitle="Ask anything about your campaigns, content, and leads."
         action={
           <Tooltip title="New conversation">
@@ -332,8 +333,8 @@ export default function GenUIPage() {
         {/* ── History sidebar ─────────────────────────────────────── */}
         <Box
           sx={{
-            width: { xs: 0, md: 220 },
-            minWidth: { xs: 0, md: 220 },
+            width: { xs: 0, md: 260 },
+            minWidth: { xs: 0, md: 260 },
             borderRight: '1px solid #dddddd57',
             display: { xs: 'none', md: 'flex' },
             flexDirection: 'column',
@@ -344,7 +345,7 @@ export default function GenUIPage() {
             direction="row"
             sx={{ px: 1.5, py: 1.25, alignItems: 'center', justifyContent: 'space-between' }}
           >
-            <Typography variant="caption" sx={{ fontWeight: 700, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <Typography variant="subtitle2" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               History
             </Typography>
           </Stack>
@@ -354,7 +355,7 @@ export default function GenUIPage() {
             {conversations.length === 0 ? (
               <Stack sx={{ alignItems: 'center', py: 4, px: 1.5, gap: 0.75 }}>
                 <ChatBubbleOutlineIcon sx={{ fontSize: 22, color: '#CBD5E1' }} />
-                <Typography variant="caption" sx={{ color: '#94A3B8', textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ color: '#94A3B8', textAlign: 'center' }}>
                   Your conversations will appear here
                 </Typography>
               </Stack>
@@ -410,7 +411,9 @@ export default function GenUIPage() {
                       <AutoAwesomeIcon sx={{ fontSize: 14, color: '#22D3EE' }} />
                     </Box>
                     <CircularProgress size={14} sx={{ color: '#22D3EE' }} />
-                    <Typography variant="caption" sx={{ color: '#64748B' }}>Thinking…</Typography>
+                    <Typography variant="body1" sx={{ color: '#64748B' }}>
+                      Thinking…
+                    </Typography>
                   </Stack>
                 )}
                 <div ref={bottomRef} />
@@ -496,15 +499,15 @@ function ConversationItem({
     >
       <ChatBubbleOutlineIcon sx={{ fontSize: 14, color: isActive ? '#22D3EE' : '#94A3B8', flexShrink: 0 }} />
       <Typography
-        variant="caption"
+        
         sx={{
           flex: 1,
           color: isActive ? '#0F172A' : '#475569',
-          fontWeight: isActive ? 600 : 400,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
           lineHeight: 1.4,
+          fontSize: 12,
         }}
       >
         {conv.title}
@@ -528,14 +531,14 @@ function EmptyState({ onPrompt }: { onPrompt: (p: string) => void }) {
   return (
     <Stack sx={{ height: '100%', alignItems: 'center', justifyContent: 'center', py: 4, textAlign: 'center' }} spacing={3}>
       <Box sx={{ width: 56, height: 56, borderRadius: '14px', bgcolor: alpha('#22D3EE', 0.1), border: `1px solid ${alpha('#22D3EE', 0.2)}`, display: 'grid', placeItems: 'center' }}>
-        <AutoAwesomeIcon sx={{ fontSize: 26, color: '#22D3EE' }} />
+        <img src={logo} alt="VIRLO Assistant" width="28px" />
       </Box>
-      <Box>
-        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A', mb: 0.5 }}>GrowthOS AI Assistant</Typography>
-        <Typography variant="body2" sx={{ color: '#64748B', maxWidth: 400 }}>
+      {/* <Box>
+        <Typography variant="h6" sx={{ fontWeight: 700, color: '#0F172A', mb: 0.5 }}>VIRLO AI Assistant</Typography>
+        <Typography variant="subtitle2" sx={{ color: '#64748B', maxWidth: 400 }}>
           Ask about campaign performance, analyse creatives, or create a Meta ad — all from a single conversation.
         </Typography>
-      </Box>
+      </Box> */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5, width: '100%', maxWidth: 560, px: 1 }}>
         {EMPTY_STATE_PROMPTS.map((item) => (
           <GlassCard

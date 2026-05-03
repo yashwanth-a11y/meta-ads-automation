@@ -118,6 +118,20 @@ export default async function routes(app) {
     return reply.code(201).send({ ...bundle, quality_scores: scores });
   });
 
+  // Verify an X / Twitter handle exists
+  app.get('/verify-x-handle/:handle', async (req, reply) => {
+    const { handle } = req.params;
+    if (!env.X_BEARER_TOKEN) throw app.httpErrors.serviceUnavailable('X API not configured');
+    const res = await fetch(`https://api.twitter.com/2/users/by/username/${encodeURIComponent(handle)}`, {
+      headers: { Authorization: `Bearer ${env.X_BEARER_TOKEN}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.status === 404) return reply.send({ valid: false });
+    if (!res.ok) throw app.httpErrors.serviceUnavailable('X API error');
+    const data = await res.json();
+    return reply.send({ valid: true, name: data.data?.name, username: data.data?.username });
+  });
+
   // Trend sources config (per channel toggle)
   app.get('/sources', async (req) => {
     const channels = await channelService.list(orgId(req));

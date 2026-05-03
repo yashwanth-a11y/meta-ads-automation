@@ -214,10 +214,11 @@ export class AdsService {
 
     const metaApi = new MetaAdsApiService(longLivedData.access_token, this.logger);
 
-    // Get available ad accounts and pages
-    const [adAccountsResp, pagesResp] = await Promise.all([
+    // Get available ad accounts, pages, and businesses
+    const [adAccountsResp, pagesResp, businessesResp] = await Promise.all([
       metaApi.getAdAccounts(),
       metaApi.getPages(),
+      metaApi.getBusinesses(),
     ]);
 
     return {
@@ -226,6 +227,7 @@ export class AdsService {
       oauth_app_id: appId,
       ad_accounts: adAccountsResp.data || [],
       pages: pagesResp.data || [],
+      businesses: businessesResp.data || [],
     };
   }
 
@@ -1463,6 +1465,125 @@ export class AdsService {
       },
       campaign,
     };
+  }
+
+  /**
+   * Organization-wide dashboard metrics from synced CTWA insights + conversations.
+   * Insights populate when campaigns are synced; conversations from CTWA webhooks.
+   */
+  async getDashboardAnalytics(organizationId, { days = 28 } = {}) {
+    const end = new Date();
+    end.setUTCHours(23, 59, 59, 999);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - (Number(days) || 28) + 1);
+    start.setUTCHours(0, 0, 0, 0);
+
+    const [daily, campaignSpend, referralRows] = await Promise.all([
+      this.insightsRepo.getOrganizationDailyAggregates(organizationId, start, end),
+      this.insightsRepo.getOrganizationSpendByCampaign(organizationId, start, end, 10),
+      this.conversationRepo.countByReferralSource(organizationId, start, end),
+    ]);
+
+    const weeklyPerformance = this._rollupInsightsWeekly(daily);
+    const campaignBars = campaignSpend.map((row) => ({
+      name: row.name,
+      spend: Number(row.spend),
+    }));
+
+    const leadSources = this._leadSourcesToPie(referralRows, 6);
+
+    let totalSpend = 0;
+    let totalClicks = 0;
+    let totalImpressions = 0;
+    let totalConversations = 0;
+    for (const row of daily) {
+      totalSpend += Number(row.spend);
+      totalClicks += Number(row.clicks);
+      totalImpressions += Number(row.impressions);
+      totalConversations += Number(row.conversations);
+    }
+
+    const metaConvTotal = referralRows.reduce((s, r) => s + Number(r.count), 0);
+
+    const hasInsightsData = daily.length > 0;
+    const hasSpendBreakdown = campaignBars.some((b) => b.spend > 0);
+    const hasLeadMix = leadSources.length > 0 && metaConvTotal > 0;
+
+    return {
+      range: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+        days: Number(days) || 28,
+      },
+      weeklyPerformance,
+      campaignBars,
+      leadSources,
+      totals: {
+        spend: totalSpend,
+        clicks: totalClicks,
+        impressions: totalImpressions,
+        messaging_conversations_from_insights: totalConversations,
+        ctwa_conversations_in_period: metaConvTotal,
+        avg_cpc: totalClicks > 0 ? totalSpend / totalClicks : null,
+      },
+      hasData: hasInsightsData || hasSpendBreakdown || hasLeadMix,
+    };
+  }
+
+  _rollupInsightsWeekly(dailyRows) {
+    const buckets = new Map();
+    for (const row of dailyRows) {
+      const raw = row.date;
+      const d = raw instanceof Date ? raw : new Date(raw);
+      const weekStart = this._startOfUtcWeek(d);
+      const key = weekStart.toISOString().slice(0, 10);
+      const cur = buckets.get(key) || { spend: 0, conversations: 0 };
+      cur.spend += Number(row.spend);
+      cur.conversations += Number(row.conversations);
+      buckets.set(key, cur);
+    }
+    const sortedKeys = [...buckets.keys()].sort((a, b) => a.localeCompare(b));
+    return sortedKeys.map((key, idx) => {
+      const v = buckets.get(key);
+      const short = this._shortWeekLabel(key);
+      return {
+        name: sortedKeys.length <= 8 ? short : `W${idx + 1}`,
+        spend: v.spend,
+        conversations: v.conversations,
+        v: v.spend,
+      };
+    });
+  }
+
+  _startOfUtcWeek(d) {
+    const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    const dow = x.getUTCDay();
+    const delta = (dow + 6) % 7;
+    x.setUTCDate(x.getUTCDate() - delta);
+    return x;
+  }
+
+  _shortWeekLabel(isoDatePrefix) {
+    const d = new Date(`${isoDatePrefix}T12:00:00.000Z`);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  }
+
+  _leadSourcesToPie(rows, maxSlices = 6) {
+    const total = rows.reduce((s, r) => s + Number(r.count), 0);
+    if (total <= 0) return [];
+    const sorted = [...rows].sort((a, b) => Number(b.count) - Number(a.count));
+    const head = sorted.slice(0, maxSlices);
+    const headSum = head.reduce((s, r) => s + Number(r.count), 0);
+    const rest = total - headSum;
+    const pct = (n) => Math.round((n / total) * 1000) / 10;
+    const pie = head.map((r) => ({
+      name: r.source,
+      value: pct(Number(r.count)),
+    }));
+    if (rest > 0) {
+      pie.push({ name: "Other", value: pct(rest) });
+    }
+    return pie;
   }
 
   async getLeadsChart(id, organizationId, startDate, endDate) {

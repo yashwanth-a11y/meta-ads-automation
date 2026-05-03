@@ -8,8 +8,13 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  Divider,
   Grid,
   IconButton,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
   Snackbar,
   Stack,
   Tab,
@@ -23,6 +28,8 @@ import CloseIcon from '@mui/icons-material/Close'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
 import AutorenewIcon from '@mui/icons-material/Autorenew'
+import MoreVertIcon from '@mui/icons-material/MoreVert'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import TipsAndUpdatesOutlinedIcon from '@mui/icons-material/TipsAndUpdatesOutlined'
@@ -100,6 +107,8 @@ function ActionButtons({ approvalId, stage, onSuccess, onError, onOpenDetail }: 
   const client = useQueryClient()
   const [showFeedback, setShowFeedback] = useState<'reject' | 'regenerate' | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null)
+  const menuOpen = Boolean(menuAnchor)
 
   const { mutate: act, isPending } = useMutation({
     mutationFn: (payload: { action: 'approve' | 'reject' | 'regenerate'; feedback?: string }) =>
@@ -113,6 +122,8 @@ function ActionButtons({ approvalId, stage, onSuccess, onError, onOpenDetail }: 
     },
     onError: (err: Error) => onError(err.message),
   })
+
+  const closeMenu = () => setMenuAnchor(null)
 
   if (showFeedback) {
     return (
@@ -142,6 +153,107 @@ function ActionButtons({ approvalId, stage, onSuccess, onError, onOpenDetail }: 
             Cancel
           </Button>
         </Stack>
+      </Stack>
+    )
+  }
+
+  if (stage === 'content_review') {
+    return (
+      <Stack direction="row" spacing={1} onClick={(e) => e.stopPropagation()}>
+        <Button
+          size="small"
+          variant="contained"
+          disabled={isPending}
+          onClick={() => act({ action: 'approve' })}
+          startIcon={isPending ? <CircularProgress size={12} sx={{ color: 'inherit' }} /> : <CheckCircleOutlinedIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            height: 36, fontSize: '13px', fontWeight: 700, flex: 1,
+            bgcolor: '#059669', '&:hover': { bgcolor: '#047857' },
+          }}
+        >
+          {isPending ? 'Processing…' : 'Approve'}
+        </Button>
+        <Tooltip title="More actions">
+          <IconButton
+            size="small"
+            disabled={isPending}
+            onClick={(e) => setMenuAnchor(e.currentTarget)}
+            sx={{
+              border: `1px solid ${alpha('#64748B', 0.3)}`,
+              color: '#475569',
+              borderRadius: '8px',
+              height: 36,
+              width: 36,
+              '&:hover': { bgcolor: alpha('#64748B', 0.06), borderColor: '#64748B' },
+            }}
+          >
+            <MoreVertIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
+        <Menu
+          anchorEl={menuAnchor}
+          open={menuOpen}
+          onClose={closeMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{
+            paper: {
+              sx: {
+                mt: 0.5,
+                minWidth: 220,
+                borderRadius: '10px',
+                border: '1px solid #dddddd57',
+                boxShadow: `0 12px 32px ${alpha('#0F172A', 0.12)}`,
+              },
+            },
+          }}
+        >
+          <MenuItem
+            onClick={() => { closeMenu(); act({ action: 'approve' }) }}
+            sx={{ gap: 1.25, py: 1, fontSize: 13, fontWeight: 600, color: '#059669' }}
+          >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}>
+              <CheckCircleOutlinedIcon sx={{ fontSize: 18 }} />
+            </ListItemIcon>
+            <ListItemText slotProps={{ primary: { sx: { fontSize: 13, fontWeight: 600 } } }}>
+              Approve
+            </ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => { closeMenu(); setShowFeedback('regenerate') }}
+            sx={{ gap: 1.25, py: 1, fontSize: 13, fontWeight: 600, color: '#0EA5B7' }}
+          >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}>
+              <AutorenewIcon sx={{ fontSize: 18 }} />
+            </ListItemIcon>
+            <ListItemText slotProps={{ primary: { sx: { fontSize: 13, fontWeight: 600 } } }}>
+              Regenerate with feedback
+            </ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => { closeMenu(); setShowFeedback('reject') }}
+            sx={{ gap: 1.25, py: 1, fontSize: 13, fontWeight: 600, color: '#DC2626' }}
+          >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}>
+              <CancelOutlinedIcon sx={{ fontSize: 18 }} />
+            </ListItemIcon>
+            <ListItemText slotProps={{ primary: { sx: { fontSize: 13, fontWeight: 600 } } }}>
+              Reject
+            </ListItemText>
+          </MenuItem>
+          <Divider sx={{ my: 0.5 }} />
+          <MenuItem
+            onClick={() => { closeMenu(); onOpenDetail() }}
+            sx={{ gap: 1.25, py: 1, fontSize: 13, fontWeight: 600, color: '#475569' }}
+          >
+            <ListItemIcon sx={{ minWidth: 0, color: 'inherit' }}>
+              <VisibilityOutlinedIcon sx={{ fontSize: 18 }} />
+            </ListItemIcon>
+            <ListItemText slotProps={{ primary: { sx: { fontSize: 13, fontWeight: 600 } } }}>
+              Details
+            </ListItemText>
+          </MenuItem>
+        </Menu>
       </Stack>
     )
   }
@@ -233,15 +345,15 @@ function TopicSelectDialog({ approval, open, onClose, onSuccess, onError }: Topi
   }>
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth scroll="paper">
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', pb: 1.5 }}>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth scroll="paper">
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider', pb: 1.5, }}>
         <Box>
-          <Typography sx={{ fontWeight: 700 }}>Select a Trend Topic</Typography>
+          <Typography sx={{ fontWeight: 700, color: 'text.primary' }}>Select a Trend Topic</Typography>
           <Typography variant="caption" color="text.secondary">{approval.brand_name} — pick one to generate content from</Typography>
         </Box>
         <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
       </DialogTitle>
-      <DialogContent sx={{ pt: 2.5, pb: 3 }}>
+      <DialogContent sx={{ pt: 2.5, pb: 3, mt: 3 }}>
         {trends.length === 0 ? (
           <Typography color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>No trends available for this approval.</Typography>
         ) : (
@@ -357,7 +469,7 @@ function DetailDialog({ approval, open, onClose, onSuccess, onError }: DetailDia
         <IconButton size="small" onClick={onClose}><CloseIcon fontSize="small" /></IconButton>
       </DialogTitle>
 
-      <DialogContent sx={{ pt: 2.5, pb: 1 }}>
+      <DialogContent sx={{ pt: 2.5, pb: 1, mt: 3 }}>
         <Stack spacing={2.5}>
           {bundle?.hook && (
             <Box sx={{ borderLeft: `3px solid #22D3EE`, pl: 2.5, py: 1, bgcolor: alpha('#22D3EE', 0.04), borderRadius: '0 10px 10px 0' }}>
@@ -704,62 +816,118 @@ export function ApprovalsPage() {
         <StatCard label="Video Review" value={pending.filter((a) => a.stage === 'video_review').length} color="#A855F7" />
       </Stack>
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs
-          value={activeTab}
-          onChange={(_, v: FilterTab) => setActiveTab(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            minHeight: 44,
-            '& .MuiTab-root': { minHeight: 44, fontSize: '13px', fontWeight: 600, textTransform: 'none', color: '#475569', px: 2 },
-            '& .Mui-selected': { color: '#0EA5B7 !important' },
-            '& .MuiTabs-indicator': { backgroundColor: '#22D3EE', height: 2 },
-          }}
-        >
-          {FILTER_TABS.map((t) => (
-            <Tab key={t.value} value={t.value} label={t.value === 'all' ? `All (${approvals.length})` : t.label} />
-          ))}
-        </Tabs>
-      </Box>
+      {/* Tabs + content (one card) */}
+      <GlassCard sx={{ overflow: 'hidden', padding:"10px 10px 5px 10px" }}>
+        <Box sx={{ px: 1, pt: 0.5 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(_, v: FilterTab) => setActiveTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              minHeight: 44,
+              '& .MuiTab-root': {
+                minHeight: 44,
+                fontSize: '13px',
+                fontWeight: 600,
+                textTransform: 'none',
+                color: '#475569',
+                px: 2,
+                borderRadius: '8px',
+                transition: 'background-color 160ms ease, color 160ms ease',
+                '&:hover': {
+                  color: '#0EA5B7',
+                  bgcolor: alpha('#22D3EE', 0.06),
+                },
+              },
+              '& .Mui-selected': { 
+                color: '#0EA5B7 !important' ,
+                bgcolor: alpha('#22D3EE', 0.12),
+              },
+              '& .MuiTabs-indicator': { display: 'none' },
+              '& .MuiTabs-scrollButtons.Mui-disabled': { opacity: 0.3 },
+            }}
+          >
+            {FILTER_TABS.map((t) => {
+              const count =
+                t.value === 'all'
+                  ? approvals.length
+                  : t.value === 'completed'
+                    ? approvals.filter((a) => a.action !== null).length
+                    : pending.filter((a) => a.stage === t.value).length
+              return (
+                <Tab
+                  key={t.value}
+                  value={t.value}
+                  label={
+                    <Stack direction="row" spacing={0.875} sx={{ alignItems: 'center' }}>
+                      <span>{t.label}</span>
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          px: 0.875,
+                          py: 0.125,
+                          borderRadius: '999px',
+                          bgcolor:
+                            activeTab === t.value
+                              ? alpha('#22D3EE', 0.15)
+                              : alpha('#94A3B8', 0.12),
+                          color: activeTab === t.value ? '#0EA5B7' : '#64748B',
+                          lineHeight: 1.4,
+                          minWidth: 20,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {count}
+                      </Box>
+                    </Stack>
+                  }
+                />
+              )
+            })}
+          </Tabs>
+        </Box>
 
-      {/* Content */}
-      {isLoading ? (
-        <Grid container spacing={2}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Box sx={{ height: 200, borderRadius: '12px', bgcolor: (t) => alpha(t.palette.background.paper, 0.6), border: '1px solid #dddddd30', animation: 'pulse 1.5s infinite' }} />
+        {/* <Divider /> */}
+
+        <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+          {isLoading ? (
+            <Grid container spacing={2}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Box sx={{ height: 200, borderRadius: '12px', bgcolor: (t) => alpha(t.palette.background.paper, 0.6), border: '1px solid #dddddd30', animation: 'pulse 1.5s infinite' }} />
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
-      ) : filtered.length === 0 ? (
-        <GlassCard sx={{ p: 6 }}>
-          <Stack sx={{ alignItems: 'center', textAlign: 'center', gap: 1.5 }}>
-            <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: alpha('#22D3EE', 0.08), border: `1px solid ${alpha('#22D3EE', 0.2)}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircleOutlinedIcon sx={{ fontSize: 32, color: alpha('#22D3EE', 0.5) }} />
-            </Box>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: 'text.primary' }}>
-              {activeTab === 'all' ? 'No approvals yet' : `No ${FILTER_TABS.find((t) => t.value === activeTab)?.label.toLowerCase()} items`}
-            </Typography>
-            <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary', maxWidth: 360 }}>
-              {activeTab === 'all' ? 'Run the pipeline to generate trends and creative bundles.' : 'Try a different filter or run the pipeline.'}
-            </Typography>
-          </Stack>
-        </GlassCard>
-      ) : (
-        <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
-          {filtered.map((approval) => (
-            <Grid key={approval.id} size={{ xs: 12, sm: 6, md: 4 }}>
-              <ApprovalCard
-                approval={approval}
-                onSuccess={(msg) => showToast(msg, 'success')}
-                onError={(msg) => showToast(msg, 'error')}
-              />
+          ) : filtered.length === 0 ? (
+            <Stack sx={{ alignItems: 'center', textAlign: 'center', gap: 1.5, py: 6 }}>
+              <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: alpha('#22D3EE', 0.08), border: `1px solid ${alpha('#22D3EE', 0.2)}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CheckCircleOutlinedIcon sx={{ fontSize: 32, color: alpha('#22D3EE', 0.5) }} />
+              </Box>
+              <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: 'text.primary' }}>
+                {activeTab === 'all' ? 'No approvals yet' : `No ${FILTER_TABS.find((t) => t.value === activeTab)?.label.toLowerCase()} items`}
+              </Typography>
+              <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary', maxWidth: 360 }}>
+                {activeTab === 'all' ? 'Run the pipeline to generate trends and creative bundles.' : 'Try a different filter or run the pipeline.'}
+              </Typography>
+            </Stack>
+          ) : (
+            <Grid container spacing={2} sx={{ alignItems: 'stretch' }}>
+              {filtered.map((approval) => (
+                <Grid key={approval.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                  <ApprovalCard
+                    approval={approval}
+                    onSuccess={(msg) => showToast(msg, 'success')}
+                    onError={(msg) => showToast(msg, 'error')}
+                  />
+                </Grid>
+              ))}
             </Grid>
-          ))}
-        </Grid>
-      )}
+          )}
+        </Box>
+      </GlassCard>
 
       <Snackbar open={snackOpen} autoHideDuration={5000} onClose={() => setSnackOpen(false)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
         <Alert severity={snackSeverity} onClose={() => setSnackOpen(false)} sx={{ borderRadius: '10px', fontWeight: 600 }}>

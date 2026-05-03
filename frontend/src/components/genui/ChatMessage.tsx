@@ -3,12 +3,13 @@ import { alpha } from '@mui/material/styles'
 import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutlined'
 import TrendingUpIcon from '@mui/icons-material/TrendingUp'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import PersonIcon from '@mui/icons-material/Person'
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
+// import PersonIcon from '@mui/icons-material/Person'
 import type { ChatMessage as ChatMessageType, MessagePart, ToolStatus } from '../../api/genui'
 import { ChartRenderer } from './ChartRenderer'
 import { AdDraftCard } from './AdDraftCard'
 import { KPICard } from '../ui/KPICard'
+import logo from '../../assets/favicon.svg'
+import user from '../../assets/user.png'
 
 interface ChatMessageProps {
   message: ChatMessageType
@@ -38,7 +39,7 @@ export function ChatMessage({
             border: '1px solid #1E293B',
           }}
         >
-          <Typography variant="body2" sx={{ color: '#F1F5F9', lineHeight: 1.6 }}>
+          <Typography variant="body1" sx={{ color: '#F1F5F9', lineHeight: 1.6 }}>
             {message.parts.find((p) => p.type === 'text')?.type === 'text'
               ? (message.parts.find((p) => p.type === 'text') as Extract<MessagePart, { type: 'text' }>).text
               : ''}
@@ -48,16 +49,19 @@ export function ChatMessage({
           sx={{
             ml: 1,
             mt: 0.5,
-            width: 28,
-            height: 28,
+            width: 30,
+            height: 30,
+            overflow: 'hidden',
             borderRadius: '50%',
             bgcolor: alpha('#475569', 0.15),
             display: 'grid',
             placeItems: 'center',
             flexShrink: 0,
+
           }}
         >
-          <PersonIcon sx={{ fontSize: 16, color: '#64748B' }} />
+          <img src={user} alt="VIRLO Assistant" width="28px" />
+          {/* <PersonIcon sx={{ fontSize: 16, color: '#64748B' }} /> */}
         </Box>
       </Stack>
     )
@@ -80,7 +84,8 @@ export function ChatMessage({
           mt: 0.25,
         }}
       >
-        <AutoAwesomeIcon sx={{ fontSize: 14, color: '#22D3EE' }} />
+        {/* <AutoAwesomeIcon sx={{ fontSize: 14, color: '#22D3EE' }} /> */}
+        <img src={logo} alt="VIRLO Assistant" width="14px" />
       </Box>
 
       {/* Content */}
@@ -136,7 +141,7 @@ function PartRenderer({
     case 'text':
       return part.text ? (
         <Typography
-          variant="body2"
+          variant="subtitle2"
           sx={{
             color: '#1E293B',
             lineHeight: 1.7,

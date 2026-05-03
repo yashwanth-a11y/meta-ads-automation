@@ -40,4 +40,5 @@ export const qk = {
   approvals: ['approvals'] as const,
   topTrends: (channelId: string, minScore?: number) =>
     ['trends', 'top', channelId, minScore] as const,
+  analyticsDashboard: (days?: number) => ['analytics', 'dashboard', days] as const,
 }
