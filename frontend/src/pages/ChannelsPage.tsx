@@ -11,6 +11,7 @@ import {
   DialogContentText,
   DialogTitle,
   Divider,
+  Drawer,
   FormControl,
   FormHelperText,
   Grid,
@@ -571,37 +572,43 @@ export function ChannelsPage() {
         )}
       </Stack>
 
-      {/* ── Create channel dialog ── */}
-      <Dialog
+      {/* ── Create / Edit channel drawer ── */}
+      <Drawer
+        anchor="right"
         open={dialogOpen}
         onClose={handleCloseDialog}
-        maxWidth="md"
-        fullWidth
         slotProps={{
           paper: {
             sx: {
-              borderRadius: '16px',
-              border: '1px solid #dddddd57',
-              boxShadow: `0 24px 60px ${alpha('#0F172A', 0.18)}`,
+              width: { xs: '100%', sm: 560, md: 720 },
+              maxWidth: '100%',
+              borderRadius: 0,
+              border: 'none',
+              borderLeft: '1px solid #dddddd57',
+              display: 'flex',
+              flexDirection: 'column',
             },
           },
         }}
       >
-        <DialogTitle
+        <Box
           sx={{
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'space-between',
-            pr: 1.5,
+            px: 3,
             py: 2,
+            flexShrink: 0,
           }}
         >
           <Box>
-            <Typography variant="body2" sx={{ color: 'text.primary' }}>
-              New channel
+            <Typography variant="body2" sx={{ color: 'text.primary', fontWeight: 700 }}>
+              {mode === 'edit' ? 'Edit channel' : 'New channel'}
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
-              Define the brand voice and positioning for this growth lane.
+              {mode === 'edit'
+                ? 'Update brand voice and positioning for this channel.'
+                : 'Define the brand voice and positioning for this growth lane.'}
             </Typography>
           </Box>
           <IconButton
@@ -612,10 +619,20 @@ export function ChannelsPage() {
           >
             <CloseRoundedIcon />
           </IconButton>
-        </DialogTitle>
+        </Box>
         <Divider />
-        <DialogContent sx={{ pt: 3 }}>
-          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+        <Box
+          component="form"
+          onSubmit={handleSubmit(onSubmit)}
+          noValidate
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          <Box sx={{ px: 3, py: 3, flex: 1, overflowY: 'auto' }}>
               <Stack spacing={2}>
                 {/* Channel name */}
 
@@ -815,43 +832,49 @@ export function ChannelsPage() {
                   </Alert>
                 )}
 
-                {/* Submit */}
-                <Stack
-                  direction="row"
-                  spacing={1.5}
-                  sx={{ pt: 0.5, justifyContent: 'flex-end' }}
-                >
-                  <Button
-                    type="button"
-                    variant="outlined"
-                    color="inherit"
-                    onClick={handleCloseDialog}
-                    disabled={isPending}
-                    sx={{ height: 44 }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    color="primary"
-                    disabled={isPending}
-                    sx={{ minWidth: 160, height: 44 }}
-                    startIcon={
-                      isPending ? (
-                        <CircularProgress size={16} sx={{ color: 'inherit' }} />
-                      ) : undefined
-                    }
-                  >
-                    {mode === 'edit'
-                      ? isPending ? 'Saving…' : 'Save changes'
-                      : isPending ? 'Creating…' : 'Create channel'}
-                  </Button>
-                </Stack>
               </Stack>
-            </Box>
-          </DialogContent>
-        </Dialog>
+          </Box>
+
+          <Divider />
+          <Box
+            sx={{
+              px: 3,
+              py: 2,
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 1.5,
+              flexShrink: 0,
+            }}
+          >
+            <Button
+              type="button"
+              variant="outlined"
+              color="inherit"
+              onClick={handleCloseDialog}
+              disabled={isPending}
+              sx={{ height: 44 }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              color="primary"
+              disabled={isPending}
+              sx={{ minWidth: 160, height: 44 }}
+              startIcon={
+                isPending ? (
+                  <CircularProgress size={16} sx={{ color: 'inherit' }} />
+                ) : undefined
+              }
+            >
+              {mode === 'edit'
+                ? isPending ? 'Saving…' : 'Save changes'
+                : isPending ? 'Creating…' : 'Create channel'}
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
 
       {/* Delete confirmation dialog */}
       <Dialog
