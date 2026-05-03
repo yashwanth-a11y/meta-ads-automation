@@ -316,6 +316,30 @@ export class PublishingService {
   }
 
   /** @param {MediaSpec} spec */
+  _buildCommonParams(spec) {
+    const out = {};
+    const caption = this._buildCaption({ caption: spec.caption, hashtags: spec.hashtags });
+    if (caption) out.caption = caption;
+    if (spec.location_id) out.location_id = String(spec.location_id);
+    if (Array.isArray(spec.user_tags) && spec.user_tags.length) {
+      out.user_tags = JSON.stringify(spec.user_tags);
+    }
+    if (Array.isArray(spec.collaborators) && spec.collaborators.length) {
+      out.collaborators = JSON.stringify(spec.collaborators);
+    }
+    if (typeof spec.alt_text === 'string' && spec.alt_text.length) {
+      out.alt_text = spec.alt_text;
+    }
+    if (spec.partnership?.is_paid_partnership) {
+      out.is_paid_partnership = 'true';
+      if (spec.partnership.sponsor_ig_user_ids?.length) {
+        out.branded_content_sponsor_ids = JSON.stringify(spec.partnership.sponsor_ig_user_ids);
+      }
+    }
+    return out;
+  }
+
+  /** @param {MediaSpec} spec */
   _validateSpec(spec) {
     if (!spec || typeof spec !== 'object') {
       throw badRequest('MediaSpec is required', { spec });

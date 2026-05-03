@@ -240,3 +240,42 @@ describe('PublishingService._validateSpec — carousel', () => {
     })).not.toThrow();
   });
 });
+
+describe('PublishingService._buildCommonParams', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('includes caption built from caption + hashtags', () => {
+    const p = svc._buildCommonParams({ type: 'image', image_url: 'x', caption: 'hi', hashtags: ['a'] });
+    expect(p.caption).toBe('hi\n\n#a');
+  });
+  it('JSON-encodes user_tags and collaborators', () => {
+    const p = svc._buildCommonParams({
+      type: 'image', image_url: 'x',
+      user_tags: [{ username: 'u', x: 0.5, y: 0.5 }],
+      collaborators: ['a', 'b'],
+    });
+    expect(p.user_tags).toBe(JSON.stringify([{ username: 'u', x: 0.5, y: 0.5 }]));
+    expect(p.collaborators).toBe(JSON.stringify(['a', 'b']));
+  });
+  it('passes location_id when set', () => {
+    expect(svc._buildCommonParams({ type: 'image', image_url: 'x', location_id: '12345' })
+      .location_id).toBe('12345');
+  });
+  it('expands partnership flags', () => {
+    const p = svc._buildCommonParams({
+      type: 'image', image_url: 'x',
+      partnership: { is_paid_partnership: true, sponsor_ig_user_ids: ['111'] },
+    });
+    expect(p.is_paid_partnership).toBe('true');
+    expect(p.branded_content_sponsor_ids).toBe(JSON.stringify(['111']));
+  });
+  it('omits empty fields', () => {
+    const p = svc._buildCommonParams({ type: 'image', image_url: 'x' });
+    expect('caption' in p).toBe(false);
+    expect('user_tags' in p).toBe(false);
+    expect('collaborators' in p).toBe(false);
+    expect('location_id' in p).toBe(false);
+    expect('is_paid_partnership' in p).toBe(false);
+  });
+});
