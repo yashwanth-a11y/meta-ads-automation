@@ -2,8 +2,29 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import axios from 'axios';
 import { PublishingService } from '../../src/services/PublishingService.js';
 import { env } from '../../src/config/env.js';
+import { db } from '../../src/db/index.js';
 
 vi.mock('axios');
+
+vi.mock('../../src/db/index.js', () => ({
+  db: {
+    update: vi.fn(),
+    set: vi.fn(),
+    where: vi.fn(),
+    select: vi.fn(),
+    from: vi.fn(),
+  },
+}));
+
+// `restoreMocks: true` in vitest.config.js wipes mock implementations after
+// every test, so re-establish the chainable db stub before each test.
+beforeEach(() => {
+  db.update.mockReturnThis();
+  db.set.mockReturnThis();
+  db.where.mockResolvedValue(undefined);
+  db.select.mockReturnThis();
+  db.from.mockReturnThis();
+});
 
 describe('PublishingService — smoke', () => {
   it('instantiates', () => {
@@ -21,9 +42,7 @@ describe('PublishingService — Graph URL', () => {
     axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
     axios.post.mockResolvedValueOnce({ data: { id: 'MEDIA_1' } });
 
-    // Call the existing reels path through the legacy method. After Task 13
-    // this test will be renamed to use publishBundle.
-    await svc.publish(
+    await svc.publishBundle(
       { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER' },
       { id: 'b1', video_url: 'https://example.com/v.mp4', caption: 'hi', hashtags: [] },
     );
@@ -505,5 +524,51 @@ describe('PublishingService.publishMedia — carousel', () => {
       caption: 'multi',
       access_token: 'TOK',
     });
+  });
+});
+
+describe('PublishingService.publishBundle', () => {
+  let svc;
+  const channel = { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER' };
+  const baseBundle = {
+    id: 'b1', video_url: 'https://x/v.mp4', thumbnail_url: 'https://x/thumb.jpg',
+    caption: 'hi', hashtags: ['a'],
+  };
+
+  beforeEach(() => {
+    svc = new PublishingService();
+    vi.spyOn(svc, '_getPageToken').mockResolvedValue('TOK');
+    vi.spyOn(svc, '_sleep').mockResolvedValue();
+  });
+
+  it('publishes a bundle as a reels post and stamps render_job_id', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    const result = await svc.publishBundle(channel, baseBundle);
+    expect(result).toEqual({ published: true, mediaId: 'MED' });
+
+    expect(axios.post.mock.calls[0][2].params.cover_url).toBe('https://x/thumb.jpg');
+    expect(axios.post.mock.calls[0][2].params.media_type).toBe('REELS');
+  });
+
+  it('skips when channel has no instagram_account_id', async () => {
+    const result = await svc.publishBundle({ ...channel, instagram_account_id: null }, baseBundle);
+    expect(result).toEqual({ published: false, reason: expect.stringMatching(/instagram_account_id/i) });
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  it('skips when bundle has no video_url', async () => {
+    const result = await svc.publishBundle(channel, { ...baseBundle, video_url: null });
+    expect(result.published).toBe(false);
+    expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  it('rolls bundle status back on container ERROR', async () => {
+    axios.post.mockResolvedValueOnce({ data: { id: 'CON' } });
+    axios.get.mockResolvedValueOnce({ data: { status_code: 'ERROR' } });
+    await expect(svc.publishBundle(channel, baseBundle)).rejects.toThrow();
   });
 });

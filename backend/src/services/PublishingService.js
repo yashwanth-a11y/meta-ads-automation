@@ -149,63 +149,43 @@ export class PublishingService {
   }
 
   // -------------------------------------------------------------------------
-  // Publish an approved creative bundle to Instagram
+  // Publish an approved creative bundle to Instagram (Reels). Thin wrapper
+  // around publishMedia that owns the creative_bundles status lifecycle.
   // -------------------------------------------------------------------------
-  async publish(channel, bundle) {
-    // Need instagram_account_id on the channel
+  async publishBundle(channel, bundle) {
     if (!channel.instagram_account_id) {
       console.warn(`[Publishing] Channel ${channel.id} has no instagram_account_id — skipping publish`);
       return { published: false, reason: 'No instagram_account_id on channel' };
     }
-
-    // Get decrypted page access token for this org
-    const token = await this._getPageToken(channel.organization_id);
-    if (!token) {
+    if (!bundle.video_url) {
+      return { published: false, reason: 'Bundle has no video_url' };
+    }
+    const probeToken = await this._getPageToken(channel.organization_id);
+    if (!probeToken) {
       console.warn(`[Publishing] No Meta access token for org ${channel.organization_id}`);
       return { published: false, reason: 'No Meta access token' };
     }
 
-    if (!bundle.video_url) {
-      return { published: false, reason: 'Bundle has no video_url' };
-    }
-
-    // Update bundle status to 'publishing'
     await db
       .update(creativeBundles)
       .set({ status: 'publishing', updated_at: new Date() })
       .where(eq(creativeBundles.id, bundle.id));
 
     try {
-      // Step 1: Create media container (Reels)
-      const containerId = await this._createReelsContainer({
-        spec: {
-          type: 'reels',
-          video_url: bundle.video_url,
-          caption: bundle.caption,
-          hashtags: bundle.hashtags ?? [],
-          cover_url: bundle.thumbnail_url ?? undefined,
-        },
-        igUserId: channel.instagram_account_id,
-        token,
+      const { mediaId } = await this.publishMedia(channel, {
+        type: 'reels',
+        video_url: bundle.video_url,
+        caption: bundle.caption,
+        hashtags: bundle.hashtags ?? [],
+        cover_url: bundle.thumbnail_url ?? undefined,
       });
 
-      // Step 2: Poll until container is FINISHED
-      await this._waitForContainer({ igUserId: channel.instagram_account_id, token, containerId });
-
-      // Step 3: Publish
-      const mediaId = await this._publishContainer({
-        igUserId: channel.instagram_account_id,
-        token,
-        containerId,
-      });
-
-      // Update bundle as published
       await db
         .update(creativeBundles)
         .set({
           status: 'published',
           updated_at: new Date(),
-          render_job_id: mediaId, // re-use field to store IG media ID
+          render_job_id: mediaId,
         })
         .where(eq(creativeBundles.id, bundle.id));
 
@@ -214,7 +194,7 @@ export class PublishingService {
     } catch (err) {
       await db
         .update(creativeBundles)
-        .set({ status: 'ready', updated_at: new Date() }) // roll back so it can retry
+        .set({ status: 'ready', updated_at: new Date() })
         .where(eq(creativeBundles.id, bundle.id));
 
       console.error(`[Publishing] Failed for bundle ${bundle.id}:`, err.message);
