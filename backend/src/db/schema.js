@@ -565,6 +565,83 @@ export const genuiMessages = pgTable(
   }),
 );
 
+// --- CRM: Pipeline stages (per-org, fully customizable) ---
+
+export const crmPipelineStages = pgTable(
+  'crm_pipeline_stages',
+  {
+    id: id(),
+    organization_id: orgId(),
+    name: varchar('name', { length: 100 }).notNull(),
+    color: varchar('color', { length: 32 }).default('#6366F1').notNull(),
+    position: integer('position').default(0).notNull(),
+    is_terminal_win: boolean('is_terminal_win').default(false).notNull(),
+    is_terminal_loss: boolean('is_terminal_loss').default(false).notNull(),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    org_idx: index('crm_stages_org_idx').on(t.organization_id),
+    org_pos_idx: index('crm_stages_org_pos_idx').on(t.organization_id, t.position),
+  }),
+);
+
+// --- CRM: Leads ---
+
+export const crmLeads = pgTable(
+  'crm_leads',
+  {
+    id: id(),
+    organization_id: orgId(),
+    name: varchar('name', { length: 255 }).notNull(),
+    email: varchar('email', { length: 255 }),
+    phone: varchar('phone', { length: 32 }),
+    company: varchar('company', { length: 255 }),
+    source: varchar('source', { length: 128 }),
+    // FK to crm_pipeline_stages.id — null = uncategorized
+    stage_id: varchar('stage_id', { length: 36 }),
+    owner_email: varchar('owner_email', { length: 255 }),
+    tags: jsonb('tags').default([]),
+    score: integer('score').default(0).notNull(),
+    follow_up_at: timestamp('follow_up_at', { withTimezone: true, mode: 'date' }),
+    ai_summary: text('ai_summary'),
+    custom_fields: jsonb('custom_fields').default({}),
+    // optional FK to meta_ad_leads.id for auto-synced leads
+    meta_lead_id: varchar('meta_lead_id', { length: 64 }),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    org_idx: index('crm_leads_org_idx').on(t.organization_id),
+    org_stage_idx: index('crm_leads_org_stage_idx').on(t.organization_id, t.stage_id),
+    org_owner_idx: index('crm_leads_org_owner_idx').on(t.organization_id, t.owner_email),
+    meta_lead_uq: uniqueIndex('crm_leads_meta_lead_uq').on(t.meta_lead_id).where(sql`meta_lead_id IS NOT NULL`),
+    org_created_idx: index('crm_leads_org_created_idx').on(t.organization_id, t.created_at),
+  }),
+);
+
+// --- CRM: Lead activity log ---
+
+export const crmLeadActivities = pgTable(
+  'crm_lead_activities',
+  {
+    id: id(),
+    lead_id: varchar('lead_id', { length: 36 }).notNull(),
+    organization_id: orgId(),
+    // note | status_change | assign | score | ai_summary | meta_sync
+    type: varchar('type', { length: 32 }).notNull(),
+    body: text('body'),
+    actor_email: varchar('actor_email', { length: 255 }),
+    metadata: jsonb('metadata'),
+    created_at: ts('created_at'),
+  },
+  (t) => ({
+    lead_idx: index('crm_activities_lead_idx').on(t.lead_id),
+    lead_created_idx: index('crm_activities_lead_created_idx').on(t.lead_id, t.created_at),
+    org_idx: index('crm_activities_org_idx').on(t.organization_id),
+  }),
+);
+
 // --- Pipeline runs (DB-backed scheduler state; restart-safe run history) ---
 // Each automated ingestion→classify→score→generate→email cycle creates one row.
 // On startup the scheduler checks the latest completed_at to decide whether to
