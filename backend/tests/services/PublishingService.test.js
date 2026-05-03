@@ -202,3 +202,41 @@ describe('PublishingService._validateSpec — partnership', () => {
     })).toThrowError(/sponsor/i);
   });
 });
+
+describe('PublishingService._validateSpec — carousel', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('rejects fewer than 2 children', () => {
+    expect(() => svc._validateSpec({
+      type: 'carousel',
+      children: [{ kind: 'image', image_url: 'https://x/a.jpg' }],
+    })).toThrowError(/2.*10|children/i);
+  });
+
+  it('rejects more than 10 children', () => {
+    const children = Array.from({ length: 11 }, () => ({ kind: 'image', image_url: 'https://x/a.jpg' }));
+    expect(() => svc._validateSpec({ type: 'carousel', children }))
+      .toThrowError(/2.*10|10/);
+  });
+
+  it('rejects child with mismatched kind/url', () => {
+    expect(() => svc._validateSpec({
+      type: 'carousel',
+      children: [
+        { kind: 'image', video_url: 'https://x/v.mp4' },
+        { kind: 'image', image_url: 'https://x/b.jpg' },
+      ],
+    })).toThrowError(/image_url/);
+  });
+
+  it('accepts 2 children with mixed image+video', () => {
+    expect(() => svc._validateSpec({
+      type: 'carousel',
+      children: [
+        { kind: 'image', image_url: 'https://x/a.jpg' },
+        { kind: 'video', video_url: 'https://x/v.mp4' },
+      ],
+    })).not.toThrow();
+  });
+});

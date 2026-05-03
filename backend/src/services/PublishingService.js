@@ -405,7 +405,28 @@ export class PublishingService {
   }
 
   _validateCarouselSpec(spec) {
-    // see Task 6
+    if (!Array.isArray(spec.children) || spec.children.length < 2 || spec.children.length > 10) {
+      throw badRequest('carousel children must contain 2 to 10 items', {
+        count: Array.isArray(spec.children) ? spec.children.length : null,
+      });
+    }
+    for (const child of spec.children) {
+      if (!child || (child.kind !== 'image' && child.kind !== 'video')) {
+        throw badRequest('carousel child must declare kind="image" or kind="video"', { child });
+      }
+      if (child.kind === 'image' && !isHttpUrl(child.image_url)) {
+        throw badRequest('carousel image child requires a valid image_url', { child });
+      }
+      if (child.kind === 'video' && !isHttpUrl(child.video_url)) {
+        throw badRequest('carousel video child requires a valid video_url', { child });
+      }
+      if (child.kind === 'image') {
+        validateImageUserTags(child.user_tags);
+        if (typeof child.alt_text === 'string' && child.alt_text.length > 1000) {
+          throw badRequest('child alt_text exceeds 1000 characters', { length: child.alt_text.length });
+        }
+      }
+    }
   }
 
   _sleep(ms) {
