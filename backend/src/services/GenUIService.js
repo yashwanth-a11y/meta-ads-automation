@@ -41,6 +41,60 @@ import {
   createAdDraft,
 } from './genui/creativeTools.js';
 
+import {
+  getUpcomingEvents,
+  getContentCalendar,
+  getRecentPublished,
+} from './genui/calendarTools.js';
+
+import {
+  getUserProfile,
+  getChannelConfig,
+} from './genui/profileTools.js';
+
+import {
+  getInstagramAccounts,
+  getInstagramInsights,
+} from './genui/instagramTools.js';
+
+import {
+  listCreativeBundles,
+} from './genui/publishingTools.js';
+
+import {
+  getPendingApprovals,
+} from './genui/approvalsTools.js';
+
+import {
+  getPipelineHistory,
+} from './genui/pipelineTools.js';
+
+import {
+  generateVideoScript,
+} from './genui/mediaGenTools.js';
+
+import {
+  getCrmPipeline,
+  getCrmLeads,
+} from './genui/crmTools.js';
+
+import {
+  generateCaption,
+} from './genui/captionTools.js';
+
+import {
+  getCtwaCampaigns,
+  getCtwaPerformance,
+} from './genui/ctwaTools.js';
+
+import {
+  getAudiencePresets,
+} from './genui/audienceTools.js';
+
+import {
+  getPlatformStatus,
+} from './genui/platformTools.js';
+
 const MODEL = 'gpt-4o-mini';
 const MAX_LOOP_ITERATIONS = 5;
 
@@ -342,6 +396,36 @@ export class GenUIService {
       case 'top_creatives_by_metric':  return topCreativesByMetric(input, orgId);
       case 'get_ad_examples':          return getAdExamples(input, orgId);
       case 'create_ad_draft':          return createAdDraft(input, orgId, this.openai);
+      // Calendar & events
+      case 'get_upcoming_events':      return getUpcomingEvents(input, orgId);
+      case 'get_content_calendar':     return getContentCalendar(input, orgId);
+      case 'get_recent_published':     return getRecentPublished(input, orgId);
+      // Profile & channel config
+      case 'get_user_profile':         return getUserProfile(input, orgId);
+      case 'get_channel_config':       return getChannelConfig(input, orgId);
+      // Instagram
+      case 'get_instagram_accounts':   return getInstagramAccounts(input, orgId);
+      case 'get_instagram_insights':   return getInstagramInsights(input, orgId);
+      // Publishing
+      case 'list_creative_bundles':    return listCreativeBundles(input, orgId);
+      // Approvals
+      case 'get_pending_approvals':    return getPendingApprovals(input, orgId);
+      // Pipeline
+      case 'get_pipeline_history':     return getPipelineHistory(input, orgId);
+      // Media generation
+      case 'generate_video_script':    return generateVideoScript(input, orgId, this.openai);
+      // CRM
+      case 'get_crm_pipeline':         return getCrmPipeline(input, orgId);
+      case 'get_crm_leads':            return getCrmLeads(input, orgId);
+      // Caption generation
+      case 'generate_caption':         return generateCaption(input, orgId, this.openai);
+      // CTWA
+      case 'get_ctwa_campaigns':       return getCtwaCampaigns(input, orgId);
+      case 'get_ctwa_performance':     return getCtwaPerformance(input, orgId);
+      // Audience presets
+      case 'get_audience_presets':     return getAudiencePresets(input, orgId);
+      // Platform health
+      case 'get_platform_status':      return getPlatformStatus(input, orgId);
       default:
         return { raw: {}, eventType: null, payload: null };
     }
@@ -369,6 +453,104 @@ export class GenUIService {
           actionType: 'refresh_creative',
           payload: { bundleId: input.bundle_id },
         };
+      // Profile
+      case 'update_user_profile':
+        return {
+          label: 'Update profile',
+          actionType: 'update_user_profile',
+          payload: input,
+        };
+      case 'update_channel_config':
+        return {
+          label: `Update channel settings`,
+          actionType: 'update_channel_config',
+          payload: input,
+        };
+      // Instagram / Meta connections
+      case 'connect_instagram':
+        return {
+          label: 'Connect Instagram Account →',
+          actionType: 'connect_instagram',
+          payload: { redirectTo: '/settings/integrations' },
+        };
+      case 'connect_meta_ads':
+        return {
+          label: 'Connect Meta Ads Account →',
+          actionType: 'connect_meta_ads',
+          payload: { redirectTo: '/settings/integrations' },
+        };
+      // Publishing
+      case 'publish_to_instagram':
+        return {
+          label: `Publish "${input.bundle_hook}" to Instagram`,
+          actionType: 'publish_to_instagram',
+          payload: { bundleId: input.bundle_id },
+        };
+      case 'schedule_instagram_post':
+        return {
+          label: `Schedule "${input.bundle_hook}" for ${input.scheduled_at}`,
+          actionType: 'schedule_instagram_post',
+          payload: { bundleId: input.bundle_id, scheduledAt: input.scheduled_at },
+        };
+      // Approvals
+      case 'approve_content':
+        return {
+          label: `Approve: "${input.bundle_hook}"`,
+          actionType: 'approve_content',
+          payload: { bundleId: input.bundle_id },
+        };
+      case 'reject_content':
+        return {
+          label: `Reject: "${input.bundle_hook}"${input.reason ? ` — ${input.reason}` : ''}`,
+          actionType: 'reject_content',
+          payload: { bundleId: input.bundle_id, reason: input.reason },
+        };
+      case 'send_approval_reminder':
+        return {
+          label: 'Resend approval reminder',
+          actionType: 'send_approval_reminder',
+          payload: { bundleId: input.bundle_id },
+        };
+      // Pipeline
+      case 'run_trend_pipeline':
+        return {
+          label: 'Run Trend Pipeline',
+          actionType: 'run_trend_pipeline',
+          payload: {},
+        };
+      // Media generation
+      case 'generate_image':
+        return {
+          label: `Generate image for bundle`,
+          actionType: 'generate_image',
+          payload: { bundleId: input.bundle_id, prompt: input.image_prompt, style: input.style },
+        };
+      case 'generate_carousel':
+        return {
+          label: `Generate ${input.slide_prompts?.length ?? 0}-slide carousel`,
+          actionType: 'generate_carousel',
+          payload: { bundleId: input.bundle_id, slidePrompts: input.slide_prompts, style: input.style },
+        };
+      // CRM
+      case 'move_lead_stage':
+        return {
+          label: `Move "${input.lead_name}" → ${input.stage_name}`,
+          actionType: 'move_lead_stage',
+          payload: { leadId: input.lead_id, stageId: input.stage_id },
+        };
+      case 'add_lead_note':
+        return {
+          label: `Add note to "${input.lead_name}"`,
+          actionType: 'add_lead_note',
+          payload: { leadId: input.lead_id, note: input.note },
+        };
+      // Audience presets
+      case 'create_audience_preset':
+        return {
+          label: `Save audience: "${input.name}"`,
+          actionType: 'create_audience_preset',
+          payload: input,
+        };
       default:
         return { label: toolName, actionType: toolName, payload: input };
     }
@@ -395,15 +577,31 @@ export class GenUIService {
       if (ch[0]?.brand_name) orgName = ch[0].brand_name;
     } catch { /* non-fatal */ }
 
-    return `You are the GrowthOS AI assistant for ${orgName}. You help users understand campaign performance, analyse content results, manage approvals, and create Meta ads.
+    return `You are the GrowthOS AI assistant for ${orgName}. You help users understand campaign performance, analyse content, manage approvals, create Meta ads, and plan their content calendar.
 
-Available data: Meta campaigns, ad insights (spend, impressions, clicks, CTR, CPC), leads list, creative bundles, content channels (config, trends, scores), Meta ad account health (balance, token expiry, pixel), and pipeline run history.
+Available data & capabilities:
+- Meta campaigns: spend, impressions, clicks, CTR, CPC, anomaly detection
+- CTWA (Click-to-WhatsApp): campaign list, performance metrics (conversations, conversion rate)
+- Content channels: config, trends, scores, performance
+- Creative bundles: list, status, approve/reject/publish/schedule (via action buttons)
+- Meta ad leads: funnel breakdown, lead list
+- CRM: pipeline stages with lead counts, lead list with follow-up dates, move stage / add note (via buttons)
+- Meta ad account: health, balance, token expiry, pixel
+- Instagram accounts: connected accounts, follower stats, token status, connect new (via button)
+- Audience presets: saved targeting configs, create new (via button)
+- Calendar: upcoming festivals & events, scheduled content, recently published posts
+- Pipeline: history, trigger new run (via button)
+- Profile: user account info, channel configuration
+- Media generation: write video/reel scripts; generate captions & hashtags; generate images & carousels (via buttons)
+- Platform status: overall health check of all connections and services
 
 Rules:
-- For analytics questions: always call tools to fetch real data. Never fabricate metrics.
+- Always call tools to fetch real data. Never fabricate metrics.
 - For ad creation: if the brief is incomplete, ask ONE clarifying question at a time before calling create_ad_draft.
-- For mutating actions (pause, scale budget, refresh creative): always use the corresponding tool — it will surface a confirmation button to the user. Never claim an action was taken without the user confirming.
-- When comparing campaigns: first call list_campaigns to get IDs if not provided, then call compare_campaigns.
+- For ALL mutating actions (pause, scale, publish, approve, connect, generate): always call the tool — it surfaces a confirmation button. Never claim an action was taken without the user confirming via that button.
+- When comparing campaigns: first call list_campaigns to get IDs, then call compare_campaigns.
+- For "connect instagram" / "connect meta ads": call connect_instagram / connect_meta_ads — they will show an OAuth button.
+- For script writing: call generate_video_script directly (it's a query, not a button).
 - Keep responses concise and actionable. After showing data, give 1–2 sentence insight.
 - Today: ${new Date().toISOString().slice(0, 10)}`;
   }
