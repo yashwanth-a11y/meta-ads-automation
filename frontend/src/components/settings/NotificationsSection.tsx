@@ -1,15 +1,8 @@
 import { useState } from 'react'
-import {
-  Box,
-  Button,
-  Divider,
-  FormControlLabel,
-  Stack,
-  Switch,
-  Typography,
-} from '@mui/material'
+import { Box, Button, Stack, Typography } from '@mui/material'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined'
 import { GlassCard } from '../ui/GlassCard'
+import { ToggleRow } from './ToggleRow'
 
 export function NotificationsSection() {
   const [anomalies, setAnomalies] = useState(() => localStorage.getItem('notif_anomalies') !== 'false')
@@ -29,39 +22,67 @@ export function NotificationsSection() {
     setTimeout(() => setSaved(false), 2500)
   }
 
-  const row = (
-    label: string,
-    desc: string,
-    checked: boolean,
-    set: (v: boolean) => void,
-    divider = true,
-  ) => (
-    <>
-      <FormControlLabel
-        control={<Switch checked={checked} onChange={(e) => set(e.target.checked)} />}
-        label={
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>{label}</Typography>
-            <Typography variant="caption" color="text.secondary">{desc}</Typography>
-          </Box>
-        }
-        sx={{ alignItems: 'flex-start', '& .MuiFormControlLabel-label': { mt: 0.75 } }}
-      />
-      {divider && <Divider sx={{ my: 1 }} />}
-    </>
-  )
+  const rows: Array<{
+    label: string
+    description: string
+    checked: boolean
+    set: (v: boolean) => void
+  }> = [
+    {
+      label: 'Campaign anomalies',
+      description: 'Alert when spend, CTR, or CPC deviates significantly from baseline',
+      checked: anomalies,
+      set: setAnomalies,
+    },
+    {
+      label: 'Approval pending',
+      description: 'Notify when a generated reel is awaiting your sign-off',
+      checked: approval,
+      set: setApproval,
+    },
+    {
+      label: 'Approval link expiring',
+      description: 'Reminder 24 hours before an approval link expires (48h window)',
+      checked: expiry,
+      set: setExpiry,
+    },
+    {
+      label: 'Reel published',
+      description: 'Confirm when a reel is successfully posted to Instagram',
+      checked: published,
+      set: setPublished,
+    },
+    {
+      label: 'Weekly executive digest',
+      description: 'AI-generated weekly summary with top recommendations',
+      checked: digest,
+      set: setDigest,
+    },
+  ]
 
   return (
     <Stack spacing={2.5}>
-      <GlassCard sx={{ p: 3 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Email notifications</Typography>
-        <Stack spacing={0.5}>
-          {row('Campaign anomalies', 'Alert when spend, CTR, or CPC deviates significantly from baseline', anomalies, setAnomalies)}
-          {row('Approval pending', 'Notify when a generated reel is awaiting your sign-off', approval, setApproval)}
-          {row('Approval link expiring', 'Reminder 24 hours before an approval link expires (48h window)', expiry, setExpiry)}
-          {row('Reel published', 'Confirm when a reel is successfully posted to Instagram', published, setPublished)}
-          {row('Weekly executive digest', 'AI-generated weekly summary with top recommendations', digest, setDigest, false)}
-        </Stack>
+      <GlassCard sx={{ p: 0, '&:hover': { transform: 'none' } }}>
+        <Box sx={{ px: 3, pt: 2.5, pb: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Email notifications
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Choose which events trigger an email to your account.
+          </Typography>
+        </Box>
+        <Box sx={{ px: 1, pb: 1 }}>
+          {rows.map((r, i) => (
+            <ToggleRow
+              key={r.label}
+              label={r.label}
+              description={r.description}
+              checked={r.checked}
+              onChange={r.set}
+              divider={i < rows.length - 1}
+            />
+          ))}
+        </Box>
       </GlassCard>
 
       <Box>
@@ -69,7 +90,7 @@ export function NotificationsSection() {
           variant="contained"
           onClick={save}
           startIcon={saved ? <CheckCircleOutlineIcon /> : undefined}
-          sx={{ minWidth: 160, height: 44 }}
+          sx={{ minWidth: 160, height: 44, fontWeight: 700, textTransform: 'none', borderRadius: '10px' }}
         >
           {saved ? 'Saved' : 'Save preferences'}
         </Button>

@@ -140,7 +140,7 @@ async function consumeGenerateScriptSse(
     const { done, value } = await reader.read()
     if (done) break
     carry += dec.decode(value, { stream: true })
-    for (;;) {
+    for (; ;) {
       const idx = carry.indexOf('\n\n')
       if (idx < 0) break
       const block = carry.slice(0, idx)
@@ -155,18 +155,18 @@ async function consumeGenerateScriptSse(
 // ─── Status/type badge configs ────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<BundleStatus, { bg: string; color: string; border: string; label: string }> = {
-  draft:     { bg: alpha('#94A3B8', 0.12), color: '#64748B', border: alpha('#94A3B8', 0.28), label: 'Draft' },
-  ready:     { bg: alpha('#FBBF24', 0.12), color: '#B45309', border: alpha('#FBBF24', 0.35), label: 'Ready' },
-  approved:  { bg: alpha('#34D399', 0.12), color: '#059669', border: alpha('#34D399', 0.3),  label: 'Approved' },
-  published: { bg: alpha('#22D3EE', 0.12), color: '#0891B2', border: alpha('#22D3EE', 0.3),  label: 'Published' },
-  rejected:  { bg: alpha('#F87171', 0.12), color: '#DC2626', border: alpha('#F87171', 0.28), label: 'Rejected' },
+  draft: { bg: alpha('#94A3B8', 0.12), color: '#64748B', border: alpha('#94A3B8', 0.28), label: 'Draft' },
+  ready: { bg: alpha('#FBBF24', 0.12), color: '#B45309', border: alpha('#FBBF24', 0.35), label: 'Ready' },
+  approved: { bg: alpha('#34D399', 0.12), color: '#059669', border: alpha('#34D399', 0.3), label: 'Approved' },
+  published: { bg: alpha('#22D3EE', 0.12), color: '#0891B2', border: alpha('#22D3EE', 0.3), label: 'Published' },
+  rejected: { bg: alpha('#F87171', 0.12), color: '#DC2626', border: alpha('#F87171', 0.28), label: 'Rejected' },
 }
 
 const TYPE_COLORS: Record<ContentType, { bg: string; color: string; border: string; label: string }> = {
-  reel:     { bg: alpha('#A78BFA', 0.12), color: '#7C3AED', border: alpha('#A78BFA', 0.3),  label: 'Reel' },
-  image:    { bg: alpha('#60A5FA', 0.12), color: '#2563EB', border: alpha('#60A5FA', 0.3),  label: 'Image' },
+  reel: { bg: alpha('#A78BFA', 0.12), color: '#7C3AED', border: alpha('#A78BFA', 0.3), label: 'Reel' },
+  image: { bg: alpha('#60A5FA', 0.12), color: '#2563EB', border: alpha('#60A5FA', 0.3), label: 'Image' },
   carousel: { bg: alpha('#FB923C', 0.12), color: '#EA580C', border: alpha('#FB923C', 0.28), label: 'Carousel' },
-  story:    { bg: alpha('#F472B6', 0.12), color: '#DB2777', border: alpha('#F472B6', 0.28), label: 'Story' },
+  story: { bg: alpha('#F472B6', 0.12), color: '#DB2777', border: alpha('#F472B6', 0.28), label: 'Story' },
 }
 
 // ─── No channel selected empty state ─────────────────────────────────────────
@@ -383,7 +383,7 @@ function RecentCreatives({ channels }: RecentCreativesProps) {
 
   const handleCopyCaption = () => {
     if (!captionBundle?.caption) return
-    navigator.clipboard.writeText(captionBundle.caption).catch(() => {})
+    navigator.clipboard.writeText(captionBundle.caption).catch(() => { })
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -855,78 +855,76 @@ function ReelTab({ channelId }: ReelTabProps) {
       </GlassCard>
 
       {/* Video preview */}
-      <GlassCard glow sx={{ p: 3 }}>
-        <GlassCard sx={{ p: 0, overflow: 'hidden' }}>
-          <Box
-            sx={{
-              aspectRatio: '9/16',
-              maxHeight: 560,
-              mx: 'auto',
-              bgcolor: '#050505',
-              position: 'relative',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {videoUrl ? (
-              <Box component="video" src={videoUrl} controls playsInline sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-            ) : (
-              <>
-                <Box
-                  sx={{
-                    width: 72, height: 72, borderRadius: '50%',
-                    border: `1px solid ${alpha('#FFFFFF', 0.2)}`,
-                    display: 'grid', placeItems: 'center',
-                    bgcolor: alpha('#FFFFFF', 0.06),
-                    backdropFilter: 'blur(8px)',
-                  }}
-                >
-                  <PlayArrowRoundedIcon sx={{ fontSize: 40 }} />
-                </Box>
-                <Typography
-                  variant="caption"
-                  sx={{ position: 'absolute', bottom: 16, left: 16, right: 16, textAlign: 'center', color: 'text.secondary' }}
-                >
-                  {loading ? 'Loading…' : renderBusy ? `Rendering… ${Math.round(progress)}%` : 'Video appears here when ready'}
-                </Typography>
-              </>
-            )}
-          </Box>
-        </GlassCard>
-
-        {renderBusy && (
-          <LinearProgress variant="determinate" value={progress} sx={{ mt: 2, borderRadius: 1, bgcolor: alpha('#FFF', 0.06) }} />
-        )}
-
-        {videoReadyForMeta && (
-          <Box sx={{ mt: 2 }}>
-            <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
-              <Button
-                variant="outlined" color="primary" size="large"
-                startIcon={<ScheduleRoundedIcon />}
-                onClick={() => setScheduleOpen(true)}
-                disabled={publishingToMeta || renderBusy}
+      <GlassCard sx={{ p: 0, overflow: 'hidden' }}>
+        <Box
+          sx={{
+            aspectRatio: '9/16',
+            maxHeight: 560,
+            mx: 'auto',
+            bgcolor: '#050505',
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {videoUrl ? (
+            <Box component="video" src={videoUrl} controls playsInline sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          ) : (
+            <>
+              <Box
+                sx={{
+                  width: 72, height: 72, borderRadius: '50%',
+                  border: `1px solid ${alpha('#FFFFFF', 0.2)}`,
+                  display: 'grid', placeItems: 'center',
+                  bgcolor: alpha('#FFFFFF', 0.06),
+                  backdropFilter: 'blur(8px)',
+                }}
               >
-                Schedule Post
-              </Button>
-              <Button
-                variant="contained" color="secondary" size="large"
-                startIcon={<OpenInNewRoundedIcon />}
-                onClick={() => void handlePublishToMeta()}
-                disabled={publishingToMeta || busy || enhancing || generatingScript || loading || renderBusy}
+                <PlayArrowRoundedIcon sx={{ fontSize: 40 }} />
+              </Box>
+              <Typography
+                variant="caption"
+                sx={{ position: 'absolute', bottom: 16, left: 16, right: 16, textAlign: 'center', color: 'text.secondary' }}
               >
-                {publishingToMeta ? 'Publishing to Meta…' : 'Publish to Meta Ads'}
-              </Button>
-            </Stack>
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              Uses your connected ad account and Facebook Page (see{' '}
-              <Link href="/ads/setup" target="_blank" rel="noopener noreferrer">Ads setup</Link>
-              ). Uploads this video and creates an ad creative.
-            </Typography>
-          </Box>
-        )}
+                {loading ? 'Loading…' : renderBusy ? `Rendering… ${Math.round(progress)}%` : 'Video appears here when ready'}
+              </Typography>
+            </>
+          )}
+        </Box>
       </GlassCard>
+
+      {renderBusy && (
+        <LinearProgress variant="determinate" value={progress} sx={{ mt: 2, borderRadius: 1, bgcolor: alpha('#FFF', 0.06) }} />
+      )}
+
+      {videoReadyForMeta && (
+        <Box sx={{ mt: 2 }}>
+          <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap' }}>
+            <Button
+              variant="outlined" color="primary" size="large"
+              startIcon={<ScheduleRoundedIcon />}
+              onClick={() => setScheduleOpen(true)}
+              disabled={publishingToMeta || renderBusy}
+            >
+              Schedule Post
+            </Button>
+            <Button
+              variant="contained" color="secondary" size="large"
+              startIcon={<OpenInNewRoundedIcon />}
+              onClick={() => void handlePublishToMeta()}
+              disabled={publishingToMeta || busy || enhancing || generatingScript || loading || renderBusy}
+            >
+              {publishingToMeta ? 'Publishing to Meta…' : 'Publish to Meta Ads'}
+            </Button>
+          </Stack>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Uses your connected ad account and Facebook Page (see{' '}
+            <Link href="/ads/setup" target="_blank" rel="noopener noreferrer">Ads setup</Link>
+            ). Uploads this video and creates an ad creative.
+          </Typography>
+        </Box>
+      )}
 
       <ScheduleDrawer
         open={scheduleOpen}
@@ -1469,63 +1467,99 @@ export function CreativesPage() {
         subtitle="Generate reels, image posts, and carousels powered by AI — then schedule or publish directly."
       />
 
-      {/* Content type tabs */}
-      <GlassCard sx={{ p: 0, overflow: 'hidden' }}>
-        <Box
-          sx={{
-            px: 3,
-            pt: 2,
-            pb: 0,
-            borderBottom: '1px solid',
-            borderColor: alpha('#0F172A', 0.08),
-          }}
-        >
+      {/* Content type tabs (matches /approvals — pill active state, no underline) */}
+      <GlassCard
+        sx={{
+          overflow: 'hidden',
+          padding: '10px 10px 5px 10px',
+          // Suppress GlassCard's hover-lift since the card is interactive.
+          '&:hover': {
+            transform: 'none',
+            boxShadow: `0 8px 24px ${alpha('#0F172A', 0.08)}`,
+          },
+        }}
+      >
+        <Box sx={{ px: 1, pt: 0.5 }}>
           <Stack
             direction={{ xs: 'column', sm: 'row' }}
-            spacing={2}
-            sx={{ alignItems: { xs: 'stretch', sm: 'flex-end' }, justifyContent: 'space-between', mb: 0 }}
+            spacing={1.5}
+            sx={{
+              alignItems: { sm: 'center' },
+              justifyContent: 'space-between',
+            }}
           >
             <Tabs
               value={tab}
               onChange={(_, v) => setTab(v as number)}
+              variant="scrollable"
+              scrollButtons="auto"
               sx={{
-                '& .MuiTabs-indicator': {
-                  bgcolor: '#22D3EE',
-                  height: 3,
-                  borderRadius: '2px 2px 0 0',
-                },
+                minHeight: 44,
+                flex: { sm: 1 },
+                minWidth: 0,
                 '& .MuiTab-root': {
-                  textTransform: 'none',
+                  minHeight: 44,
+                  fontSize: '13px',
                   fontWeight: 600,
-                  fontSize: 13,
-                  minHeight: 48,
-                  color: 'text.secondary',
-                  '&.Mui-selected': { color: '#0891B2' },
+                  textTransform: 'none',
+                  color: '#475569',
+                  px: 2,
+                  borderRadius: '8px',
+                  transition:
+                    'background-color 160ms ease, color 160ms ease',
+                  '&:hover': {
+                    color: '#0EA5B7',
+                    bgcolor: alpha('#22D3EE', 0.06),
+                  },
                 },
+                '& .Mui-selected': {
+                  color: '#0EA5B7 !important',
+                  bgcolor: alpha('#22D3EE', 0.12),
+                },
+                '& .MuiTabs-indicator': { display: 'none' },
+                '& .MuiTabs-scrollButtons.Mui-disabled': { opacity: 0.3 },
               }}
             >
               <Tab
-                label="Reel"
-                icon={<VideoLibraryRoundedIcon sx={{ fontSize: 16 }} />}
-                iconPosition="start"
-                sx={{ gap: 0.75 }}
+                label={
+                  <Stack
+                    direction="row"
+                    spacing={0.875}
+                    sx={{ alignItems: 'center' }}
+                  >
+                    <VideoLibraryRoundedIcon sx={{ fontSize: 16 }} />
+                    <span>Reel</span>
+                  </Stack>
+                }
               />
               <Tab
-                label="Image Post"
-                icon={<ImageRoundedIcon sx={{ fontSize: 16 }} />}
-                iconPosition="start"
-                sx={{ gap: 0.75 }}
+                label={
+                  <Stack
+                    direction="row"
+                    spacing={0.875}
+                    sx={{ alignItems: 'center' }}
+                  >
+                    <ImageRoundedIcon sx={{ fontSize: 16 }} />
+                    <span>Image Post</span>
+                  </Stack>
+                }
               />
               <Tab
-                label="Carousel"
-                icon={<ViewCarouselRoundedIcon sx={{ fontSize: 16 }} />}
-                iconPosition="start"
-                sx={{ gap: 0.75 }}
+                label={
+                  <Stack
+                    direction="row"
+                    spacing={0.875}
+                    sx={{ alignItems: 'center' }}
+                  >
+                    <ViewCarouselRoundedIcon sx={{ fontSize: 16 }} />
+                    <span>Carousel</span>
+                  </Stack>
+                }
               />
             </Tabs>
 
             {/* Channel selector — always visible */}
-            <Box sx={{ pb: { xs: 0, sm: 1 }, flexShrink: 0 }}>
+            <Box sx={{ flexShrink: 0 }}>
               <ChannelSelector
                 channels={channels}
                 loading={channelsLoading}
@@ -1536,7 +1570,7 @@ export function CreativesPage() {
           </Stack>
         </Box>
 
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ p: { xs: 2, md: 2.5 } }}>
           {tab === 0 && (
             // Reel tab doesn't gate on channel — works with existing global creative flow
             <ReelTab channelId={selectedChannelId} />

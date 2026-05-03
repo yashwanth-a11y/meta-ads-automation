@@ -2,21 +2,19 @@ import { useState } from 'react'
 import {
   Box,
   Button,
-  Divider,
   FormControl,
-  FormControlLabel,
   Grid,
   InputLabel,
   MenuItem,
   Select,
   Stack,
-  Switch,
   TextField,
   Typography,
 } from '@mui/material'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined'
 import { GlassCard } from '../ui/GlassCard'
 import { SCHEDULE_OPTIONS } from './constants'
+import { ToggleRow } from './ToggleRow'
 
 export function GeneralSection() {
   const [autoRefresh, setAutoRefresh] = useState(() =>
@@ -52,42 +50,36 @@ export function GeneralSection() {
 
   return (
     <Stack spacing={2.5}>
-      <GlassCard sx={{ p: 3 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Automation</Typography>
-        <Stack spacing={0.5}>
-          <FormControlLabel
-            control={<Switch checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />}
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Auto-refresh trend signals</Typography>
-                <Typography variant="caption" color="text.secondary">Run the ingestion pipeline on the scheduled interval</Typography>
-              </Box>
-            }
-            sx={{ alignItems: 'flex-start', '& .MuiFormControlLabel-label': { mt: 0.75 } }}
+      <GlassCard sx={{ p: 0, '&:hover': { transform: 'none' } }}>
+        <Box sx={{ px: 3, pt: 2.5, pb: 1.5 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Automation
+          </Typography>
+          <Typography variant="body1" color="text.secondary">
+            Control how the pipeline runs and when human approval is required.
+          </Typography>
+        </Box>
+        <Box sx={{ px: 1, pb: 1 }}>
+          <ToggleRow
+            label="Auto-refresh trend signals"
+            description="Run the ingestion pipeline on the scheduled interval"
+            checked={autoRefresh}
+            onChange={setAutoRefresh}
           />
-          <Divider sx={{ my: 1 }} />
-          <FormControlLabel
-            control={<Switch checked={requireApproval} onChange={(e) => setRequireApproval(e.target.checked)} />}
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Require human approval before publish</Typography>
-                <Typography variant="caption" color="text.secondary">Send approval email even when channel is set to auto-publish</Typography>
-              </Box>
-            }
-            sx={{ alignItems: 'flex-start', '& .MuiFormControlLabel-label': { mt: 0.75 } }}
+          <ToggleRow
+            label="Require human approval before publish"
+            description="Send approval email even when channel is set to auto-publish"
+            checked={requireApproval}
+            onChange={setRequireApproval}
           />
-          <Divider sx={{ my: 1 }} />
-          <FormControlLabel
-            control={<Switch checked={autoDiscard} onChange={(e) => setAutoDiscard(e.target.checked)} />}
-            label={
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>Auto-discard reels scoring below 7</Typography>
-                <Typography variant="caption" color="text.secondary">Creative bundles with a composite score under 7 are silently dropped</Typography>
-              </Box>
-            }
-            sx={{ alignItems: 'flex-start', '& .MuiFormControlLabel-label': { mt: 0.75 } }}
+          <ToggleRow
+            label="Auto-discard reels scoring below 7"
+            description="Creative bundles with a composite score under 7 are silently dropped"
+            checked={autoDiscard}
+            onChange={setAutoDiscard}
+            divider={false}
           />
-        </Stack>
+        </Box>
       </GlassCard>
 
       <GlassCard sx={{ p: 3 }}>
@@ -122,7 +114,7 @@ export function GeneralSection() {
               label="Default topic cooldown (days)"
               value={defaultCooldown}
               onChange={(e) => setDefaultCooldown(Math.max(1, parseInt(e.target.value) || 14))}
-              inputProps={{ min: 1, max: 90 }}
+              slotProps={{ htmlInput: { min: 1, max: 90 } }}
               helperText="Prevents same trend producing two reels within this window"
             />
           </Box>
@@ -134,7 +126,7 @@ export function GeneralSection() {
           variant="contained"
           onClick={save}
           startIcon={saved ? <CheckCircleOutlineIcon /> : undefined}
-          sx={{ minWidth: 160, height: 44 }}
+          sx={{ minWidth: 160, height: 44, fontWeight: 700, textTransform: 'none', borderRadius: '10px' }}
         >
           {saved ? 'Saved' : 'Save preferences'}
         </Button>

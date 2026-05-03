@@ -58,7 +58,7 @@ export function IntegrationsSection() {
             }}
           />
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
           {connected
             ? 'Your Meta Ad account is connected. Campaigns and leads sync automatically.'
             : 'Connect your Meta Business account to enable ad creation, campaign management, and lead sync.'}
@@ -93,7 +93,7 @@ export function IntegrationsSection() {
             <Typography variant="caption" color="text.secondary">Instagram Business accounts for Reels publishing</Typography>
           </Box>
         </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
           Instagram account IDs are configured per channel. Go to <strong>Channel Config</strong> tab above and set the Instagram Business Account ID for each channel.
         </Typography>
         <Button

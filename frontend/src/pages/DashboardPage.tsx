@@ -456,8 +456,8 @@ function SignalStrip({
               leadsWoWDelta > 0
                 ? 'success.main'
                 : leadsWoWDelta < 0
-                ? 'error.main'
-                : 'text.secondary',
+                  ? 'error.main'
+                  : 'text.secondary',
             fontWeight: 600,
           }}
         >
@@ -490,7 +490,7 @@ function SignalStrip({
                 {tile.icon}
               </Box>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
+                <Typography variant="subtitle2" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>
                   {tile.label}
                 </Typography>
                 <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1.2, mb: 0.5 }}>
@@ -522,10 +522,10 @@ function RecentLeadsTable({
       <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5 }}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Box>
-            <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.25 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.25 }}>
               Recent leads
             </Typography>
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="body1" color="text.secondary">
               Last 5 entries across all sources
             </Typography>
           </Box>
@@ -533,8 +533,8 @@ function RecentLeadsTable({
             component={RouterLink}
             to="/crm"
             size="small"
-            variant="outlined"
-            sx={{ borderRadius: '6px', textTransform: 'none', fontWeight: 600 }}
+            variant='contained'
+          // sx={{ borderRadius: '6px', textTransform: 'none', fontWeight: 600 }}
           >
             View all
           </Button>
@@ -579,7 +579,7 @@ function RecentLeadsTable({
                   sx={{ '&:last-child td': { border: 0 } }}
                 >
                   <TableCell sx={{ pl: 2.5, py: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }} noWrap>
                       {lead.name}
                     </Typography>
                   </TableCell>
@@ -639,14 +639,14 @@ function TopCampaignsList({
     <GlassCard sx={{ p: 2.5, height: '100%' }}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.25 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.25 }}>
             Top campaigns
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="body1" color="text.secondary">
             By spend, last 28 days
           </Typography>
         </Box>
-        <CampaignOutlinedIcon sx={{ color: 'text.disabled', fontSize: 20 }} />
+        {/* <CampaignOutlinedIcon sx={{ color: 'text.disabled', fontSize: 20 }} /> */}
       </Stack>
 
       {sectionError ? (
@@ -662,7 +662,7 @@ function TopCampaignsList({
         </Stack>
       ) : campaigns.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 3 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="subtitle1" color="text.secondary">
             No campaigns with spend in this window.
           </Typography>
         </Box>
@@ -870,10 +870,10 @@ function TopInstagramPosts({
     <GlassCard sx={{ p: 2.5 }}>
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.25 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.25 }}>
             Top Instagram posts
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="body1" color="text.secondary">
             By likes + comments, across all connected accounts
           </Typography>
         </Box>
@@ -982,11 +982,11 @@ function TopInstagramPosts({
                   ) : null}
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', lineHeight: 1.2 }}>
+                  <Typography variant="body1" color="text.secondary">
                     @{p.account.ig_username || 'account'}
                   </Typography>
                   <Typography
-                    variant="body2"
+                    variant="body1"
                     sx={{ color: '#0F172A', mt: 0.25, lineHeight: 1.4 }}
                     title={captionText}
                   >
@@ -995,18 +995,18 @@ function TopInstagramPosts({
                 </Box>
                 <Stack direction="row" spacing={2} sx={{ flexShrink: 0 }}>
                   <Box sx={{ textAlign: 'right' }}>
-                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', lineHeight: 1.2 }}>
+                    <Typography variant="body1" color="text.disabled" sx={{ display: 'block', lineHeight: 1.2 }}>
                       Likes
                     </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 700, color: '#0F172A' }}>
                       {fmtCount(likes)}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: 'right' }}>
-                    <Typography variant="caption" color="text.disabled" sx={{ display: 'block', lineHeight: 1.2 }}>
+                    <Typography variant="body1" color="text.disabled" sx={{ display: 'block', lineHeight: 1.2 }}>
                       Comments
                     </Typography>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#0F172A' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 700, color: '#0F172A' }}>
                       {fmtCount(comments)}
                     </Typography>
                   </Box>
@@ -1150,10 +1150,10 @@ export function DashboardPage() {
     analyticsDashboardQuery.error instanceof ApiError
       ? analyticsDashboardQuery.error.message
       : analyticsDashboardQuery.error instanceof Error
-      ? analyticsDashboardQuery.error.message
-      : analyticsDashboardQuery.error
-      ? 'Failed to load analytics.'
-      : null
+        ? analyticsDashboardQuery.error.message
+        : analyticsDashboardQuery.error
+          ? 'Failed to load analytics.'
+          : null
 
   const channelsError =
     channelsQuery.error instanceof Error ? channelsQuery.error.message : channelsQuery.error ? 'Failed.' : null
@@ -1172,8 +1172,8 @@ export function DashboardPage() {
     totals == null
       ? null
       : totals.results > 0
-      ? totals.results
-      : totals.leads + totals.purchases + totals.messaging_conversations
+        ? totals.results
+        : totals.leads + totals.purchases + totals.messaging_conversations
 
   const costPerResult =
     totals != null && (conversions ?? 0) > 0
