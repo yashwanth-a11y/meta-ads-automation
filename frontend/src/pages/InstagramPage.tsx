@@ -1430,9 +1430,9 @@ function AccountCard({
 
           <Stack direction="row" spacing={0.75} sx={{ mb: { sm: 1 }, alignItems: 'center' }}>
             <Button
-              size="small"
+              // size="small"
               variant="contained"
-              startIcon={<EditIcon fontSize="small" />}
+              // startIcon={<EditIcon fontSize="small" />}
               onClick={onCompose}
               sx={{
                 background: IG_GRADIENT,

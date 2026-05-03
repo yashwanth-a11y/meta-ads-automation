@@ -22,6 +22,14 @@ import { alpha } from '@mui/material/styles'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import RefreshIcon from '@mui/icons-material/Refresh'
+import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
+import AdsClickOutlinedIcon from '@mui/icons-material/AdsClickOutlined'
+import PercentOutlinedIcon from '@mui/icons-material/PercentOutlined'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
+import StackedLineChartOutlinedIcon from '@mui/icons-material/StackedLineChartOutlined'
+import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined'
 import { Link as RouterLink } from 'react-router-dom'
 import {
   Bar,
@@ -347,28 +355,72 @@ export function AnalyticsPage() {
       {/* === KPI tiles === */}
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="Spend" value={fmtMoney(totals?.spend ?? 0, currency)} glow />
+          <KPICard
+            title="Spend"
+            value={fmtMoney(totals?.spend ?? 0, currency)}
+            icon={<PaidOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#22D3EE"
+            glow
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="Impressions" value={fmtCompact(totals?.impressions ?? 0)} />
+          <KPICard
+            title="Impressions"
+            value={fmtCompact(totals?.impressions ?? 0)}
+            icon={<VisibilityOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#8B5CF6"
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="Reach" value={fmtCompact(totals?.reach ?? 0)} />
+          <KPICard
+            title="Reach"
+            value={fmtCompact(totals?.reach ?? 0)}
+            icon={<GroupOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#3B82F6"
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="Clicks" value={fmtCompact(totals?.clicks ?? 0)} />
+          <KPICard
+            title="Clicks"
+            value={fmtCompact(totals?.clicks ?? 0)}
+            icon={<AdsClickOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#10B981"
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="CTR" value={fmtPct(totals?.ctr ?? 0)} />
+          <KPICard
+            title="CTR"
+            value={fmtPct(totals?.ctr ?? 0)}
+            icon={<PercentOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#F59E0B"
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="CPC" value={fmtMoney(totals?.cpc ?? null, currency)} />
+          <KPICard
+            title="CPC"
+            value={fmtMoney(totals?.cpc ?? null, currency)}
+            icon={<PaymentsOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#EC4899"
+            // For cost metrics, lower is better — flip the trend arrow.
+            trend="down"
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="CPM" value={fmtMoney(totals?.cpm ?? null, currency)} />
+          <KPICard
+            title="CPM"
+            value={fmtMoney(totals?.cpm ?? null, currency)}
+            icon={<StackedLineChartOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#14B8A6"
+            trend="down"
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KPICard title="Results" value={fmtCompact(totals?.results ?? 0)} />
+          <KPICard
+            title="Results"
+            value={fmtCompact(totals?.results ?? 0)}
+            icon={<TaskAltOutlinedIcon sx={{ fontSize: 22 }} />}
+            color="#6366F1"
+          />
         </Grid>
       </Grid>
 

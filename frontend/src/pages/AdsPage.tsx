@@ -23,7 +23,7 @@ import PauseIcon from '@mui/icons-material/Pause'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adsApi, ApiError, qk } from '../api'
 import type { CampaignSummary } from '../api/types'
@@ -211,7 +211,7 @@ export function AdsPage() {
       )}
 
       {!campaignsQuery.isLoading && campaigns.length === 0 && (
-        <GlassCard sx={{ padding:"30px 15px" ,textAlign: 'center' }}>
+        <GlassCard sx={{ padding: "30px 15px", textAlign: 'center' }}>
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>No campaigns yet</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Build and publish your first ad to Meta in a few minutes.
@@ -300,14 +300,6 @@ function CampaignRow({
     onError: (err: ApiError) => setActionError(err.message),
   })
 
-  const summaryLine = useMemo(() => {
-    const parts: string[] = []
-    parts.push(objectiveLabel(campaign.objective))
-    if (campaign.daily_budget) parts.push(`${formatMoney(campaign.daily_budget, currency)}/day`)
-    else if (campaign.lifetime_budget) parts.push(`${formatMoney(campaign.lifetime_budget, currency)} lifetime`)
-    return parts.join(' · ')
-  }, [campaign.objective, campaign.daily_budget, campaign.lifetime_budget, currency])
-
   // Click on the card body opens the ad insights drawer; nested
   // controls (kebab, pause/resume, "View ads") stop propagation so they keep
   // their own behavior. Disabled when there's no Meta ID — the drawer would
@@ -317,124 +309,293 @@ function CampaignRow({
 
   return (
     <>
-      <GlassCard
-        sx={{
-          bgcolor: (t) => alpha(t.palette.background.paper, 0.94),
-          height: '100%',
-          display: 'flex',
-          cursor: canOpenInsights ? 'pointer' : 'default',
-        }}
-        onClick={canOpenInsights ? onOpenInsights : undefined}
-        role={canOpenInsights ? 'button' : undefined}
-        tabIndex={canOpenInsights ? 0 : -1}
-        onKeyDown={(e) => {
-          if (canOpenInsights && (e.key === 'Enter' || e.key === ' ')) {
-            e.preventDefault()
-            onOpenInsights()
-          }
-        }}
-      >
-        <Stack spacing={1} sx={{ p: 2.5, flex: 1, minWidth: 0 }}>
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}
+      {(() => {
+        // Status-derived accent: green = active, amber = paused, red = errored,
+        // slate = anything else. Drives the left stripe + the small dot inline
+        // with the title so each card's state is readable at a glance.
+        const eff = (campaign.effective_status || campaign.status || '').toUpperCase()
+        const accentColor =
+          eff === 'ACTIVE' || eff === 'PREAPPROVED'
+            ? '#10B981'
+            : eff === 'PAUSED' || eff === 'CAMPAIGN_PAUSED' || eff === 'ADSET_PAUSED' || eff === 'ARCHIVED'
+              ? '#F59E0B'
+              : eff === 'DISAPPROVED' || eff === 'PENDING_BILLING_INFO' || eff === 'WITH_ISSUES' || eff === 'DELETED'
+                ? '#EF4444'
+                : eff === 'PENDING_REVIEW' || eff === 'IN_PROCESS'
+                  ? '#22D3EE'
+                  : '#64748B'
+
+        // Split the summary so the budget can render as a prominent tile
+        // separately from the objective text.
+        const budgetLabel = campaign.daily_budget
+          ? `${formatMoney(campaign.daily_budget, currency)}/day`
+          : campaign.lifetime_budget
+            ? `${formatMoney(campaign.lifetime_budget, currency)} lifetime`
+            : null
+        const budgetSubtitle = campaign.daily_budget
+          ? 'Daily budget'
+          : campaign.lifetime_budget
+            ? 'Lifetime budget'
+            : 'No budget set'
+
+        return (
+          <GlassCard
+            sx={{
+              position: 'relative',
+              bgcolor: 'background.paper',
+              height: '100%',
+              display: 'flex',
+              cursor: canOpenInsights ? 'pointer' : 'default',
+              borderRadius: '4px',
+              border: '1px solid',
+              borderColor: alpha('#0F172A', 0.08),
+              overflow: 'hidden',
+              transition:
+                'transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease',
+              boxShadow: `0 1px 2px ${alpha('#0F172A', 0.04)}`,
+              '&:hover': canOpenInsights
+                ? {
+                  transform: 'translateY(-2px)',
+                  borderColor: alpha(accentColor, 0.4),
+                  boxShadow: `0 12px 28px ${alpha('#0F172A', 0.10)}, 0 0 0 1px ${alpha(accentColor, 0.15)}`,
+                }
+                : {},
+              // Left status stripe — anchors the card to its current state.
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: 4,
+                bgcolor: accentColor,
+                opacity: 0.85,
+              },
+            }}
+            onClick={canOpenInsights ? onOpenInsights : undefined}
+            role={canOpenInsights ? 'button' : undefined}
+            tabIndex={canOpenInsights ? 0 : -1}
+            onKeyDown={(e) => {
+              if (canOpenInsights && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault()
+                onOpenInsights()
+              }
+            }}
           >
-            <Box sx={{ minWidth: 0, flex: 1 }}>
-              <Typography
-                variant="subtitle1"
-                sx={{ fontWeight: 700, mb: 1.5 }}
-                noWrap
-                title={campaign.name}
+            <Stack spacing={1.5} sx={{ p: 2.25, pl: 2.5, flex: 1, minWidth: 0 }}>
+              {/* Header — name + kebab; status badge sits below to keep the
+                  title clean even when the badge label is long. */}
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}
               >
-                {campaign.name}
-              </Typography>
-              <StatusBadge
-                status={campaign.status}
-                effectiveStatus={campaign.effective_status}
-              />
-            </Box>
-            <IconButton
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation()
-                setAnchorEl(e.currentTarget)
-              }}
-              sx={{ mt: -0.5, mr: -0.5 }}
-            >
-              <MoreVertIcon fontSize="small" />
-            </IconButton>
-          </Stack>
-
-          <Typography variant="caption" color="text.secondary">
-            {summaryLine}
-          </Typography>
-
-          <Box sx={{ flex: 1 }} />
-
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: 'center', justifyContent: 'space-between' }}
-          >
-            {campaign.meta_campaign_id ? (
-              <Chip
-                size="small"
-                variant="outlined"
-                label={`Meta · ${campaign.meta_campaign_id.slice(-8)}`}
-                sx={{ maxWidth: '60%' }}
-              />
-            ) : (
-              <Box />
-            )}
-            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-              <Tooltip title={canOpenInsights ? 'View ad insights' : 'Sync campaign first to see ads'}>
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      onOpenInsights()
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0, flex: 1 }}>
+                  <Box
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: '50%',
+                      bgcolor: accentColor,
+                      flexShrink: 0,
+                      boxShadow: `0 0 0 3px ${alpha(accentColor, 0.18)}`,
                     }}
-                    disabled={!canOpenInsights}
+                  />
+                  <Typography
+                    variant="subtitle1"
+                    sx={{ fontWeight: 700, fontSize: 14.5, letterSpacing: -0.1 }}
+                    noWrap
+                    title={campaign.name}
                   >
-                    <InsightsOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title={isActive ? 'Pause' : 'Resume'}>
-                <span>
-                  <IconButton
+                    {campaign.name}
+                  </Typography>
+                </Stack>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setAnchorEl(e.currentTarget)
+                  }}
+                  sx={{
+                    mt: -0.5,
+                    mr: -0.5,
+                    color: 'text.secondary',
+                    '&:hover': { bgcolor: alpha('#0F172A', 0.04) },
+                  }}
+                >
+                  <MoreVertIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+
+              {/* Status + objective on one line — compact metadata strip */}
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                <StatusBadge
+                  status={campaign.status}
+                  effectiveStatus={campaign.effective_status}
+                />
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontSize: 11.5, fontWeight: 500 }}
+                >
+                  {objectiveLabel(campaign.objective)}
+                </Typography>
+              </Stack>
+
+              {/* Budget tile — the most-scanned metric on each card */}
+              <Box
+                sx={{
+                  px: 1.5,
+                  py: 1.25,
+                  borderRadius: '10px',
+                  bgcolor: alpha(accentColor, 0.06),
+                  border: `1px solid ${alpha(accentColor, 0.15)}`,
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: 0.6,
+                    textTransform: 'uppercase',
+                    color: 'text.secondary',
+                  }}
+                >
+                  {budgetSubtitle}
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontSize: 18,
+                    fontWeight: 800,
+                    lineHeight: 1.2,
+                    color: budgetLabel ? accentColor : 'text.disabled',
+                    mt: 0.25,
+                  }}
+                >
+                  {budgetLabel ?? '—'}
+                </Typography>
+              </Box>
+
+              <Box sx={{ flex: 1 }} />
+
+              {/* Footer — Meta ID chip on left, action icons on right */}
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  pt: 0.5,
+                }}
+              >
+                {campaign.meta_campaign_id ? (
+                  <Chip
                     size="small"
-                    color={isActive ? 'warning' : 'success'}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      toggleMutation.mutate()
+                    variant="outlined"
+                    label={`Meta · ${campaign.meta_campaign_id.slice(-8)}`}
+                    sx={{
+                      maxWidth: '60%',
+                      height: 22,
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      borderRadius: '6px',
+                      borderColor: alpha('#0F172A', 0.12),
+                      color: 'text.secondary',
+                      bgcolor: alpha('#0F172A', 0.025),
                     }}
-                    disabled={toggleMutation.isPending || !campaign.meta_campaign_id}
-                  >
-                    {isActive ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
-                  </IconButton>
-                </span>
-              </Tooltip>
+                  />
+                ) : (
+                  <Chip
+                    size="small"
+                    label="Not synced"
+                    sx={{
+                      height: 22,
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      borderRadius: '6px',
+                      bgcolor: alpha('#F59E0B', 0.1),
+                      color: '#B45309',
+                    }}
+                  />
+                )}
+                <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center' }}>
+                  <Tooltip title={canOpenInsights ? 'View ad insights' : 'Sync campaign first to see ads'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onOpenInsights()
+                        }}
+                        disabled={!canOpenInsights}
+                        sx={{
+                          color: 'text.secondary',
+                          '&:hover': {
+                            color: '#22D3EE',
+                            bgcolor: alpha('#22D3EE', 0.08),
+                          },
+                          '&.Mui-disabled': { color: 'text.disabled' },
+                        }}
+                      >
+                        <InsightsOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title={isActive ? 'Pause campaign' : 'Resume campaign'}>
+                    <span>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleMutation.mutate()
+                        }}
+                        disabled={toggleMutation.isPending || !campaign.meta_campaign_id}
+                        sx={{
+                          color: isActive ? '#F59E0B' : '#10B981',
+                          bgcolor: isActive
+                            ? alpha('#F59E0B', 0.08)
+                            : alpha('#10B981', 0.08),
+                          '&:hover': {
+                            bgcolor: isActive
+                              ? alpha('#F59E0B', 0.16)
+                              : alpha('#10B981', 0.16),
+                          },
+                          '&.Mui-disabled': {
+                            color: 'text.disabled',
+                            bgcolor: alpha('#0F172A', 0.04),
+                          },
+                        }}
+                      >
+                        {isActive ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </Stack>
+              </Stack>
+
+              {actionError && (
+                <Alert
+                  severity="error"
+                  onClose={() => setActionError(null)}
+                  sx={{ borderRadius: '8px', fontSize: 12 }}
+                >
+                  {actionError}
+                </Alert>
+              )}
             </Stack>
-          </Stack>
-
-          {actionError && (
-            <Alert severity="error" onClose={() => setActionError(null)}>
-              {actionError}
-            </Alert>
-          )}
-        </Stack>
-      </GlassCard>
+          </GlassCard>
+        )
+      })()}
 
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)} sx={{
-        
+
       }}>
         <MenuItem
-        sx={{
-          color: '#0F172A',
-        }}
+          sx={{
+            color: '#0F172A',
+          }}
           onClick={() => {
             if (campaign.meta_campaign_id) {
               window.open(
@@ -446,9 +607,9 @@ function CampaignRow({
           }}
           disabled={!campaign.meta_campaign_id}
         >
-           Open in Ads Manager
+          Open in Ads Manager
         </MenuItem>
-        <MenuItem  sx={{
+        <MenuItem sx={{
           color: '#0F172A',
         }}
           onClick={() => {
@@ -456,7 +617,7 @@ function CampaignRow({
             setConfirmDelete(true)
           }}
         >
-           Delete
+          Delete
         </MenuItem>
       </Menu>
 

@@ -18,6 +18,7 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
@@ -38,7 +39,6 @@ import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarouselRounded'
 import { flushSync } from 'react-dom'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GlassCard } from '../components/ui/GlassCard'
-import { PageHeader } from '../components/ui/PageHeader'
 import { apiFetch, ensureDevAuthToken } from '../lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -392,19 +392,6 @@ function RecentCreatives({ channels }: RecentCreativesProps) {
 
   return (
     <Box>
-      <Typography
-        sx={{
-          fontSize: 10,
-          fontWeight: 700,
-          color: 'text.disabled',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          mb: 1.5,
-        }}
-      >
-        Recent Creatives
-      </Typography>
-
       {loading ? (
         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
           {Array.from({ length: 4 }).map((_, i) => (
@@ -1460,12 +1447,93 @@ export function CreativesPage() {
     void load()
   }, [])
 
+  const ACCENT = '#22D3EE'
+  const ACCENT_DARK = '#0EA5B7'
+
   return (
     <Stack spacing={3}>
-      <PageHeader
-        title="Creatives"
-        subtitle="Generate reels, image posts, and carousels powered by AI — then schedule or publish directly."
-      />
+      {/* ── Hero header — matches /calendar and /settings ───────────────── */}
+      <Box
+        sx={{
+          position: 'relative',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          border: `1px solid ${alpha(ACCENT, 0.18)}`,
+          bgcolor: 'background.paper',
+          backgroundImage: `linear-gradient(135deg, ${alpha(ACCENT, 0.08)} 0%, ${alpha(ACCENT, 0.02)} 60%, ${alpha('#FFFFFF', 0)} 100%)`,
+          px: { xs: 2.5, md: 3.5 },
+          py: { xs: 2.5, md: 3 },
+        }}
+      >
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box
+            sx={{
+              width: 48,
+              height: 48,
+              borderRadius: '12px',
+              background: `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT_DARK} 100%)`,
+              color: '#FFFFFF',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+              boxShadow: `0 8px 24px ${alpha(ACCENT, 0.3)}`,
+            }}
+          >
+            <AutoAwesomeRoundedIcon sx={{ fontSize: 22 }} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="h5"
+              sx={{ fontWeight: 800, lineHeight: 1.15, letterSpacing: -0.3 }}
+            >
+              Creatives
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+              Generate reels, image posts, and carousels powered by AI — then schedule or publish directly.
+            </Typography>
+          </Box>
+        </Stack>
+
+        {/* Quick-info strip — surfaces what each tab produces at a glance */}
+        <Stack
+          direction="row"
+          spacing={3}
+          sx={{
+            mt: 2.5,
+            pt: 2,
+            borderTop: `1px dashed ${alpha('#0F172A', 0.1)}`,
+            flexWrap: 'wrap',
+            gap: 2,
+          }}
+        >
+          {[
+            { label: 'Reels', icon: <VideoLibraryRoundedIcon sx={{ fontSize: 14 }} />, color: '#8B5CF6' },
+            { label: 'Image posts', icon: <ImageRoundedIcon sx={{ fontSize: 14 }} />, color: '#10B981' },
+            { label: 'Carousels', icon: <ViewCarouselRoundedIcon sx={{ fontSize: 14 }} />, color: '#F59E0B' },
+            { label: 'Auto-schedule ready', icon: <ScheduleRoundedIcon sx={{ fontSize: 14 }} />, color: ACCENT_DARK },
+          ].map((s) => (
+            <Stack key={s.label} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <Box
+                sx={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: '6px',
+                  bgcolor: alpha(s.color, 0.12),
+                  color: s.color,
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                {s.icon}
+              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 12.5, color: 'text.secondary' }}>
+                {s.label}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
+      </Box>
 
       {/* Content type tabs (matches /approvals — pill active state, no underline) */}
       <GlassCard
@@ -1580,9 +1648,56 @@ export function CreativesPage() {
         </Box>
       </GlassCard>
 
-      {/* Recent creatives */}
-      <GlassCard sx={{ p: 3 }}>
-        <RecentCreatives channels={channels} />
+      {/* Recent creatives — same single-card pattern as the tabs section */}
+      <GlassCard
+        sx={{
+          overflow: 'hidden',
+          padding: '10px 10px 5px 10px',
+          '&:hover': {
+            transform: 'none',
+            boxShadow: `0 8px 24px ${alpha('#0F172A', 0.08)}`,
+          },
+        }}
+      >
+        <Stack
+          direction="row"
+          spacing={1.75}
+          sx={{
+            alignItems: 'center',
+            px: 2,
+            pt: 1.25,
+            pb: 1.5,
+          }}
+        >
+          <Box
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: '10px',
+              bgcolor: alpha(ACCENT, 0.12),
+              color: ACCENT_DARK,
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <SlideshowRoundedIcon sx={{ fontSize: 18 }} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="subtitle1"
+              sx={{ fontWeight: 700, lineHeight: 1.2 }}
+            >
+              Recent creatives
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Latest 10 creative bundles across all channels.
+            </Typography>
+          </Box>
+        </Stack>
+        <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+          <RecentCreatives channels={channels} />
+        </Box>
       </GlassCard>
     </Stack>
   )

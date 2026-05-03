@@ -126,7 +126,7 @@ function KanbanCard({ lead, index, stageColor, onClick }: KanbanCardProps) {
             // Soft wash of the stage color so each card visually belongs to
             // its column at a glance. Keep alpha low (~6%) so text contrast
             // stays comfortable on every palette color.
-            bgcolor: alpha(stageColor, 0.06),
+            // bgcolor: alpha(stageColor, 0.06),
             border: '1px solid',
             borderColor: snapshot.isDragging
               ? alpha(stageColor, 0.55)
