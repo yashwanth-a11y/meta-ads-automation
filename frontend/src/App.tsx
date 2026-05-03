@@ -13,6 +13,7 @@ import { CRMPage } from './pages/CRMPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrendsPage } from './pages/TrendsPage'
+import { ApprovalsPage } from './pages/ApprovalsPage'
 
 function isAuthenticated() {
   const localToken = localStorage.getItem('auth_token')
@@ -63,6 +64,7 @@ export default function App() {
         <Route path={DASHBOARD_ROUTE} element={<DashboardPage />} />
         <Route path="channels" element={<ChannelsPage />} />
         <Route path="trends" element={<TrendsPage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="creatives" element={<CreativesPage />} />
         <Route path="ads" element={<AdsPage />} />
         <Route path="ads/setup" element={<AdsSetupPage />} />

@@ -8,6 +8,7 @@ export const paths = {
   dashboard: `/${DASHBOARD_ROUTE}`,
   channels: '/channels',
   trends: '/trends',
+  approvals: '/approvals',
   creatives: '/creatives',
   ads: '/ads',
   adsSetup: '/ads/setup',

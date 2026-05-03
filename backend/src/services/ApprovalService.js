@@ -307,17 +307,37 @@ export class ApprovalService {
   // List all approvals for an org (dashboard)
   // ───────────────────────────────────────────────────────────────────────────
   async listPending(organizationId, { limit = 50 } = {}) {
+    const { desc } = await import('drizzle-orm');
     const rows = await db
-      .select({ approval: approvals, bundle: creativeBundles })
+      .select({ approval: approvals, bundle: creativeBundles, channel: channels })
       .from(approvals)
       .leftJoin(creativeBundles, eq(approvals.creative_bundle_id, creativeBundles.id))
+      .leftJoin(
+        channels,
+        eq(channels.id,
+          // topic_selection stores channel_id in metadata — use bundle.channel_id for other stages
+          creativeBundles.channel_id,
+        ),
+      )
       .where(eq(approvals.organization_id, organizationId))
-      .orderBy(approvals.created_at)
+      .orderBy(desc(approvals.created_at))
       .limit(limit);
 
-    return rows.map(({ approval, bundle }) => ({
+    return rows.map(({ approval, bundle, channel }) => ({
       ...approval,
-      bundle: bundle ? { id: bundle.id, hook: bundle.hook, status: bundle.status, video_url: bundle.video_url } : null,
+      channel_name: channel?.name ?? null,
+      brand_name: channel?.brand_name ?? null,
+      bundle: bundle ? {
+        id: bundle.id,
+        channel_id: bundle.channel_id,
+        hook: bundle.hook,
+        script: bundle.script,
+        caption: bundle.caption,
+        hashtags: bundle.hashtags,
+        status: bundle.status,
+        video_url: bundle.video_url,
+        score_composite: bundle.score_composite,
+      } : null,
     }));
   }
 
@@ -410,9 +430,14 @@ export class ApprovalService {
       return;
     }
 
+    // Generate scene prompts now — only after content is approved, not at bundle creation
+    const { scriptGeneratorService } = await import('./ScriptGeneratorService.js');
+    const scenePrompts = await scriptGeneratorService.generateScenePrompts(bundle, channel);
+    const bundleWithScenes = { ...bundle, scene_prompts: scenePrompts };
+
     const api = createKlingClient(cfg);
     const feedbackHint = bundle._feedback ? ` Additional direction: ${bundle._feedback}` : '';
-    const prompt = buildKlingPrompt((bundle.script ?? bundle.hook ?? '') + feedbackHint);
+    const prompt = buildKlingPrompt((bundleWithScenes.script ?? bundleWithScenes.hook ?? '') + feedbackHint);
 
     let videoUrl;
     try {

@@ -50,7 +50,6 @@ Rules:
 - Hook captures attention in 3 seconds — use curiosity, contrast, or a bold statement
 - Script is 15–45 seconds when read aloud at natural pace (50–120 words)
 - Voiceover uses [pause] for 0.5s pauses and [emphasis] around stressed words
-- Scene prompts are cinematic and specific for AI image generation (Flux/Stable Diffusion)
 - Caption ≤2200 chars, conversational, ends with a question or CTA
 - Hashtags: 5 niche + 5 broad, no # symbol, as an array
 - Never quote source content verbatim — transform it
@@ -63,7 +62,6 @@ Return JSON with exactly these keys:
   "voiceover_text": string,
   "caption": string,
   "hashtags": string[],
-  "scene_prompts": string[5],
   "cta": string
 }`,
       `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Use the trend naturally for this brand'}`,
@@ -79,7 +77,7 @@ Return JSON with exactly these keys:
       script: bundle.script,
       caption: bundle.caption,
       hashtags: bundle.hashtags ?? [],
-      scene_prompts: bundle.scene_prompts ?? [],
+      scene_prompts: [],
       voiceover_text: bundle.voiceover_text,
       video_url: null,
       thumbnail_url: null,
@@ -143,7 +141,7 @@ Caption: ${bundle.caption}`,
       SCRIPT_MODEL,
       `You are an expert viral content creator regenerating a rejected creative.
 Apply the rejection feedback and significantly improve the content.
-Return JSON with exactly these keys: hook, script, voiceover_text, caption, hashtags (array), scene_prompts (array of 5), cta`,
+Return JSON with exactly these keys: hook, script, voiceover_text, caption, hashtags (array), cta`,
       `Original hook: ${existing.hook}
 Original script: ${existing.script}
 Original caption: ${existing.caption}
@@ -159,7 +157,6 @@ Rejection reason: ${rejectionReason ?? 'No specific reason — make it more enga
         script: bundle.script,
         caption: bundle.caption,
         hashtags: bundle.hashtags ?? existing.hashtags,
-        scene_prompts: bundle.scene_prompts ?? existing.scene_prompts,
         voiceover_text: bundle.voiceover_text,
         status: 'draft',
         score_composite: null,
@@ -169,6 +166,29 @@ Rejection reason: ${rejectionReason ?? 'No specific reason — make it more enga
       .where(eq(creativeBundles.id, bundleId));
 
     return { ...existing, ...bundle, id: bundleId };
+  }
+
+  // Called only after content is approved — right before video render
+  async generateScenePrompts(bundle, channel) {
+    const prompts = await _openaiJSON(
+      SCRIPT_MODEL,
+      `You are a video director. Given an approved script, generate 5 cinematic scene prompts for AI video generation.
+Each prompt must be:
+- Specific and visual (describe camera angle, lighting, subject, action)
+- Optimised for AI video generators (Kling / Runway / Sora style)
+- Ordered to match the script's narrative flow
+Return JSON: { "scene_prompts": string[5] }`,
+      `Brand: ${channel.brand_name} | Tone: ${channel.tone ?? 'professional'}
+Hook: ${bundle.hook}
+Script: ${bundle.script}`,
+    );
+
+    const scenes = prompts.scene_prompts ?? [];
+    await db.update(creativeBundles)
+      .set({ scene_prompts: scenes, updated_at: new Date() })
+      .where(eq(creativeBundles.id, bundle.id));
+
+    return scenes;
   }
 
   _buildBrandContext(channel) {

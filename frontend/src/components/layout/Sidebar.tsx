@@ -15,6 +15,7 @@ import { alpha } from '@mui/material/styles'
 import {
   AnalyticsOutlined,
   CampaignOutlined,
+  ChecklistOutlined,
   DashboardOutlined,
   HubOutlined,
   LogoutOutlined,
@@ -34,6 +35,7 @@ const navItems = [
   { to: paths.dashboard, label: 'Dashboard', icon: DashboardOutlined },
   { to: paths.channels, label: 'Channels', icon: HubOutlined },
   { to: paths.trends, label: 'Trends', icon: TrendingUpOutlined },
+  { to: paths.approvals, label: 'Approvals', icon: ChecklistOutlined },
   { to: paths.creatives, label: 'Creatives', icon: VideoLibraryOutlined },
   { to: paths.ads, label: 'Ads', icon: CampaignOutlined },
   { to: paths.crm, label: 'CRM', icon: PeopleOutlined },
