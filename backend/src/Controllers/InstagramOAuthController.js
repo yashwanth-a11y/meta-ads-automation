@@ -194,11 +194,25 @@ export class InstagramOAuthController {
   async uploadMedia(request, reply) {
     try {
       if (!this.uploadService) throw new Error('Upload service not configured');
-      const data = await request.file();
+      // Per-call multipart cap: 100 MB matches the IG video soft-cap the
+      // upload service enforces. Overrides the plugin's global limit so a
+      // future tightening for the ads endpoint doesn't break IG videos.
+      const data = await request.file({ limits: { fileSize: 100 * 1024 * 1024 } });
       if (!data) {
         return reply.status(400).send({ success: false, error: 'No file provided' });
       }
       const buffer = await data.toBuffer();
+      // @fastify/multipart sets `file.truncated` when the stream hit the
+      // size limit. The toBuffer() call still returns a partial buffer in
+      // that case, so we have to check explicitly — otherwise we'd persist
+      // a truncated file and IG would later fail to fetch it.
+      if (data.file?.truncated) {
+        return reply.status(413).send({
+          success: false,
+          error: 'File exceeds the 100 MB upload limit.',
+          code: 'FILE_TOO_LARGE',
+        });
+      }
       const result = await this.uploadService.save({
         organizationId: request.user.organization_id,
         fileBuffer: buffer,
@@ -231,15 +245,24 @@ export class InstagramOAuthController {
       return { success: true, data: result };
     } catch (err) {
       // Surface IG-side errors (validation, container ERROR/EXPIRED, token
-      // problems) with their original message so the composer UI can show
-      // it without dressing it up as a 500.
+      // problems) with the most actionable message Meta gave us. Meta's
+      // generic `message` (e.g. "Invalid parameter") is useless on its own;
+      // `error_user_msg` / `error_user_title` carry the real reason
+      // (unsupported codec, URL not reachable, video too long, etc.) and
+      // `error_subcode` lets us key off specific cases later.
       const igError = err.response?.data?.error;
       if (igError) {
         this.logger.warn({ message: 'Instagram publish API rejected', igError });
+        const userMsg = igError.error_user_msg || igError.error_user_title;
+        const friendly = userMsg
+          ? `${igError.message || 'Instagram rejected the post'} — ${userMsg}`
+          : igError.message || 'Instagram rejected the post';
         return reply.status(400).send({
           success: false,
-          error: igError.message || 'Instagram rejected the post',
+          error: friendly,
           code: igError.code ? `IG_${igError.code}` : 'IG_PUBLISH_FAILED',
+          subcode: igError.error_subcode ?? null,
+          fbtrace_id: igError.fbtrace_id ?? null,
         });
       }
       const status = Number.isInteger(err.statusCode) ? err.statusCode : 500;

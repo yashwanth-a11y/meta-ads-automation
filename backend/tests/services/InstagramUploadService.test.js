@@ -49,11 +49,11 @@ describe('InstagramUploadService.save', () => {
     const out = await u.save({
       organizationId: 'org1',
       fileBuffer: Buffer.from('hello'),
-      mimeType: 'image/png',
-      originalName: 'hello.png',
+      mimeType: 'image/jpeg',
+      originalName: 'hello.jpg',
       requestHeaders: { 'x-forwarded-host': 'demo.ngrok.app', 'x-forwarded-proto': 'https' },
     });
-    expect(out.url).toMatch(/^https:\/\/demo\.ngrok\.app\/public\/uploads\/org1\/[0-9a-f]{32}\.png$/);
+    expect(out.url).toMatch(/^https:\/\/demo\.ngrok\.app\/public\/uploads\/org1\/[0-9a-f]{32}\.jpg$/);
   });
 
   it('rejects unsupported MIME types', async () => {
@@ -66,7 +66,20 @@ describe('InstagramUploadService.save', () => {
         originalName: 'x.gif',
         requestHeaders: {},
       }),
-    ).rejects.toThrow(/Unsupported MIME type/);
+    ).rejects.toThrow(/Unsupported file type/);
+  });
+
+  it('rejects PNG with a hint to convert to JPEG (IG spec)', async () => {
+    const u = svc({ publicBaseUrl: 'https://api.example.com' });
+    await expect(
+      u.save({
+        organizationId: 'org1',
+        fileBuffer: Buffer.from('x'),
+        mimeType: 'image/png',
+        originalName: 'x.png',
+        requestHeaders: {},
+      }),
+    ).rejects.toThrow(/JPEG/);
   });
 
   it('rejects images over the size cap', async () => {

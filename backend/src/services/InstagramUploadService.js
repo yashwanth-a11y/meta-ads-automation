@@ -16,7 +16,10 @@ import { env } from '../config/env.js';
 // In local dev behind ngrok, the request's x-forwarded-host header already
 // carries the public hostname; this service uses it as the fallback.
 
-const ALLOWED_IMAGE = new Set(['image/jpeg', 'image/png']);
+// IG Content Publishing only accepts JPEG for images. PNG sometimes works for
+// uploads to ad accounts but fails at /media with subcode 2207003 ("Invalid
+// image file"). Rejecting here gives a clearer error than the IG round-trip.
+const ALLOWED_IMAGE = new Set(['image/jpeg']);
 const ALLOWED_VIDEO = new Set(['video/mp4', 'video/quicktime']);
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;       // IG image guidance
@@ -30,7 +33,6 @@ const UPLOADS_ROOT = path.resolve(__dirname, '..', '..', 'uploads');
 function extFor(mimeType) {
   switch (mimeType) {
     case 'image/jpeg': return '.jpg';
-    case 'image/png':  return '.png';
     case 'video/mp4':  return '.mp4';
     case 'video/quicktime': return '.mov';
     default: return '';
@@ -76,10 +78,11 @@ export class InstagramUploadService {
 
     const kind = classifyMime(mimeType);
     if (!kind) {
-      throw badRequest(
-        `Unsupported MIME type "${mimeType}". Allowed: JPEG, PNG (image); MP4, MOV (video).`,
-        { mimeType },
-      );
+      const hint =
+        mimeType === 'image/png'
+          ? 'Instagram requires JPEG for image posts — convert and try again.'
+          : `Allowed: JPEG (image); MP4, MOV (video).`;
+      throw badRequest(`Unsupported file type "${mimeType}". ${hint}`, { mimeType });
     }
     const cap = kind === 'image' ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES;
     if (fileBuffer.length > cap) {

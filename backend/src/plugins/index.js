@@ -64,10 +64,13 @@ export async function registerPlugins(app) {
 
   await app.register(sensible);
 
-  // File-upload support (used by /api/v1/ads/upload-image-file).
+  // File-upload support. Global cap is 100 MB to accommodate the largest
+  // single upload the app handles today — Instagram video/reel posts —
+  // while the ads/upload-image-file endpoint enforces its 30 MB Meta-
+  // adimages limit at the service layer.
   await app.register(multipart, {
     limits: {
-      fileSize: 30 * 1024 * 1024, // 30 MB matches Meta's adimages limit
+      fileSize: 100 * 1024 * 1024,
       files: 1,
     },
   });

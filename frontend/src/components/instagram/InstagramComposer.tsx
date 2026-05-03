@@ -33,6 +33,9 @@ import {
   PhotoCamera,
   PlayArrow,
 } from '@mui/icons-material'
+// Note: standalone "Video" feed posts are deprecated by Meta (subcode
+// 2207067). All single-clip posts go through the Reel tab, which calls
+// /media with media_type=REELS + share_to_feed=true.
 import {
   instagramApi,
   type InstagramAccount,
@@ -72,6 +75,10 @@ type ComposerStatus =
   | { kind: 'success'; mediaId: string; postType: InstagramPostType }
   | { kind: 'error'; message: string }
 
+// Per Meta spec: images must be JPEG (PNG is rejected by IG content
+// publishing); videos must be MP4/MOV with H.264 + AAC. We expose only the
+// post types Meta currently accepts — `video` is intentionally absent
+// because standalone feed videos were deprecated in favor of Reels.
 const TAB_DEFS: Array<{
   value: InstagramPostType
   label: string
@@ -83,36 +90,29 @@ const TAB_DEFS: Array<{
     value: 'image',
     label: 'Post',
     icon: <ImageIcon fontSize="small" />,
-    accept: 'image/jpeg,image/png',
-    helper: 'JPEG or PNG · up to 8 MB',
-  },
-  {
-    value: 'video',
-    label: 'Video',
-    icon: <PlayArrow fontSize="small" />,
-    accept: 'video/mp4,video/quicktime',
-    helper: 'MP4 or MOV · up to 100 MB',
+    accept: 'image/jpeg',
+    helper: 'JPEG · up to 8 MB · square (1:1) recommended',
   },
   {
     value: 'reels',
     label: 'Reel',
     icon: <MovieCreation fontSize="small" />,
     accept: 'video/mp4,video/quicktime',
-    helper: 'Vertical 9:16 · MP4/MOV · up to 100 MB',
+    helper: 'MP4 or MOV · vertical 9:16 · 3–90 s · up to 100 MB',
   },
   {
     value: 'carousel',
     label: 'Carousel',
     icon: <Collections fontSize="small" />,
-    accept: 'image/jpeg,image/png,video/mp4,video/quicktime',
-    helper: '2 to 10 items, mix of images and videos',
+    accept: 'image/jpeg,video/mp4,video/quicktime',
+    helper: '2 to 10 items, mix of JPEG images and MP4/MOV videos',
   },
   {
     value: 'story',
     label: 'Story',
     icon: <HighlightAlt fontSize="small" />,
-    accept: 'image/jpeg,image/png,video/mp4,video/quicktime',
-    helper: 'Single image or video',
+    accept: 'image/jpeg,video/mp4,video/quicktime',
+    helper: 'Single JPEG image or short MP4/MOV (≤ 60 s)',
   },
 ]
 
@@ -250,17 +250,21 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
   )
 
   const validateFileForType = (file: File, type: InstagramPostType): string | null => {
-    const isImage = file.type === 'image/jpeg' || file.type === 'image/png'
+    // Mirrors backend (InstagramUploadService) so a bad file is rejected
+    // before it eats the upload bandwidth. Meta's Content Publishing spec
+    // only accepts JPEG for image posts — PNG is rejected at /media.
+    const isImage = file.type === 'image/jpeg'
     const isVideo = file.type === 'video/mp4' || file.type === 'video/quicktime'
     if (!isImage && !isVideo) {
-      return `"${file.name}" — unsupported format. Use JPEG/PNG or MP4/MOV.`
+      if (file.type === 'image/png') {
+        return `"${file.name}" — Instagram requires JPEG. Convert and try again.`
+      }
+      return `"${file.name}" — unsupported format. Use JPEG (image) or MP4/MOV (video).`
     }
-    if (type === 'image' && !isImage) return 'Posts require an image. Use the Video or Reel tab for clips.'
-    if ((type === 'video' || type === 'reels') && !isVideo) {
-      return `${type === 'reels' ? 'Reels' : 'Video posts'} require a video file.`
-    }
+    if (type === 'image' && !isImage) return 'Posts require a JPEG image. Use the Reel tab for clips.'
+    if (type === 'reels' && !isVideo) return 'Reels require a video file.'
     if (type === 'image' && file.size > 8 * 1024 * 1024) return 'Images must be 8 MB or smaller.'
-    if ((isVideo || type === 'reels' || type === 'video') && file.size > 100 * 1024 * 1024) {
+    if (isVideo && file.size > 100 * 1024 * 1024) {
       return 'Videos must be 100 MB or smaller.'
     }
     return null
