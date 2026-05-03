@@ -17,5 +17,6 @@ export const paths = {
   oauthMetaAdsCallback: '/oauth/meta-ads/callback',
   crm: '/crm',
   analytics: '/analytics',
+  genui: '/genui',
   settings: '/settings',
 } as const
