@@ -26,6 +26,7 @@ import {
 import { alpha } from '@mui/material/styles'
 import CloseIcon from '@mui/icons-material/Close'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import CheckIcon from '@mui/icons-material/Check'
 import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined'
 import AutorenewIcon from '@mui/icons-material/Autorenew'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
@@ -33,11 +34,13 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import TipsAndUpdatesOutlinedIcon from '@mui/icons-material/TipsAndUpdatesOutlined'
+import HistoryIcon from '@mui/icons-material/History'
+import RocketLaunchOutlinedIcon from '@mui/icons-material/RocketLaunchOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GlassCard } from '../components/ui/GlassCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { approvalsApi } from '../api/approvals'
-import type { Approval, ApprovalStage } from '../api/approvals'
+import type { Approval, ApprovalStage, ApprovalHistoryItem } from '../api/approvals'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,6 +93,60 @@ function SectionLabel({ children }: { children: string }) {
     <Typography sx={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#94A3B8', fontWeight: 700, mb: 0.75 }}>
       {children}
     </Typography>
+  )
+}
+
+// ─── Pipeline stepper ─────────────────────────────────────────────────────────
+
+const PIPELINE_STEPS = [
+  { key: 'topic',   label: 'Topic',   stage: 'topic_selection' },
+  { key: 'content', label: 'Content', stage: 'content_review' },
+  { key: 'video',   label: 'Video',   stage: 'video_review' },
+  { key: 'publish', label: 'Published', stage: null },
+] as const
+
+function PipelineStepper({ stage, bundleStatus, action }: { stage: ApprovalStage; bundleStatus?: string; action: string | null }) {
+  const stageOrder: Record<ApprovalStage, number> = { topic_selection: 0, content_review: 1, video_review: 2 }
+  const currentIdx = stageOrder[stage]
+  const isPublished = bundleStatus === 'published'
+  const isRejected = action === 'reject' || action === 'rejected' || bundleStatus === 'rejected'
+
+  const getStepState = (i: number) => {
+    if (isPublished) return 'done'
+    if (isRejected && i === currentIdx) return 'rejected'
+    if (i < currentIdx) return 'done'
+    if (i === currentIdx) return action ? 'done' : 'active'
+    if (i === 3 && currentIdx === 2 && action === 'approve') return 'active'
+    return 'pending'
+  }
+
+  return (
+    <Stack direction="row" sx={{ alignItems: 'flex-start', mb: 2 }}>
+      {PIPELINE_STEPS.map((step, i) => {
+        const state = getStepState(i)
+        const dotColor = state === 'done' ? '#34D399' : state === 'active' ? '#22D3EE' : state === 'rejected' ? '#F87171' : alpha('#64748B', 0.35)
+        const labelColor = state === 'done' ? '#34D399' : state === 'active' ? '#22D3EE' : state === 'rejected' ? '#F87171' : '#64748B'
+
+        return (
+          <Stack key={step.key} direction="row" sx={{ alignItems: 'center', flex: i < PIPELINE_STEPS.length - 1 ? 1 : undefined }}>
+            <Stack sx={{ alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+              <Box sx={{ width: 22, height: 22, borderRadius: '50%', bgcolor: dotColor, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s' }}>
+                {state === 'done' ? <CheckIcon sx={{ fontSize: 12, color: '#fff' }} />
+                  : state === 'rejected' ? <CancelOutlinedIcon sx={{ fontSize: 12, color: '#fff' }} />
+                  : state === 'active' && i === 3 ? <RocketLaunchOutlinedIcon sx={{ fontSize: 11, color: '#fff' }} />
+                  : <Typography sx={{ fontSize: 9, fontWeight: 800, color: state === 'active' ? '#fff' : '#94A3B8', lineHeight: 1 }}>{i + 1}</Typography>}
+              </Box>
+              <Typography sx={{ fontSize: 9, fontWeight: 700, color: labelColor, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                {step.label}
+              </Typography>
+            </Stack>
+            {i < PIPELINE_STEPS.length - 1 && (
+              <Box sx={{ flex: 1, height: '1px', bgcolor: state === 'done' ? alpha('#34D399', 0.5) : alpha('#64748B', 0.2), mx: 0.75, mb: 2.5 }} />
+            )}
+          </Stack>
+        )
+      })}
+    </Stack>
   )
 }
 
@@ -417,10 +474,49 @@ interface DetailDialogProps {
   onError: (msg: string) => void
 }
 
+function HistoryTimeline({ bundleId }: { bundleId: string }) {
+  const { data: history = [], isLoading } = useQuery({
+    queryKey: ['bundle-history', bundleId],
+    queryFn: () => approvalsApi.getBundleHistory(bundleId),
+  })
+
+  const STAGE_LABELS: Record<string, string> = { topic_selection: 'Topic Selection', content_review: 'Content Review', video_review: 'Video Review' }
+  const ACTION_LABELS: Record<string, string> = { approve: 'Approved', reject: 'Rejected', regenerate: 'Requested regeneration', select_topic: 'Topic selected' }
+
+  if (isLoading) return <CircularProgress size={16} />
+  if (!history.length) return <Typography sx={{ fontSize: '0.8125rem', color: 'text.disabled' }}>No history yet.</Typography>
+
+  return (
+    <Stack spacing={0}>
+      {history.map((item: ApprovalHistoryItem, i: number) => (
+        <Stack key={item.id} direction="row" spacing={1.5} sx={{ pb: i < history.length - 1 ? 2 : 0, position: 'relative' }}>
+          {i < history.length - 1 && (
+            <Box sx={{ position: 'absolute', left: 7, top: 18, bottom: 0, width: '1px', bgcolor: alpha('#64748B', 0.2) }} />
+          )}
+          <Box sx={{ flexShrink: 0, width: 15, height: 15, mt: 0.25, borderRadius: '50%', bgcolor: item.action ? (item.action === 'reject' ? alpha('#F87171', 0.25) : alpha('#34D399', 0.2)) : alpha('#22D3EE', 0.2), border: `1px solid ${item.action === 'reject' ? alpha('#F87171', 0.5) : item.action ? alpha('#34D399', 0.5) : alpha('#22D3EE', 0.5)}` }} />
+          <Stack>
+            <Typography sx={{ fontSize: '12px', fontWeight: 700, color: 'text.primary', lineHeight: 1.4 }}>
+              {STAGE_LABELS[item.stage] ?? item.stage}
+              {item.action && <Box component="span" sx={{ fontWeight: 400, color: 'text.secondary' }}> — {ACTION_LABELS[item.action] ?? item.action}</Box>}
+            </Typography>
+            <Typography sx={{ fontSize: '11px', color: 'text.disabled' }}>
+              {item.action_taken_at ? timeAgo(item.action_taken_at) : `Sent ${timeAgo(item.created_at)}`}
+            </Typography>
+            {item.rejection_reason && (
+              <Typography sx={{ fontSize: '11px', color: '#F87171', mt: 0.25, fontStyle: 'italic' }}>"{item.rejection_reason}"</Typography>
+            )}
+          </Stack>
+        </Stack>
+      ))}
+    </Stack>
+  )
+}
+
 function DetailDialog({ approval, open, onClose, onSuccess, onError }: DetailDialogProps) {
   const client = useQueryClient()
   const [showFeedback, setShowFeedback] = useState<'reject' | 'regenerate' | null>(null)
   const [feedback, setFeedback] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
 
   const { mutate: act, isPending } = useMutation({
     mutationFn: (payload: { action: 'approve' | 'reject' | 'regenerate'; feedback?: string }) =>
@@ -471,6 +567,8 @@ function DetailDialog({ approval, open, onClose, onSuccess, onError }: DetailDia
 
       <DialogContent sx={{ pt: 2.5, pb: 1, mt: 3 }}>
         <Stack spacing={2.5}>
+          <PipelineStepper stage={approval.stage} bundleStatus={bundle?.status} action={approval.action} />
+
           {bundle?.hook && (
             <Box sx={{ borderLeft: `3px solid #22D3EE`, pl: 2.5, py: 1, bgcolor: alpha('#22D3EE', 0.04), borderRadius: '0 10px 10px 0' }}>
               <SectionLabel>Hook</SectionLabel>
@@ -529,6 +627,20 @@ function DetailDialog({ approval, open, onClose, onSuccess, onError }: DetailDia
                   Video not yet generated
                 </Typography>
               )}
+            </Box>
+          )}
+
+          {/* History */}
+          {bundle?.id && (
+            <Box sx={{ borderTop: '1px solid', borderColor: 'divider', pt: 2 }}>
+              <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: showHistory ? 1.5 : 0, cursor: 'pointer' }} onClick={() => setShowHistory(!showHistory)}>
+                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                  <HistoryIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
+                  <Typography sx={{ fontSize: '12px', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Activity History</Typography>
+                </Stack>
+                <Typography sx={{ fontSize: '11px', color: '#22D3EE', fontWeight: 600 }}>{showHistory ? 'Hide' : 'Show'}</Typography>
+              </Stack>
+              {showHistory && <HistoryTimeline bundleId={bundle.id} />}
             </Box>
           )}
 
@@ -641,6 +753,8 @@ function ApprovalCard({ approval, onSuccess, onError }: ApprovalCardProps) {
           <Chip label={stageConf.label} size="small" sx={{ height: 22, fontSize: '10px', fontWeight: 700, borderRadius: '6px', bgcolor: stageConf.bg, color: stageConf.color, border: `1px solid ${stageConf.border}` }} />
           <Typography sx={{ fontSize: '11px', color: 'text.disabled', fontWeight: 500 }}>{timeAgo(approval.created_at)}</Typography>
         </Stack>
+
+        <PipelineStepper stage={approval.stage} bundleStatus={approval.bundle?.status} action={approval.action} />
 
         {/* Brand name */}
         {(approval.brand_name || approval.channel_name) && (

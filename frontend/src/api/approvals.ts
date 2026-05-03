@@ -4,6 +4,16 @@ import { get, post } from './client'
 
 export type ApprovalStage = 'topic_selection' | 'content_review' | 'video_review'
 
+export type ApprovalHistoryItem = {
+  id: string
+  stage: ApprovalStage
+  action: string | null
+  action_taken_at: string | null
+  rejection_reason: string | null
+  created_at: string
+  approver_email: string
+}
+
 export type ApprovalBundle = {
   id: string
   hook: string
@@ -41,4 +51,6 @@ export const approvalsApi = {
     post<{ ok: boolean; message: string }>(`/approvals/${id}/action`, { action, feedback }),
   selectTopic: (id: string, trendId: string) =>
     post<{ ok: boolean; message: string }>(`/approvals/${id}/select-topic`, { trend_id: trendId }),
+  getBundleHistory: (bundleId: string) =>
+    get<ApprovalHistoryItem[]>(`/approvals/bundle/${bundleId}/history`),
 }

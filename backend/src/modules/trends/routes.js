@@ -57,6 +57,22 @@ export default async function routes(app) {
     return reply.code(200).send({ ...summary, classified, scored: totalScored });
   });
 
+  // Update custom labels on a trend candidate
+  app.patch('/candidates/:id/labels', async (req, reply) => {
+    const { custom_labels } = req.body ?? {};
+    if (!Array.isArray(custom_labels)) throw app.httpErrors.badRequest('custom_labels must be an array');
+    const { db } = await import('../../db/index.js');
+    const { trendCandidates } = await import('../../db/schema.js');
+    const { eq } = await import('drizzle-orm');
+    const [updated] = await db
+      .update(trendCandidates)
+      .set({ custom_labels })
+      .where(eq(trendCandidates.id, req.params.id))
+      .returning();
+    if (!updated) throw app.httpErrors.notFound('Trend not found');
+    return reply.send(updated);
+  });
+
   // Refresh trends for a specific channel (includes brand keyword ingestion)
   app.post('/channels/:channelId/refresh', async (req, reply) => {
     const channel = await channelService.get(orgId(req), req.params.channelId);

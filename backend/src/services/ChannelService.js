@@ -2,7 +2,30 @@ import { eq, and } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/index.js';
 import { channels } from '../db/schema.js';
-import { notFound, conflict } from '../lib/errors.js';
+import { notFound } from '../lib/errors.js';
+import { env } from '../config/env.js';
+
+const MODEL = 'gpt-4o-mini';
+
+async function _openaiJSON(systemPrompt, userPrompt) {
+  if (!env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set');
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: MODEL,
+      temperature: 0.4,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`OpenAI error ${res.status}`);
+  const data = await res.json();
+  return JSON.parse(data.choices[0].message.content);
+}
 
 export class ChannelService {
   async list(organizationId) {
@@ -53,6 +76,7 @@ export class ChannelService {
         youtube: false,
         twitter: false,
       },
+      custom_labels: data.custom_labels ?? [],
       status: 'active',
       created_at: now,
       updated_at: now,
@@ -70,7 +94,7 @@ export class ChannelService {
       'language', 'target_audience', 'products', 'competitors', 'tracked_keywords',
       'blocked_topics', 'brand_assets', 'instagram_account_id', 'approval_mode',
       'auto_publish_threshold', 'topic_cooldown_days', 'posting_schedule',
-      'trend_sources', 'status',
+      'trend_sources', 'custom_labels', 'status',
     ];
 
     const patch = { updated_at: new Date() };
@@ -91,6 +115,30 @@ export class ChannelService {
     await db
       .delete(channels)
       .where(and(eq(channels.organization_id, organizationId), eq(channels.id, channelId)));
+  }
+
+  // Generate brand labels from channel profile using LLM, save and return them
+  async generateLabels(organizationId, channelId) {
+    const channel = await this.get(organizationId, channelId);
+
+    const profile = [
+      channel.brand_name,
+      channel.industry && `Industry: ${channel.industry}`,
+      channel.niche && `Niche: ${channel.niche}`,
+      channel.tone && `Tone: ${channel.tone}`,
+      channel.target_audience && `Audience: ${channel.target_audience}`,
+      channel.brand_description,
+      (channel.products?.length) && `Products: ${channel.products.join(', ')}`,
+    ].filter(Boolean).join('\n');
+
+    const result = await _openaiJSON(
+      `You are a brand strategist. Given a brand profile, return 8–12 short, specific labels (1–3 words each) that best describe the brand's positioning, content style, audience traits, and content themes. These labels will be used to tag and filter this brand's content pipeline. Return JSON: { "labels": string[] }`,
+      profile,
+    );
+
+    const labels = Array.isArray(result.labels) ? result.labels.slice(0, 12) : [];
+    await this.update(organizationId, channelId, { custom_labels: labels });
+    return labels;
   }
 }
 

@@ -43,6 +43,7 @@ export type Channel = {
   topic_cooldown_days: number
   posting_schedule: string
   trend_sources: Partial<ChannelTrendSources>
+  custom_labels: string[]
   status: 'active' | 'inactive'
   created_at: string
   updated_at: string
@@ -81,6 +82,7 @@ export type ChannelUpdateInput = Partial<{
   topic_cooldown_days: number
   posting_schedule: string
   trend_sources: Partial<ChannelTrendSources>
+  custom_labels: string[]
   status: 'active' | 'inactive'
 }>
 
@@ -101,6 +103,7 @@ export type TrendCandidate = {
   lifecycle_stage: 'seed' | 'sprout' | 'peak' | 'saturated'
   emotional_dna: EmotionalDNA | null
   velocity_score: string | null
+  custom_labels: string[]
   ingested_at: string
 }
 
@@ -166,4 +169,10 @@ export const trendsApi = {
     post<CreativeBundle>(`/trends/channels/${channelId}/generate`, {
       trend_candidate_id: trendCandidateId,
     }),
+  updateLabels: (candidateId: string, labels: string[]) =>
+    patch<TrendCandidate>(`/trends/candidates/${candidateId}/labels`, { custom_labels: labels }),
+  generateChannelLabels: (channelId: string) =>
+    post<{ labels: string[] }>(`/channels/${channelId}/generate-labels`, {}),
+  updateChannelLabels: (channelId: string, labels: string[]) =>
+    patch<Channel>(`/channels/${channelId}`, { custom_labels: labels }),
 }

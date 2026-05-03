@@ -130,7 +130,8 @@ export class TrendIngestionService {
     const cachedAt = assets.brand_sources_updated_at;
     const cacheExpired = !cachedAt || Date.now() - new Date(cachedAt).getTime() > SUBREDDIT_CACHE_DAYS * 24 * 60 * 60 * 1000;
 
-    if (assets.reddit_subreddits?.length && assets.google_news_keywords?.length && !cacheExpired) {
+    const hasLabels = channel.custom_labels?.length > 0;
+    if (assets.reddit_subreddits?.length && assets.google_news_keywords?.length && !cacheExpired && hasLabels) {
       return { subreddits: assets.reddit_subreddits, keywords: assets.google_news_keywords };
     }
 
@@ -158,11 +159,12 @@ export class TrendIngestionService {
           messages: [
             {
               role: 'system',
-              content: `You are a content strategist. Given a brand profile, return two things:
+              content: `You are a content strategist. Given a brand profile, return three things:
 1. 8-12 subreddits where the brand's target audience is most active (real, active, 100k+ members, no generic ones like memes/funny, names only without r/ prefix)
 2. 5-8 Google News search keywords that surface relevant trending news for their content strategy (2-4 words each, specific not broad)
+3. 8-12 short brand labels (1-3 words each) describing the brand's positioning, content style, audience traits, and content themes — used to tag and filter this brand's content pipeline
 
-Return JSON: { "subreddits": ["name1", ...], "keywords": ["keyword1", ...] }`,
+Return JSON: { "subreddits": ["name1", ...], "keywords": ["keyword1", ...], "labels": ["label1", ...] }`,
             },
             { role: 'user', content: brandContext },
           ],
@@ -174,6 +176,7 @@ Return JSON: { "subreddits": ["name1", ...], "keywords": ["keyword1", ...] }`,
       const result = JSON.parse(data.choices[0].message.content);
       const subreddits = result.subreddits ?? REDDIT_FALLBACK;
       const keywords = result.keywords ?? NEWS_KEYWORD_FALLBACK;
+      const labels = Array.isArray(result.labels) ? result.labels.slice(0, 12) : [];
 
       await db.update(channels).set({
         brand_assets: {
@@ -182,10 +185,11 @@ Return JSON: { "subreddits": ["name1", ...], "keywords": ["keyword1", ...] }`,
           google_news_keywords: keywords,
           brand_sources_updated_at: new Date().toISOString(),
         },
+        custom_labels: labels,
         updated_at: new Date(),
       }).where(eq(channels.id, channel.id));
 
-      console.log(`[TrendIngestion] Brand sources for ${channel.brand_name} — subreddits: ${subreddits.join(', ')} | keywords: ${keywords.join(', ')}`);
+      console.log(`[TrendIngestion] Brand sources for ${channel.brand_name} — subreddits: ${subreddits.join(', ')} | keywords: ${keywords.join(', ')} | labels: ${labels.join(', ')}`);
       return { subreddits, keywords };
     } catch (err) {
       console.error('[TrendIngestion] Brand source generation failed:', err.message);

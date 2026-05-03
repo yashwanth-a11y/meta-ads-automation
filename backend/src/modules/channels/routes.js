@@ -55,6 +55,12 @@ export default async function routes(app) {
     return channelService.update(orgId(req), req.params.channelId, { brand_assets: assets });
   });
 
+  // Generate AI labels from channel profile
+  app.post('/:channelId/generate-labels', async (req, reply) => {
+    const labels = await channelService.generateLabels(orgId(req), req.params.channelId);
+    return reply.send({ labels });
+  });
+
   // Approvers — stored as array in channel.brand_assets.approvers
   app.get('/:channelId/approvers', async (req) => {
     const ch = await channelService.get(orgId(req), req.params.channelId);

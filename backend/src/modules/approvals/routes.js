@@ -140,6 +140,12 @@ export default async function routes(app) {
     return reply.code(200).send({ sent: true, approvalId, trends_count: topTrends.length });
   });
 
+  // Bundle history — all approval events for a given bundle
+  app.get('/bundle/:bundleId/history', { preHandler: app.requireAuth }, async (req, reply) => {
+    const history = await approvalService.getBundleHistory(req.params.bundleId, orgId(req));
+    return reply.send(history);
+  });
+
   // Admin/dev: manual full pipeline trigger
   app.post('/pipeline/trigger', { preHandler: app.requireAuth }, async (req, reply) => {
     const { runPipeline } = await import('../../scheduler.js');

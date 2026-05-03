@@ -343,6 +343,30 @@ export class ApprovalService {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Full event history for a creative bundle (all approval records across stages)
+  // ───────────────────────────────────────────────────────────────────────────
+  async getBundleHistory(bundleId, organizationId) {
+    const { asc, and } = await import('drizzle-orm');
+    const rows = await db
+      .select({
+        id: approvals.id,
+        stage: approvals.stage,
+        action: approvals.action,
+        action_taken_at: approvals.action_taken_at,
+        rejection_reason: approvals.rejection_reason,
+        created_at: approvals.created_at,
+        approver_email: approvals.approver_email,
+      })
+      .from(approvals)
+      .where(and(
+        eq(approvals.creative_bundle_id, bundleId),
+        eq(approvals.organization_id, organizationId),
+      ))
+      .orderBy(asc(approvals.created_at));
+    return rows;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Resend an approval email
   // ───────────────────────────────────────────────────────────────────────────
   async resend(approvalId, organizationId) {

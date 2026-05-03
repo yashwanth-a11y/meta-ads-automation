@@ -369,6 +369,7 @@ export const channels = pgTable(
     posting_schedule: varchar('posting_schedule', { length: 64 }).default('3x/week'),
     trend_sources: jsonb('trend_sources').default({}),
     // { rss: true, google_trends: true, reddit: true, product_hunt: true, youtube: true, twitter: false }
+    custom_labels: jsonb('custom_labels').default([]),
     status: varchar('status', { length: 32 }).default('active').notNull(),
     created_at: ts('created_at'),
     updated_at: ts('updated_at'),
@@ -404,6 +405,7 @@ export const trendCandidates = pgTable(
     // seed | sprout | peak | saturated
     velocity_score: numeric('velocity_score', { precision: 18, scale: 2 }).default('0'),
     platform_count: integer('platform_count').default(1).notNull(),
+    custom_labels: jsonb('custom_labels').default([]),
     raw_data: jsonb('raw_data'),
     ingested_at: ts('ingested_at'),
     created_at: ts('created_at'),

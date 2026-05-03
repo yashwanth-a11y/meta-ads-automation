@@ -18,12 +18,14 @@ import {
   Skeleton,
   Snackbar,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import AutorenewIcon from '@mui/icons-material/Autorenew'
 import CloseIcon from '@mui/icons-material/Close'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
+import BoltIcon from '@mui/icons-material/Bolt'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GlassCard } from '../components/ui/GlassCard'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -416,155 +418,70 @@ interface TrendCardProps {
 function TrendCard({ trend, channelId, onBundleReady }: TrendCardProps) {
   const { mutate: generate, isPending } = useMutation({
     mutationFn: () => trendsApi.generateBundle(channelId, trend.id),
-    onSuccess: (bundle) => {
-      onBundleReady(bundle)
-    },
+    onSuccess: (bundle) => onBundleReady(bundle),
   })
 
   const score = trend.brand_fit.composite_score
   const clsStyle = classificationStyle(trend.classification)
-
-  // Lifecycle badge style
-  const lifecycleColor: Record<string, string> = {
-    seed: '#34D399',
-    sprout: '#22D3EE',
-    peak: '#FBBF24',
-    saturated: '#F87171',
-  }
+  const lifecycleColor: Record<string, string> = { seed: '#34D399', sprout: '#22D3EE', peak: '#FBBF24', saturated: '#F87171' }
   const lcColor = lifecycleColor[trend.lifecycle_stage] ?? '#94A3B8'
+  const velocity = trend.velocity_score ? Math.round(parseFloat(trend.velocity_score)) : 0
+  const dna = trend.emotional_dna
 
   return (
-    <GlassCard
-      sx={{
-        p: 2.5,
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* Row 1: classification + score */}
-      <Stack
-        direction="row"
-        sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.25 }}
-      >
-        <Chip
-          label={clsStyle.label}
-          size="small"
-          sx={{
-            height: 20,
-            fontSize: '10px',
-            fontWeight: 700,
-            borderRadius: '6px',
-            bgcolor: clsStyle.bgcolor,
-            color: clsStyle.color,
-            border: clsStyle.border,
-          }}
-        />
-        <Box
-          sx={{
-            minWidth: 44,
-            height: 32,
-            borderRadius: '8px',
-            bgcolor: alpha(scoreColor(score), 0.12),
-            border: `1px solid ${alpha(scoreColor(score), 0.3)}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            px: 1,
-          }}
-        >
-          <Typography
-            sx={{
-              fontSize: '15px',
-              fontWeight: 800,
-              color: scoreColor(score),
-              lineHeight: 1,
-            }}
-          >
-            {score.toFixed(1)}
-          </Typography>
+    <GlassCard sx={{ p: 2.5, height: '100%', display: 'flex', flexDirection: 'column' }}>
+
+      {/* Row 1: classification + score + velocity */}
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.25 }}>
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+          <Chip label={clsStyle.label} size="small" sx={{ height: 20, fontSize: '10px', fontWeight: 700, borderRadius: '6px', bgcolor: clsStyle.bgcolor, color: clsStyle.color, border: clsStyle.border }} />
+          {velocity > 0 && (
+            <Tooltip title={`Velocity: ${velocity.toLocaleString()} interactions/hr`}>
+              <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', px: 0.75, height: 20, borderRadius: '6px', bgcolor: alpha('#FBBF24', 0.1), border: `1px solid ${alpha('#FBBF24', 0.28)}` }}>
+                <BoltIcon sx={{ fontSize: 11, color: '#D97706' }} />
+                <Typography sx={{ fontSize: '10px', fontWeight: 700, color: '#D97706', lineHeight: 1 }}>
+                  {velocity >= 1000 ? `${(velocity / 1000).toFixed(1)}k` : velocity}
+                </Typography>
+              </Stack>
+            </Tooltip>
+          )}
+        </Stack>
+        <Box sx={{ minWidth: 44, height: 32, borderRadius: '8px', bgcolor: alpha(scoreColor(score), 0.12), border: `1px solid ${alpha(scoreColor(score), 0.3)}`, display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1 }}>
+          <Typography sx={{ fontSize: '15px', fontWeight: 800, color: scoreColor(score), lineHeight: 1 }}>{score.toFixed(1)}</Typography>
         </Box>
       </Stack>
 
-      {/* Title — 2-line clamp */}
-      <Typography
-        variant="subtitle1"
-        sx={{
-          fontWeight: 600,
-          color: 'text.primary',
-          mb: 1,
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-          lineHeight: 1.45,
-        }}
-      >
+      {/* Title */}
+      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary', mb: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.45 }}>
         {trend.title}
       </Typography>
 
-      {/* Source + lifecycle */}
-      <Stack direction="row" spacing={0.75} sx={{ mb: 1.25, flexWrap: 'wrap' }}>
-        <Chip
-          label={trend.source_name}
-          size="small"
-          sx={{
-            height: 20,
-            fontSize: '10px',
-            fontWeight: 600,
-            borderRadius: '6px',
-            bgcolor: alpha('#64748B', 0.08),
-            color: '#64748B',
-            border: `1px solid ${alpha('#64748B', 0.18)}`,
-          }}
-        />
-        <Chip
-          label={trend.lifecycle_stage}
-          size="small"
-          sx={{
-            height: 20,
-            fontSize: '10px',
-            fontWeight: 600,
-            borderRadius: '6px',
-            bgcolor: alpha(lcColor, 0.1),
-            color: lcColor,
-            border: `1px solid ${alpha(lcColor, 0.28)}`,
-          }}
-        />
+      {/* Source + lifecycle + emotion */}
+      <Stack direction="row" spacing={0.75} sx={{ mb: dna ? 1 : 1.25, flexWrap: 'wrap', gap: '5px !important' }}>
+        <Chip label={trend.source_name} size="small" sx={{ height: 20, fontSize: '10px', fontWeight: 600, borderRadius: '6px', bgcolor: alpha('#64748B', 0.08), color: '#64748B', border: `1px solid ${alpha('#64748B', 0.18)}` }} />
+        <Chip label={trend.lifecycle_stage} size="small" sx={{ height: 20, fontSize: '10px', fontWeight: 600, borderRadius: '6px', bgcolor: alpha(lcColor, 0.1), color: lcColor, border: `1px solid ${alpha(lcColor, 0.28)}` }} />
+        {dna?.core_emotion && (
+          <Chip label={dna.core_emotion} size="small" sx={{ height: 20, fontSize: '10px', fontWeight: 600, borderRadius: '6px', bgcolor: alpha('#EC4899', 0.08), color: '#DB2777', border: `1px solid ${alpha('#EC4899', 0.22)}` }} />
+        )}
       </Stack>
 
-      {/* Adaptation idea — 3-line clamp, fills remaining space */}
-      <Typography
-        variant="caption"
-        sx={{
-          color: 'text.secondary',
-          fontSize: '11px',
-          lineHeight: 1.6,
-          flexGrow: 1,
-          mb: 1.75,
-          display: '-webkit-box',
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden',
-        }}
-      >
+      {/* Emotional DNA themes */}
+      {dna?.themes && dna.themes.length > 0 && (
+        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: '4px', mb: 1 }}>
+          {dna.themes.slice(0, 4).map((theme) => (
+            <Chip key={theme} label={`# ${theme}`} size="small" sx={{ height: 18, fontSize: '9px', fontWeight: 600, borderRadius: '5px', bgcolor: alpha('#8B5CF6', 0.07), color: '#7C3AED', border: `1px solid ${alpha('#8B5CF6', 0.18)}` }} />
+          ))}
+        </Stack>
+      )}
+
+      {/* Adaptation idea */}
+      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '11px', lineHeight: 1.6, flexGrow: 1, mb: 1.25, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
         {trend.brand_fit.adaptation_idea ?? trend.summary ?? '—'}
       </Typography>
 
       {/* Generate button */}
-      <Button
-        variant="outlined"
-        color="primary"
-        fullWidth
-        disabled={isPending}
-        onClick={() => generate()}
-        // sx={{ mt: 'auto', height: 40 }}
-        startIcon={
-          isPending ? (
-            <CircularProgress size={14} sx={{ color: 'inherit' }} />
-          ) : undefined
-        }
-      >
+      <Button variant="outlined" color="primary" fullWidth disabled={isPending} onClick={() => generate()}
+        startIcon={isPending ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : undefined}>
         {isPending ? 'Generating bundle…' : 'Generate bundle'}
       </Button>
     </GlassCard>

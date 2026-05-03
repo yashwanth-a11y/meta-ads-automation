@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useState, useRef, type KeyboardEvent } from 'react'
 import {
   Alert,
   Box,
@@ -30,6 +30,7 @@ import {
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -38,6 +39,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import InputBase from '@mui/material/InputBase'
 import { GlassCard } from '../components/ui/GlassCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { trendsApi } from '../api/trends'
@@ -107,9 +109,10 @@ interface ChannelCardProps {
   onEdit: () => void
   onDelete: () => void
   onSettings: () => void
+  onLabelRemove: (label: string) => void
 }
 
-function ChannelCard({ channel, selected, onClick, onEdit, onDelete, onSettings }: ChannelCardProps) {
+function ChannelCard({ channel, selected, onClick, onEdit, onDelete, onSettings, onLabelRemove }: ChannelCardProps) {
   const isActive = channel.status === 'active'
   const blockedCount = channel.blocked_topics?.length ?? 0
   const hasFooter = !!channel.tone || !!channel.target_audience || blockedCount > 0
@@ -294,6 +297,37 @@ function ChannelCard({ channel, selected, onClick, onEdit, onDelete, onSettings 
             </Stack>
           )}
 
+          {/* Custom labels */}
+          {(channel.custom_labels?.length ?? 0) > 0 && (
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.625 }}>
+              {(channel.custom_labels ?? []).slice(0, 5).map((label) => (
+                <Chip
+                  key={label}
+                  label={label}
+                  size="small"
+                  onDelete={(e) => { e.stopPropagation(); onLabelRemove(label) }}
+                  onClick={(e) => e.stopPropagation()}
+                  sx={{
+                    height: 20,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    borderRadius: '5px',
+                    bgcolor: alpha('#8B5CF6', 0.08),
+                    color: '#7C3AED',
+                    border: `1px solid ${alpha('#8B5CF6', 0.2)}`,
+                    '& .MuiChip-deleteIcon': { fontSize: 12, color: alpha('#7C3AED', 0.5), '&:hover': { color: '#7C3AED' } },
+                    '& .MuiChip-label': { px: 0.875 },
+                  }}
+                />
+              ))}
+              {(channel.custom_labels?.length ?? 0) > 5 && (
+                <Typography sx={{ fontSize: 10, color: 'text.disabled', alignSelf: 'center' }}>
+                  +{(channel.custom_labels?.length ?? 0) - 5} more
+                </Typography>
+              )}
+            </Stack>
+          )}
+
           {/* Footer metadata */}
           {hasFooter && (
             <Stack
@@ -374,6 +408,10 @@ export function ChannelsPage() {
   const [trackedKeywords, setTrackedKeywords] = useState<string[]>([])
   const [trackedXAccounts, setTrackedXAccounts] = useState<string[]>([])
   const [watchedWebsites, setWatchedWebsites] = useState<string[]>([])
+  const [customLabels, setCustomLabels] = useState<string[]>([])
+  const [labelInput, setLabelInput] = useState('')
+  const [addingLabel, setAddingLabel] = useState(false)
+  const labelInputRef = useRef<HTMLInputElement>(null)
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -402,6 +440,9 @@ export function ChannelsPage() {
     setMutationError(null)
     setBlockedTopics([])
     setTopicInput('')
+    setCustomLabels([])
+    setLabelInput('')
+    setAddingLabel(false)
     setDrawerTab(0)
     reset(defaultValues)
   }
@@ -440,6 +481,9 @@ export function ChannelsPage() {
     setTrackedKeywords(channel.tracked_keywords ?? [])
     setTrackedXAccounts(channel.brand_assets?.tracked_x_accounts ?? [])
     setWatchedWebsites(channel.brand_assets?.watched_websites ?? [])
+    setCustomLabels(channel.custom_labels ?? [])
+    setLabelInput('')
+    setAddingLabel(false)
     setDialogOpen(true)
   }
 
@@ -495,6 +539,15 @@ export function ChannelsPage() {
     },
   })
 
+  const { mutate: generateLabels, isPending: isGeneratingLabels } = useMutation({
+    mutationFn: (channelId: string) => trendsApi.generateChannelLabels(channelId),
+    onSuccess: (data) => {
+      setCustomLabels(data.labels)
+      client.invalidateQueries({ queryKey: qk.channels })
+    },
+    onError: (err: Error) => setMutationError(err.message || 'Failed to generate labels.'),
+  })
+
   const isPending = isCreating || isUpdating
 
   const handleCloseDialog = () => {
@@ -520,6 +573,7 @@ export function ChannelsPage() {
           topic_cooldown_days: cooldown,
           instagram_account_id: instagramId || undefined,
           trend_sources: trendSources,
+          custom_labels: customLabels,
           brand_assets: {
             ...(editChannel.brand_assets ?? {}),
             approvers,
@@ -534,6 +588,24 @@ export function ChannelsPage() {
     } else {
       createChannel({ ...values, blocked_topics: blockedTopics })
     }
+  }
+
+  // ── Label helpers ──────────────────────────────────────────────────────────
+
+  const addLabel = (raw: string) => {
+    const val = raw.trim()
+    if (val && !customLabels.includes(val)) setCustomLabels((prev) => [...prev, val])
+    setLabelInput('')
+    setAddingLabel(false)
+  }
+
+  const removeLabel = (label: string) => setCustomLabels((prev) => prev.filter((l) => l !== label))
+
+  const removeLabelFromCard = (channel: Channel, label: string) => {
+    const next = (channel.custom_labels ?? []).filter((l) => l !== label)
+    trendsApi.updateChannelLabels(channel.id, next).then(() =>
+      client.invalidateQueries({ queryKey: qk.channels })
+    )
   }
 
   // ── Blocked topics ─────────────────────────────────────────────────────────
@@ -607,6 +679,7 @@ export function ChannelsPage() {
                   onEdit={() => openEdit(ch)}
                   onDelete={() => setDeleteTarget(ch)}
                   onSettings={() => { openEdit(ch); setDrawerTab(1) }}
+                  onLabelRemove={(label) => removeLabelFromCard(ch, label)}
                 />
               </Grid>
             ))}
@@ -899,7 +972,123 @@ export function ChannelsPage() {
                   </Grid>
                 </Grid>
 
-               
+                {/* Brand labels — only shown in edit mode */}
+                {mode === 'edit' && (
+                  <Box
+                    sx={{
+                      mt: 1,
+                      p: 2,
+                      borderRadius: '10px',
+                      border: `1px solid ${alpha('#8B5CF6', 0.18)}`,
+                      bgcolor: alpha('#8B5CF6', 0.03),
+                    }}
+                  >
+                    <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.25 }}>
+                      <Box>
+                        <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.primary' }}>
+                          Brand labels
+                        </Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.25 }}>
+                          Auto-generated tags describing your brand's positioning and content style.
+                        </Typography>
+                      </Box>
+                      <Tooltip title="Generate labels with AI">
+                        <span>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={isGeneratingLabels ? <CircularProgress size={12} sx={{ color: 'inherit' }} /> : <AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                            disabled={isGeneratingLabels || !editChannel}
+                            onClick={() => editChannel && generateLabels(editChannel.id)}
+                            sx={{
+                              fontSize: 11,
+                              height: 30,
+                              px: 1.5,
+                              borderColor: alpha('#8B5CF6', 0.4),
+                              color: '#7C3AED',
+                              '&:hover': { borderColor: '#8B5CF6', bgcolor: alpha('#8B5CF6', 0.06) },
+                            }}
+                          >
+                            {isGeneratingLabels ? 'Generating…' : 'Generate'}
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+
+                    <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+                      {customLabels.map((label) => (
+                        <Chip
+                          key={label}
+                          label={label}
+                          size="small"
+                          onDelete={() => removeLabel(label)}
+                          sx={{
+                            height: 24,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            borderRadius: '6px',
+                            bgcolor: alpha('#8B5CF6', 0.08),
+                            color: '#7C3AED',
+                            border: `1px solid ${alpha('#8B5CF6', 0.22)}`,
+                            '& .MuiChip-deleteIcon': { fontSize: 13, color: alpha('#7C3AED', 0.5), '&:hover': { color: '#7C3AED' } },
+                          }}
+                        />
+                      ))}
+
+                      {/* Inline add */}
+                      {addingLabel ? (
+                        <Box
+                          sx={{
+                            height: 24,
+                            px: 1,
+                            borderRadius: '6px',
+                            border: `1px solid ${alpha('#8B5CF6', 0.5)}`,
+                            bgcolor: alpha('#8B5CF6', 0.06),
+                            display: 'flex',
+                            alignItems: 'center',
+                            minWidth: 80,
+                          }}
+                        >
+                          <InputBase
+                            inputRef={labelInputRef}
+                            value={labelInput}
+                            onChange={(e) => setLabelInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); addLabel(labelInput) }
+                              if (e.key === 'Escape') { setAddingLabel(false); setLabelInput('') }
+                            }}
+                            onBlur={() => addLabel(labelInput)}
+                            autoFocus
+                            sx={{ fontSize: 11, color: '#7C3AED', fontWeight: 600, lineHeight: 1 }}
+                            inputProps={{ style: { padding: 0 } }}
+                          />
+                        </Box>
+                      ) : (
+                        <Tooltip title="Add label">
+                          <Box
+                            onClick={() => setAddingLabel(true)}
+                            sx={{
+                              height: 24,
+                              px: 1,
+                              borderRadius: '6px',
+                              border: `1px dashed ${alpha('#8B5CF6', 0.35)}`,
+                              color: alpha('#7C3AED', 0.6),
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              '&:hover': { borderColor: '#8B5CF6', color: '#7C3AED', bgcolor: alpha('#8B5CF6', 0.06) },
+                            }}
+                          >
+                            <AddRoundedIcon sx={{ fontSize: 13 }} /> Add
+                          </Box>
+                        </Tooltip>
+                      )}
+                    </Stack>
+                  </Box>
+                )}
 
               </Stack>
             )}
