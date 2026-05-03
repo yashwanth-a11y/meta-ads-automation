@@ -5,7 +5,7 @@ import { genuiConversations, genuiMessages } from '../../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 
 export class GenUIWhatsAppAdapter {
-  async processIncomingMessage(text, orgId, phone) {
+  async processIncomingMessage(text, orgId, phone, messageId) {
     // 1. Get or create a conversation for this org
     let conversationId = null;
     const recentConvs = await db.select({ id: genuiConversations.id })
@@ -32,15 +32,21 @@ export class GenUIWhatsAppAdapter {
 
     history.push({ role: 'user', content: text });
 
+    // Mark the message as read and show the official animated typing indicator
+    if (messageId) {
+      await whatsappService.sendTypingIndicator(messageId);
+    }
+
     // 3. Setup the emitter to capture and forward to WhatsApp
     let accumulatedText = '';
     let hasSentThinking = false;
     
     const emitter = (eventType, payload) => {
-      if (eventType === 'tool_status' && payload.status === 'running' && !hasSentThinking) {
-        hasSentThinking = true;
-        // Send a quick acknowledgment
-        whatsappService.sendMessage(phone, `⏳ ${payload.label || 'Thinking...'}`).catch(console.error);
+      if (eventType === 'tool_status' && payload.status === 'running') {
+        // Re-trigger the typing indicator since tools can take a while and the indicator expires after 25s
+        if (messageId) {
+          whatsappService.sendTypingIndicator(messageId).catch(console.error);
+        }
       }
       
       if (eventType === 'text' && payload.delta) {

@@ -86,7 +86,7 @@ export async function handleWhatsAppPost(request, reply) {
                 const text = message.text.body;
                 if (orgId) {
                   const { genUIWhatsAppAdapter } = await import('./GenUIWhatsAppAdapter.js');
-                  await genUIWhatsAppAdapter.processIncomingMessage(text, orgId, from);
+                  await genUIWhatsAppAdapter.processIncomingMessage(text, orgId, from, message.id);
                 } else {
                   // Unrecognized user
                   const { whatsappService } = await import('./WhatsAppService.js');

@@ -80,6 +80,42 @@ export class WhatsAppService {
       },
     });
   }
+
+  async sendTypingIndicator(messageId) {
+    if (!this.isConfigured) return false;
+
+    // The typing indicator requires status='read' and message_id
+    const url = `${env.META_API_BASE_URL}/${env.META_API_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.WHATSAPP_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          status: 'read',
+          message_id: messageId,
+          typing_indicator: {
+            type: 'text'
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        console.error('[WhatsApp] Typing Indicator Error:', JSON.stringify(data, null, 2));
+        return false;
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('[WhatsApp] Typing Indicator Fetch Error:', err);
+      return false;
+    }
+  }
 }
 
 export const whatsappService = new WhatsAppService();
