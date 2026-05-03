@@ -520,6 +520,11 @@ export class PublishingService {
     for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
       await this._sleep(POLL_INTERVAL_MS);
 
+      // `status_code` is the enum (FINISHED/IN_PROGRESS/ERROR/EXPIRED); the
+      // human reason for ERROR ("Failed to download media file", "Video too
+      // long", etc.) lives in `status` — fetch both. Querying with both
+      // fields makes the diagnosis surface to the user instead of a useless
+      // generic "entered status: ERROR".
       const { data } = await axios.get(
         `${this._apiBase}/${containerId}`,
         {
@@ -528,17 +533,38 @@ export class PublishingService {
         },
       );
 
-      const statusCode = data?.status_code ?? data?.status;
-      console.log(`[Publishing] Container ${containerId} status: ${statusCode} (attempt ${attempt + 1})`);
+      const statusCode = data?.status_code;
+      const statusText = typeof data?.status === 'string' ? data.status : null;
+      console.log(
+        `[Publishing] Container ${containerId} status_code=${statusCode}` +
+          (statusText ? ` status="${statusText}"` : '') +
+          ` (attempt ${attempt + 1})`,
+      );
 
       if (statusCode === 'FINISHED') return;
       if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
-        throw new Error(`IG container ${containerId} entered status: ${statusCode}`);
+        // The `status` text is normally formatted as "Error: <reason>" — strip
+        // the prefix so the message reads naturally when surfaced to users.
+        const reason = statusText ? statusText.replace(/^Error:\s*/i, '').trim() : '';
+        const friendly = reason
+          ? `Instagram rejected the media: ${reason}`
+          : `IG container ${containerId} entered status ${statusCode} but no reason was returned by Meta. Most common causes: unsupported codec (use H.264 + AAC), aspect ratio out of range, or duration limits (Reels: 3–90 s, Stories: ≤ 60 s).`;
+        const err = new Error(friendly);
+        err.statusCode = 400;
+        err.code = `IG_CONTAINER_${statusCode}`;
+        err.details = { containerId, statusCode, status: statusText };
+        throw err;
       }
       // IN_PROGRESS / PUBLISHED — keep polling
     }
 
-    throw new Error(`IG container ${containerId} did not finish within ${POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS / 1000}s`);
+    const err = new Error(
+      `IG container ${containerId} did not finish within ${(POLL_MAX_ATTEMPTS * POLL_INTERVAL_MS) / 1000}s. The video may be too large or Meta is processing slowly — try again or use a shorter clip.`,
+    );
+    err.statusCode = 504;
+    err.code = 'IG_CONTAINER_TIMEOUT';
+    err.details = { containerId };
+    throw err;
   }
 
   async _publishContainer({ igUserId, token, containerId }) {

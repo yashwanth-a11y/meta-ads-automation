@@ -116,6 +116,105 @@ const TAB_DEFS: Array<{
     },
   ]
 
+// Inspect a local video file via a hidden <video> element to read width,
+// height, and duration BEFORE uploading. Catches the most common Meta
+// rejections — wrong aspect ratio for Story (must be 9:16), Reel duration
+// out of bounds, and unplayable codecs (HEVC iPhone clips that don't
+// decode in browser typically don't decode at IG either).
+function inspectVideo(file: File): Promise<{
+  width: number
+  height: number
+  duration: number
+  aspectRatio: number
+}> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    const url = URL.createObjectURL(file)
+    const cleanup = () => {
+      URL.revokeObjectURL(url)
+      video.removeAttribute('src')
+      try {
+        video.load()
+      } catch {
+        /* ignore */
+      }
+    }
+    video.onloadedmetadata = () => {
+      const { videoWidth, videoHeight, duration } = video
+      cleanup()
+      if (!videoWidth || !videoHeight) {
+        reject(
+          new Error(
+            'Video metadata could not be read — the file may be corrupt or use an unsupported codec (HEVC/H.265). Re-encode as H.264 MP4 and try again.',
+          ),
+        )
+        return
+      }
+      resolve({
+        width: videoWidth,
+        height: videoHeight,
+        duration,
+        aspectRatio: videoWidth / videoHeight,
+      })
+    }
+    video.onerror = () => {
+      cleanup()
+      reject(
+        new Error(
+          'Browser cannot decode this video. Instagram requires H.264 video + AAC audio in MP4 — re-encode and try again.',
+        ),
+      )
+    }
+    video.src = url
+  })
+}
+
+// Aspect-ratio limits per Meta Content Publishing docs.
+function validateVideoForType(
+  meta: { width: number; height: number; duration: number; aspectRatio: number },
+  type: InstagramPostType,
+): string | null {
+  const { aspectRatio, duration, width, height } = meta
+  // Story: STRICT 9:16 (0.5625). Even a few % off → IG container ERROR with
+  // no human reason. The 1% tolerance covers off-by-a-pixel encoder rounding.
+  if (type === 'story') {
+    const target = 9 / 16
+    if (Math.abs(aspectRatio - target) / target > 0.01) {
+      return `Stories require a 9:16 vertical video (e.g. 1080×1920). This clip is ${width}×${height} (${aspectRatio.toFixed(3)}:1). Re-export as 9:16.`
+    }
+    if (duration > 60) {
+      return `Story videos must be 60 s or shorter. This clip is ${Math.round(duration)} s.`
+    }
+  }
+  // Reels: 0.01:1 to 10:1 per docs, but anything far from 9:16 renders
+  // letterboxed and Meta has been increasingly aggressive about rejecting
+  // far-off aspect ratios on Reels too. Warn at ±15% off 9:16.
+  if (type === 'reels') {
+    if (duration < 3) {
+      return `Reels must be at least 3 s long. This clip is ${duration.toFixed(1)} s.`
+    }
+    if (duration > 90) {
+      return `Reels must be 90 s or shorter. This clip is ${Math.round(duration)} s.`
+    }
+    const target = 9 / 16
+    if (Math.abs(aspectRatio - target) / target > 0.15) {
+      return `Reels expect a 9:16 vertical video. This clip is ${width}×${height} (${aspectRatio.toFixed(2)}:1) — Instagram may reject it. Re-export as 9:16 if it fails.`
+    }
+  }
+  if (type === 'carousel') {
+    // Carousel videos: 4:5 (0.8) to 1.91:1
+    if (duration < 3 || duration > 60) {
+      return `Carousel videos must be 3–60 s. This clip is ${duration.toFixed(1)} s.`
+    }
+    if (aspectRatio < 0.78 || aspectRatio > 1.92) {
+      return `Carousel videos must have aspect ratio between 4:5 and 1.91:1. This clip is ${aspectRatio.toFixed(2)}:1.`
+    }
+  }
+  return null
+}
+
 function parseHashtags(text: string): string[] {
   // Matches #word — allows letters, digits, underscore, period (Instagram
   // accepts those). Drops the leading "#" so the backend re-emits them.
@@ -292,6 +391,25 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
         if (validationError) {
           onError(validationError)
           continue
+        }
+        // Pre-upload metadata check for videos. Meta returns container
+        // ERROR with no human reason for wrong-aspect Stories (must be
+        // strictly 9:16) and out-of-bounds Reel durations — catching it
+        // here saves the upload bandwidth + an opaque round-trip failure.
+        const isVideoFile = file.type.startsWith('video/')
+        if (isVideoFile) {
+          try {
+            const meta = await inspectVideo(file)
+            const videoError = validateVideoForType(meta, postType)
+            if (videoError) {
+              onError(videoError)
+              continue
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : 'Could not read video metadata.'
+            onError(message)
+            continue
+          }
         }
         const previewUrl = URL.createObjectURL(file)
         setStatus({ kind: 'uploading', loaded: 0, total: file.size, fileName: file.name })
