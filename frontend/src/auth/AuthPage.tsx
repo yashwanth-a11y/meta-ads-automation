@@ -126,7 +126,10 @@ export function AuthPage() {
     },
   })
 
-  const goToApp = () => navigate(paths.dashboard)
+  // After login/signup land on the public home (landing) page rather than
+  // jumping straight into the dashboard — the landing page is the entry
+  // point until the user explicitly logs out.
+  const goToApp = () => navigate(paths.home)
 
   const clearLoginError = () => setLoginError(null)
   const clearSignupError = () => setSignupError(null)

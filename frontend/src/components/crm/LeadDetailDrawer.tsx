@@ -110,7 +110,7 @@ export function LeadDetailDrawer({ lead, stages, open, onClose, onUpdated }: Pro
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}
-      PaperProps={{ sx: { width: { xs: '100vw', sm: 480 }, bgcolor: 'background.paper', backgroundImage: 'none' } }}>
+      PaperProps={{ sx: { width: { xs: '100vw', sm: 600 }, bgcolor: 'background.paper', backgroundImage: 'none' } }}>
       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -123,8 +123,10 @@ export function LeadDetailDrawer({ lead, stages, open, onClose, onUpdated }: Pro
                 {stage && (
                   <Box sx={{ mt: 0.5 }}>
                     <Chip label={stage.name} size="small"
-                      sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, borderRadius: '6px',
-                        bgcolor: alpha(stage.color, 0.12), color: stage.color, border: `1px solid ${alpha(stage.color, 0.3)}` }} />
+                      sx={{
+                        height: 20, fontSize: '0.7rem', fontWeight: 700, borderRadius: '6px',
+                        bgcolor: alpha(stage.color, 0.12), color: stage.color, border: `1px solid ${alpha(stage.color, 0.3)}`
+                      }} />
                   </Box>
                 )}
               </Box>

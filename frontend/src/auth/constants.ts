@@ -5,6 +5,9 @@ export const DASHBOARD_ROUTE = 'dashboard'
 
 /** Absolute paths for `navigate()`, links, and redirects. */
 export const paths = {
+  // The public landing page is the home / default destination — until the
+  // user explicitly logs out, every "go home" redirect lands here.
+  home: '/',
   auth: `/${AUTH_ROUTE}`,
   forgotPassword: `/${FORGOT_PASSWORD_ROUTE}`,
   dashboard: `/${DASHBOARD_ROUTE}`,

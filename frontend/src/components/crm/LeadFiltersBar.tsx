@@ -1,102 +1,193 @@
-import { Stack, TextField, MenuItem, Button, Chip, Box, InputAdornment, Typography } from '@mui/material'
-import { alpha } from '@mui/material/styles'
-import SearchIcon from '@mui/icons-material/Search'
-import CloseIcon from '@mui/icons-material/Close'
+import { useEffect, useState } from 'react'
+import {
+  Box,
+  Stack,
+  Typography,
+  TextField,
+  MenuItem,
+  Button,
+  Divider,
+} from '@mui/material'
 import type { CrmStage, LeadFilters } from '../../api/crm'
 
-const SOURCES = ['Meta Lead Form', 'Organic Search', 'Partner Referral', 'Webinar', 'Cold Outreach', 'Direct', 'Referral', 'Event']
+const SOURCES = [
+  'Meta Lead Form',
+  'Organic Search',
+  'Partner Referral',
+  'Webinar',
+  'Cold Outreach',
+  'Direct',
+  'Referral',
+  'Event',
+]
 
 interface Props {
   filters: LeadFilters
   stages: CrmStage[]
-  onChange: (f: LeadFilters) => void
+  onApply: (next: LeadFilters) => void
+  onCancel: () => void
   onClear: () => void
 }
 
-export function LeadFiltersBar({ filters, stages, onChange, onClear }: Props) {
-  const hasFilters = !!(filters.search || filters.stage_id || filters.source || filters.follow_up_before)
-  const set = (key: keyof LeadFilters) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    onChange({ ...filters, [key]: e.target.value || undefined, page: 1 })
+// Popover-shaped filter form. Owns a local draft so the user can compose a
+// filter set and commit it with "Apply" (matches the wenext-style design).
+// Search lives in the parent toolbar — not here.
+export function LeadFiltersBar({
+  filters,
+  stages,
+  onApply,
+  onCancel,
+  onClear,
+}: Props) {
+  const [draft, setDraft] = useState<LeadFilters>(filters)
+
+  // Resync when the popover reopens with potentially updated upstream filters
+  // (e.g. after a "Reset all" elsewhere or a chip removal in the toolbar).
+  useEffect(() => {
+    setDraft(filters)
+  }, [filters])
+
+  const setKey =
+    (key: keyof LeadFilters) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setDraft((d) => ({
+        ...d,
+        [key]: e.target.value || undefined,
+        page: 1,
+      }))
+
+  const hasDraftFilters = !!(
+    draft.stage_id ||
+    draft.source ||
+    draft.follow_up_before
+  )
 
   return (
-    <Stack spacing={2}>
-      <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
-        <TextField
-          placeholder="Search name, email, phone…" size="small" value={filters.search ?? ''}
-          onChange={set('search')} sx={{ flex: '1 1 240px', minWidth: 200 }}
-          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 17, color: 'text.disabled' }} /></InputAdornment> }}
-        />
+    <Box sx={{ width: { xs: '90vw', sm: 360 }, p: 2.5 }}>
+      <Stack
+        direction="row"
+        sx={{
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          mb: 2,
+        }}
+      >
+        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+          Filters
+        </Typography>
+        <Button
+          size="small"
+          onClick={onClear}
+          disabled={!hasDraftFilters}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 600,
+            color: 'primary.main',
+            '&:disabled': { color: 'text.disabled' },
+          }}
+        >
+          Reset all
+        </Button>
+      </Stack>
 
-        <TextField select size="small" label="Stage" value={filters.stage_id ?? ''} onChange={set('stage_id')} sx={{ minWidth: 160, flex: '1 1 160px' }}>
+      <Stack spacing={2}>
+        <TextField
+          select
+          size="small"
+          fullWidth
+          label="Stage"
+          value={draft.stage_id ?? ''}
+          onChange={setKey('stage_id')}
+        >
           <MenuItem value="">All stages</MenuItem>
           {stages.map((s) => (
             <MenuItem key={s.id} value={s.id}>
-              <Stack direction="row" alignItems="center" spacing={1}>
-                <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: s.color, flexShrink: 0 }} />
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                <Box
+                  sx={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    bgcolor: s.color,
+                    flexShrink: 0,
+                  }}
+                />
                 <span>{s.name}</span>
               </Stack>
             </MenuItem>
           ))}
         </TextField>
 
-        <TextField select size="small" label="Source" value={filters.source ?? ''} onChange={set('source')} sx={{ minWidth: 160, flex: '1 1 160px' }}>
+        <TextField
+          select
+          size="small"
+          fullWidth
+          label="Source"
+          value={draft.source ?? ''}
+          onChange={setKey('source')}
+        >
           <MenuItem value="">All sources</MenuItem>
-          {SOURCES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+          {SOURCES.map((s) => (
+            <MenuItem key={s} value={s}>
+              {s}
+            </MenuItem>
+          ))}
         </TextField>
-      </Stack>
 
-      <Stack direction="row" spacing={1.5} sx={{ flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
-        <TextField select size="small" label="Sort" value={filters.sort_by ?? 'created_at'} onChange={set('sort_by')} sx={{ minWidth: 140 }}>
+        <TextField
+          size="small"
+          fullWidth
+          type="date"
+          label="Follow-up before"
+          value={draft.follow_up_before ?? ''}
+          onChange={setKey('follow_up_before')}
+          slotProps={{ inputLabel: { shrink: true } }}
+        />
+
+        <TextField
+          select
+          size="small"
+          fullWidth
+          label="Sort"
+          value={draft.sort_by ?? 'created_at'}
+          onChange={setKey('sort_by')}
+        >
           <MenuItem value="created_at">Newest</MenuItem>
           <MenuItem value="name">Name A–Z</MenuItem>
           <MenuItem value="score">Score</MenuItem>
           <MenuItem value="follow_up_at">Follow-up</MenuItem>
         </TextField>
-
-        <Box sx={{ minWidth: 170 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontSize: '0.72rem', ml: 0.5 }}>
-            Follow-up before
-          </Typography>
-          <TextField
-            size="small" type="date" fullWidth value={filters.follow_up_before ?? ''}
-            onChange={set('follow_up_before')}
-            inputProps={{ style: { fontSize: '0.85rem' } }}
-          />
-        </Box>
-
-        {hasFilters && (
-          <Button size="small" startIcon={<CloseIcon />} onClick={onClear}
-            sx={{ color: 'text.secondary', height: 36, px: 1.5, '&:hover': { color: 'text.primary' } }}>
-            Clear
-          </Button>
-        )}
       </Stack>
 
-      {/* Active chips */}
-      {hasFilters && (
-        <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-          {filters.search && (
-            <Chip label={`"${filters.search}"`} size="small"
-              onDelete={() => onChange({ ...filters, search: undefined, page: 1 })}
-              sx={{ height: 24, fontSize: '0.75rem', bgcolor: alpha('#6366F1', 0.1), color: '#6366F1', borderRadius: '6px' }} />
-          )}
-          {filters.stage_id && (
-            <Chip label={stages.find((s) => s.id === filters.stage_id)?.name ?? 'Stage'} size="small"
-              onDelete={() => onChange({ ...filters, stage_id: undefined, page: 1 })}
-              sx={{ height: 24, fontSize: '0.75rem', bgcolor: alpha('#3B82F6', 0.1), color: '#3B82F6', borderRadius: '6px' }} />
-          )}
-          {filters.source && (
-            <Chip label={filters.source} size="small"
-              onDelete={() => onChange({ ...filters, source: undefined, page: 1 })}
-              sx={{ height: 24, fontSize: '0.75rem', bgcolor: alpha('#10B981', 0.1), color: '#10B981', borderRadius: '6px' }} />
-          )}
-          {filters.follow_up_before && (
-            <Chip label={`Before ${filters.follow_up_before}`} size="small"
-              onDelete={() => onChange({ ...filters, follow_up_before: undefined, page: 1 })}
-              sx={{ height: 24, fontSize: '0.75rem', bgcolor: alpha('#F59E0B', 0.1), color: '#F59E0B', borderRadius: '6px' }} />
-          )}
-        </Stack>
-      )}
-    </Stack>
+      <Divider sx={{ my: 2.5 }} />
+
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ justifyContent: 'flex-end' }}
+      >
+        <Button
+          onClick={onCancel}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 600,
+            color: 'text.secondary',
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={() => onApply(draft)}
+          sx={{
+            textTransform: 'none',
+            fontWeight: 700,
+            px: 2.5,
+          }}
+        >
+          Apply Filters
+        </Button>
+      </Stack>
+    </Box>
   )
 }

@@ -18,16 +18,16 @@ export function AIAssistantFab({ active, onToggle }: AIAssistantFabProps) {
         position: 'fixed',
         right: { xs: 16, md: 28 },
         bottom: { xs: 16, md: 28 },
-        zIndex: (t) => t.zIndex.drawer + 2,
+        zIndex: 1,
         boxShadow: `0 12px 40px ${alpha('#000000', 0.45)}, 0 0 0 1px ${alpha('#FFFFFF', 0.12)}`,
       }}
     >
       {active ? <CloseRoundedIcon sx={{
-        color:"#FFF"
-      }} /> : 
-      <AutoAwesomeOutlinedIcon sx={{
-        color: '#FFF',
-      }}  />}
+        color: "#FFF"
+      }} /> :
+        <AutoAwesomeOutlinedIcon sx={{
+          color: '#FFF',
+        }} />}
     </Fab>
   )
 }

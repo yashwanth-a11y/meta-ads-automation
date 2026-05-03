@@ -17,6 +17,7 @@ import { ApprovalsPage } from './pages/ApprovalsPage'
 import GenUIPage from './pages/GenUIPage'
 import { InstagramPage } from './pages/InstagramPage'
 import { InstagramCallbackPage } from './pages/InstagramCallbackPage'
+import LandingPage from './pages/LandingPage'
 
 function isAuthenticated() {
   const localToken = localStorage.getItem('auth_token')
@@ -32,8 +33,11 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 function PublicOnlyRoute({ children }: { children: ReactNode }) {
+  // Authed users shouldn't see /auth or /forgot-password — bounce them to
+  // the public home page (landing) rather than the dashboard so they stay
+  // on the landing flow until they explicitly log out.
   if (isAuthenticated()) {
-    return <Navigate to={paths.dashboard} replace />
+    return <Navigate to={paths.home} replace />
   }
   return <>{children}</>
 }
@@ -57,10 +61,11 @@ export default function App() {
           </PublicOnlyRoute>
         }
       />
-      <Route
-        path="/"
-        element={<Navigate to={isAuthenticated() ? paths.dashboard : paths.auth} replace />}
-      />
+      {/* Public landing page — the home page everyone hits at "/". The
+          page renders its own chrome (AppBar, footer), so it lives outside
+          the protected `AppShell` block. "Get Started" inside the page
+          navigates to {paths.auth}. */}
+      <Route path="/" element={<LandingPage />} />
       {/* OAuth popup callback — must live OUTSIDE ProtectedRoute so the
           popup can reach it even if it has no JWT (the page just postMessages
           the code+state back to the opener and closes). */}
@@ -90,10 +95,9 @@ export default function App() {
         <Route path="genui" element={<GenUIPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
-      <Route
-        path="*"
-        element={<Navigate to={isAuthenticated() ? paths.dashboard : paths.auth} replace />}
-      />
+      {/* Unknown routes always fall back to the public home page — until
+          the user logs out, the landing page is the default destination. */}
+      <Route path="*" element={<Navigate to={paths.home} replace />} />
     </Routes>
   )
 }

@@ -23,26 +23,29 @@ import {
   Alert,
   Divider,
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import {
   Add,
   Refresh,
   Delete,
   FavoriteBorder,
   ChatBubbleOutlined,
-  Send,
   BookmarkBorder,
-  MoreHoriz,
   PlayArrow,
   Collections,
   Close,
   CameraAlt,
   Verified,
-  BarChart,
   TrendingUp,
   GridOnOutlined,
   PhotoLibraryOutlined,
   MovieOutlined,
   ViewCarouselOutlined,
+  ImageOutlined,
+  ContentCopy,
+  ChevronRight,
+  IosShare,
+  PeopleAltOutlined,
 } from '@mui/icons-material'
 import {
   useInfiniteQuery,
@@ -68,20 +71,6 @@ const qkInstagram = {
 
 const IG_GRADIENT =
   'linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)'
-
-function formatRelativeTime(timestamp: string): string {
-  const diffMs = Date.now() - new Date(timestamp).getTime()
-  const minutes = Math.floor(diffMs / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  const weeks = Math.floor(days / 7)
-  if (weeks < 5) return `${weeks}w ago`
-  return new Date(timestamp).toLocaleDateString()
-}
 
 type PostTab = 'all' | 'posts' | 'reels' | 'carousels'
 
@@ -258,313 +247,529 @@ function PostThumbnail({
   )
 }
 
-const INSIGHT_LABELS: Record<string, string> = {
-  reach: 'Reach',
-  saved: 'Saves',
-  total_interactions: 'Interactions',
-  likes: 'Likes',
-  comments: 'Comments',
-  shares: 'Shares',
-  views: 'Views',
-  plays: 'Plays',
-  replies: 'Replies',
+function formatPostTimestamp(ts: string): string {
+  const d = new Date(ts)
+  const date = d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+  const time = d.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+  return `${date}, ${time}`
 }
 
-function MediaInsightsPanel({
-  accountId,
-  media,
+function StatTile({
+  icon,
+  label,
+  value,
+  loading,
 }: {
-  accountId: string
-  media: InstagramMediaItem
+  icon: React.ReactNode
+  label: string
+  value: number | null | undefined
+  loading: boolean
 }) {
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['instagram', 'accounts', accountId, 'media', media.id, 'insights'],
-    queryFn: () =>
-      instagramApi.getMediaInsights(accountId, media.id, {
-        mediaType: media.media_type,
-        mediaProductType: media.media_product_type,
-      }),
-    // Insights are fetched on demand when the modal opens. Don't refetch on
-    // window focus (cheap-but-real Graph API call) and don't retry — a 400
-    // here means "metric not supported", not a transient failure.
-    refetchOnWindowFocus: false,
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  })
-
   return (
-    <Box sx={{ px: 2, pb: 2 }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1 }}>
-        <BarChart fontSize="small" sx={{ color: 'text.secondary' }} />
+    <Box
+      sx={{
+        flex: 1,
+        textAlign: 'center',
+        py: 1.25,
+        px: 1,
+        minWidth: 0,
+      }}
+    >
+      {loading && value == null ? (
+        <Skeleton width={56} height={32} sx={{ mx: 'auto', mb: 0.5 }} />
+      ) : (
         <Typography
-          variant="caption"
+          variant="h5"
           sx={{
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: 0.6,
-            color: 'text.secondary',
+            fontWeight: 800,
+            fontSize: '1.6rem',
+            lineHeight: 1.1,
+            mb: 0.5,
           }}
         >
-          Post insights
+          {value == null ? '—' : formatCount(value)}
+        </Typography>
+      )}
+      <Stack
+        direction="row"
+        spacing={0.5}
+        sx={{
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'text.secondary',
+        }}
+      >
+        {icon}
+        <Typography variant="caption" sx={{ fontWeight: 600, fontSize: 12 }}>
+          {label}
         </Typography>
       </Stack>
-
-      {isLoading ? (
-        <Box
-          sx={{
-            display: 'grid',
-            gap: 1,
-            gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-          }}
-        >
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rectangular" height={64} sx={{ borderRadius: 1 }} />
-          ))}
-        </Box>
-      ) : isError ? (
-        <Alert
-          severity="info"
-          icon={<TrendingUp />}
-          sx={{ borderRadius: 1 }}
-        >
-          Insights unavailable for this post
-          {error instanceof Error && error.message
-            ? ` — ${error.message}`
-            : '.'}
-        </Alert>
-      ) : (
-        (() => {
-          const entries = Object.entries(data?.insights ?? {}).filter(
-            ([, v]) => typeof v === 'number',
-          ) as [string, number][]
-          if (entries.length === 0) {
-            return (
-              <Typography variant="body2" color="text.secondary">
-                No metrics returned by Instagram for this post yet.
-              </Typography>
-            )
-          }
-          return (
-            <Box
-              sx={{
-                display: 'grid',
-                gap: 1,
-                gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-              }}
-            >
-              {entries.map(([name, value]) => (
-                <Box
-                  key={name}
-                  sx={{
-                    px: 1.5,
-                    py: 1,
-                    borderRadius: 1,
-                    bgcolor: 'grey.50',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ textTransform: 'uppercase', letterSpacing: 0.5 }}
-                  >
-                    {INSIGHT_LABELS[name] || name.replace(/_/g, ' ')}
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
-                    {formatCount(value)}
-                  </Typography>
-                </Box>
-              ))}
-            </Box>
-          )
-        })()
-      )}
     </Box>
   )
 }
 
-function PostFeedCard({
+function InlineStat({
+  icon,
+  label,
+  value,
+  color,
+  loading,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: number | null | undefined
+  color: string
+  loading: boolean
+}) {
+  return (
+    <Stack
+      direction="row"
+      spacing={0.75}
+      sx={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        py: 1,
+        px: 1,
+        minWidth: 0,
+      }}
+    >
+      <Box sx={{ color, display: 'flex', alignItems: 'center' }}>{icon}</Box>
+      <Typography
+        variant="caption"
+        sx={{ fontWeight: 600, fontSize: 12, color: 'text.secondary' }}
+      >
+        {label}
+      </Typography>
+      {loading && value == null ? (
+        <Skeleton width={28} height={18} />
+      ) : (
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 800, fontSize: 14, color: 'text.primary' }}
+        >
+          {value == null ? '—' : formatCount(value)}
+        </Typography>
+      )}
+    </Stack>
+  )
+}
+
+function PostDetailDialog({
   account,
   media,
   accountId,
+  onClose,
 }: {
   account: InstagramAccount
   media: InstagramMediaItem
   accountId: string
+  onClose: () => void
 }) {
+  const { data: insightsData, isLoading: insightsLoading, isError: insightsError } =
+    useQuery({
+      queryKey: [
+        'instagram',
+        'accounts',
+        accountId,
+        'media',
+        media.id,
+        'insights',
+      ],
+      queryFn: () =>
+        instagramApi.getMediaInsights(accountId, media.id, {
+          mediaType: media.media_type,
+          mediaProductType: media.media_product_type,
+        }),
+      // Insights are fetched on demand when the modal opens. Don't refetch on
+      // window focus (cheap-but-real Graph API call) and don't retry — a 400
+      // here means "metric not supported", not a transient failure.
+      refetchOnWindowFocus: false,
+      retry: false,
+      staleTime: 5 * 60 * 1000,
+    })
+
+  const insights =
+    (insightsData?.insights ?? {}) as Record<string, number | null | undefined>
+  // Prefer the counts from the media payload (always present) over the
+  // insight metric of the same name; fall back to insight when missing.
+  const likes =
+    typeof media.like_count === 'number'
+      ? media.like_count
+      : (insights.likes ?? null)
+  const comments =
+    typeof media.comments_count === 'number'
+      ? media.comments_count
+      : (insights.comments ?? null)
+  const shares = insights.shares ?? null
+  const reach = insights.reach ?? null
+  const saved = insights.saved ?? null
+  const engaged = insights.total_interactions ?? null
+
   const isVideo = media.media_type === 'VIDEO'
   const isCarousel = media.media_type === 'CAROUSEL_ALBUM'
   const imageUrl = media.thumbnail_url || media.media_url
 
+  const [copied, setCopied] = useState(false)
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(media.permalink)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
   return (
     <Box
       sx={{
-        bgcolor: 'background.paper',
         display: 'flex',
         flexDirection: 'column',
+        maxHeight: '90vh',
+        bgcolor: 'background.paper',
       }}
     >
+      {/* Header strip */}
       <Stack
         direction="row"
         spacing={1.5}
-        sx={{ alignItems: 'center', px: 2, py: 1.5 }}
+        sx={{
+          px: 2.5,
+          py: 1.5,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          flexShrink: 0,
+        }}
       >
-        <Box
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: '50%',
-            background: IG_GRADIENT,
-            p: '2px',
-            flexShrink: 0,
-          }}
-        >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
           <Box
             sx={{
-              width: '100%',
-              height: '100%',
-              borderRadius: '50%',
-              bgcolor: 'background.paper',
-              p: '1px',
+              width: 28,
+              height: 28,
+              borderRadius: 1,
+              bgcolor: 'action.hover',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
             }}
           >
-            <Avatar
-              src={account.ig_profile_picture_url || undefined}
-              sx={{ width: '100%', height: '100%', fontSize: 14 }}
-            >
-              {(account.ig_username || '?')[0]?.toUpperCase()}
-            </Avatar>
+            <ImageOutlined fontSize="small" sx={{ color: 'text.secondary' }} />
           </Box>
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-            <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
-              {account.ig_username}
-            </Typography>
-            <Verified sx={{ fontSize: 14, color: '#3897F0' }} />
-          </Stack>
-          <Typography variant="caption" color="text.secondary" noWrap>
-            {account.ig_name}
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            Post
           </Typography>
-        </Box>
-        <IconButton size="small">
-          <MoreHoriz fontSize="small" />
+          <Typography variant="body2" color="text.secondary" noWrap>
+            {formatPostTimestamp(media.timestamp)}
+          </Typography>
+        </Stack>
+        <IconButton
+          onClick={onClose}
+          size="small"
+          aria-label="Close"
+          sx={{
+            width: 30,
+            height: 30,
+            bgcolor: 'primary.main',
+            color: 'primary.contrastText',
+            '&:hover': { bgcolor: 'primary.dark' },
+          }}
+        >
+          <Close fontSize="small" />
         </IconButton>
       </Stack>
 
+      {/* Two-column body */}
       <Box
         sx={{
-          position: 'relative',
-          width: '100%',
-          aspectRatio: '1 / 1',
-          bgcolor: 'grey.100',
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+          flex: 1,
+          minHeight: 0,
+          overflow: 'hidden',
         }}
       >
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={media.caption?.slice(0, 80) || media.id}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-            }}
-          />
-        ) : null}
-        {(isVideo || isCarousel) && (
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 12,
-              right: 12,
-              color: 'white',
-              filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))',
-              display: 'flex',
-            }}
-          >
-            {isVideo ? <PlayArrow /> : <Collections />}
-          </Box>
-        )}
-      </Box>
-
-      <Stack direction="row" sx={{ alignItems: 'center', px: 1, pt: 1 }}>
-        <IconButton aria-label="Like">
-          <FavoriteBorder />
-        </IconButton>
-        <IconButton aria-label="Comment">
-          <ChatBubbleOutlined />
-        </IconButton>
-        <Tooltip title="View on Instagram">
-          <IconButton
-            href={media.permalink}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open on Instagram"
-          >
-            <Send />
-          </IconButton>
-        </Tooltip>
-        <Box sx={{ flex: 1 }} />
-        <IconButton aria-label="Save">
-          <BookmarkBorder />
-        </IconButton>
-      </Stack>
-
-      {typeof media.like_count === 'number' ? (
-        <Typography variant="body2" sx={{ px: 2, pt: 0.5, fontWeight: 700 }}>
-          {media.like_count.toLocaleString()} {media.like_count === 1 ? 'like' : 'likes'}
-        </Typography>
-      ) : null}
-
-      {media.caption ? (
-        <Typography
-          variant="body2"
+        {/* LEFT — media */}
+        <Box
           sx={{
-            px: 2,
-            pt: 0.5,
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
+            p: 2.5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          <Box component="span" sx={{ fontWeight: 700, mr: 0.75 }}>
-            {account.ig_username}
+          <Box
+            sx={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '1 / 1',
+              bgcolor: 'grey.900',
+              borderRadius: 2,
+              overflow: 'hidden',
+            }}
+          >
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={media.caption?.slice(0, 80) || media.id}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
+            ) : (
+              <Stack
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'rgba(255,255,255,0.5)',
+                }}
+              >
+                <CameraAlt />
+              </Stack>
+            )}
+            {(isVideo || isCarousel) && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 12,
+                  right: 12,
+                  color: 'white',
+                  filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.6))',
+                }}
+              >
+                {isVideo ? <PlayArrow /> : <Collections />}
+              </Box>
+            )}
           </Box>
-          {media.caption}
-        </Typography>
-      ) : null}
+        </Box>
 
-      {typeof media.comments_count === 'number' && media.comments_count > 0 ? (
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ px: 2, pt: 0.5 }}
+        {/* RIGHT — analytics */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderLeft: { md: '1px solid' },
+            borderTop: { xs: '1px solid', md: 0 },
+            borderColor: 'divider',
+            minHeight: 0,
+            overflow: 'hidden',
+          }}
         >
-          View all {media.comments_count.toLocaleString()} comments
-        </Typography>
-      ) : null}
+          <Box sx={{ p: 2.5, flex: 1, overflowY: 'auto' }}>
+            {/* Top stat tiles */}
+            <Stack
+              direction="row"
+              sx={{
+                alignItems: 'stretch',
+                pb: 1.5,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              <StatTile
+                icon={<FavoriteBorder sx={{ fontSize: 14 }} />}
+                label="Likes"
+                value={likes}
+                loading={false}
+              />
+              <Divider orientation="vertical" flexItem />
+              <StatTile
+                icon={<ChatBubbleOutlined sx={{ fontSize: 14 }} />}
+                label="Comments"
+                value={comments}
+                loading={false}
+              />
+              <Divider orientation="vertical" flexItem />
+              <StatTile
+                icon={<IosShare sx={{ fontSize: 14 }} />}
+                label="Shares"
+                value={shares}
+                loading={insightsLoading}
+              />
+            </Stack>
 
-      <Typography
-        variant="caption"
-        color="text.secondary"
+            {/* Mid inline stats */}
+            <Box
+              sx={{
+                mt: 2,
+                py: 0.5,
+                borderRadius: 2,
+                bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
+                border: '1px solid',
+                borderColor: 'divider',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-around',
+              }}
+            >
+              <InlineStat
+                icon={<PeopleAltOutlined sx={{ fontSize: 18 }} />}
+                label="Reach"
+                value={reach}
+                color="#8B5CF6"
+                loading={insightsLoading}
+              />
+              <Divider orientation="vertical" flexItem sx={{ my: 1 }} />
+              <InlineStat
+                icon={<BookmarkBorder sx={{ fontSize: 18 }} />}
+                label="Saved"
+                value={saved}
+                color="#F59E0B"
+                loading={insightsLoading}
+              />
+              <Divider orientation="vertical" flexItem sx={{ my: 1 }} />
+              <InlineStat
+                icon={<TrendingUp sx={{ fontSize: 18 }} />}
+                label="Engaged"
+                value={engaged}
+                color="#10B981"
+                loading={insightsLoading}
+              />
+            </Box>
+
+            {/* Caption */}
+            {media.caption ? (
+              <Box
+                sx={{
+                  mt: 2,
+                  p: 1.75,
+                  borderRadius: 2,
+                  bgcolor: 'action.hover',
+                  maxHeight: 160,
+                  overflowY: 'auto',
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    lineHeight: 1.55,
+                  }}
+                >
+                  {media.caption}
+                </Typography>
+              </Box>
+            ) : null}
+
+            {insightsError ? (
+              <Alert
+                severity="info"
+                icon={<TrendingUp />}
+                sx={{ mt: 2, borderRadius: 1.5 }}
+              >
+                Some insights are unavailable for this post.
+              </Alert>
+            ) : null}
+          </Box>
+
+          {/* CTAs */}
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              p: 2.5,
+              pt: 1.25,
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              flexShrink: 0,
+              bgcolor: 'background.paper',
+            }}
+          >
+            <Button
+              variant="contained"
+              fullWidth
+              endIcon={<ChevronRight />}
+              href={media.permalink}
+              target="_blank"
+              rel="noopener noreferrer"
+              sx={{
+                height: 44,
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: 14,
+                borderRadius: 1.5,
+              }}
+            >
+              See Post
+            </Button>
+            <Tooltip title={copied ? 'Copied!' : 'Copy link'}>
+              <IconButton
+                onClick={handleCopyLink}
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1.5,
+                  height: 44,
+                  width: 44,
+                  flexShrink: 0,
+                  color: copied ? 'primary.main' : 'text.secondary',
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+                aria-label="Copy post link"
+              >
+                <ContentCopy fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </Box>
+      </Box>
+
+      {/* Footer — comments info */}
+      <Stack
+        direction="row"
         sx={{
-          px: 2,
-          pt: 1,
-          pb: 1,
-          textTransform: 'uppercase',
-          letterSpacing: 0.4,
+          px: 2.5,
+          py: 1.5,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          flexShrink: 0,
         }}
       >
-        {formatRelativeTime(media.timestamp)}
-      </Typography>
-
-      <Divider sx={{ mt: 1 }} />
-
-      <MediaInsightsPanel accountId={accountId} media={media} />
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
+              color: 'primary.main',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <ChatBubbleOutlined sx={{ fontSize: 14 }} />
+          </Box>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            Comments ({typeof comments === 'number' ? comments : 0})
+          </Typography>
+        </Stack>
+        <Typography variant="caption" color="text.secondary" noWrap>
+          @{account.ig_username}
+        </Typography>
+      </Stack>
     </Box>
   )
 }
+
 
 function PostTabBar({
   value,
@@ -839,30 +1044,18 @@ function PostsGrid({ account }: { account: InstagramAccount }) {
       <Dialog
         open={!!openMedia}
         onClose={() => setOpenMedia(null)}
-        maxWidth="sm"
+        maxWidth="md"
         fullWidth
         slotProps={{ paper: { sx: { borderRadius: 2, overflow: 'hidden' } } }}
       >
-        <Box sx={{ position: 'relative' }}>
-          <IconButton
-            onClick={() => setOpenMedia(null)}
-            sx={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              zIndex: 1,
-              bgcolor: 'rgba(255,255,255,0.9)',
-              '&:hover': { bgcolor: 'white' },
-            }}
-            size="small"
-            aria-label="Close"
-          >
-            <Close fontSize="small" />
-          </IconButton>
-          {openMedia && (
-            <PostFeedCard account={account} media={openMedia} accountId={account.id} />
-          )}
-        </Box>
+        {openMedia && (
+          <PostDetailDialog
+            account={account}
+            media={openMedia}
+            accountId={account.id}
+            onClose={() => setOpenMedia(null)}
+          />
+        )}
       </Dialog>
     </>
   )
