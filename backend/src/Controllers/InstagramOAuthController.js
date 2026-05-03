@@ -1,6 +1,8 @@
 export class InstagramOAuthController {
-  constructor(instagramOAuthService, logger) {
+  constructor(instagramOAuthService, logger, { publishService, uploadService } = {}) {
     this.service = instagramOAuthService;
+    this.publishService = publishService;
+    this.uploadService = uploadService;
     this.logger = logger;
   }
 
@@ -181,6 +183,102 @@ export class InstagramOAuthController {
       return { success: true };
     } catch (err) {
       const status = err.statusCode || 500;
+      return reply.status(status).send({ success: false, error: err.message });
+    }
+  }
+
+  // Multipart upload — accepts a single file, persists it under the org's
+  // uploads dir, and returns the public URL the frontend will pass back into
+  // /publish. The frontend may upload up to 10 files (carousel) by calling
+  // this once per child.
+  async uploadMedia(request, reply) {
+    try {
+      if (!this.uploadService) throw new Error('Upload service not configured');
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ success: false, error: 'No file provided' });
+      }
+      const buffer = await data.toBuffer();
+      const result = await this.uploadService.save({
+        organizationId: request.user.organization_id,
+        fileBuffer: buffer,
+        mimeType: data.mimetype,
+        originalName: data.filename,
+        requestHeaders: request.headers,
+      });
+      return { success: true, data: result };
+    } catch (err) {
+      const status = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+      this.logger.error({ message: 'Instagram media upload failed', err: err.message });
+      return reply.status(status).send({
+        success: false,
+        error: err.message || 'Upload failed',
+        code: err.code,
+      });
+    }
+  }
+
+  async publishMedia(request, reply) {
+    try {
+      if (!this.publishService) throw new Error('Publish service not configured');
+      const { spec, cleanup_paths: cleanupPaths } = request.body || {};
+      const result = await this.publishService.publishToAccount({
+        organizationId: request.user.organization_id,
+        accountId: request.params.accountId,
+        spec,
+        cleanupPaths: Array.isArray(cleanupPaths) ? cleanupPaths : [],
+      });
+      return { success: true, data: result };
+    } catch (err) {
+      // Surface IG-side errors (validation, container ERROR/EXPIRED, token
+      // problems) with their original message so the composer UI can show
+      // it without dressing it up as a 500.
+      const igError = err.response?.data?.error;
+      if (igError) {
+        this.logger.warn({ message: 'Instagram publish API rejected', igError });
+        return reply.status(400).send({
+          success: false,
+          error: igError.message || 'Instagram rejected the post',
+          code: igError.code ? `IG_${igError.code}` : 'IG_PUBLISH_FAILED',
+        });
+      }
+      const status = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+      this.logger.error({
+        message: 'Instagram publish failed',
+        err: err.message,
+        accountId: request.params.accountId,
+      });
+      return reply.status(status).send({
+        success: false,
+        error: err.message || 'Publish failed',
+        code: err.code,
+      });
+    }
+  }
+
+  // Public, unauthenticated — Meta fetches uploaded files from this URL when
+  // creating the IG container. Mounted at the root, NOT under /api/v1.
+  async serveUploadedFile(request, reply) {
+    try {
+      if (!this.uploadService) throw new Error('Upload service not configured');
+      const { orgId, fileName } = request.params;
+      const { stream, absPath } = this.uploadService.streamServedFile(orgId, fileName);
+      const ext = absPath.toLowerCase().split('.').pop();
+      const contentType =
+        ext === 'jpg' || ext === 'jpeg'
+          ? 'image/jpeg'
+          : ext === 'png'
+          ? 'image/png'
+          : ext === 'mp4'
+          ? 'video/mp4'
+          : ext === 'mov'
+          ? 'video/quicktime'
+          : 'application/octet-stream';
+      reply.header('Content-Type', contentType);
+      reply.header('Cache-Control', 'public, max-age=86400');
+      return reply.send(stream);
+    } catch (err) {
+      const status = err.statusCode === 404 ? 404 : 500;
       return reply.status(status).send({ success: false, error: err.message });
     }
   }

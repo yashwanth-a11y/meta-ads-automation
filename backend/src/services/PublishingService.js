@@ -13,7 +13,14 @@ import { decryptToken } from '../utils/encryption.js';
 
 // Instagram Content Publishing API — two-step: create container → publish
 // Docs: https://developers.facebook.com/docs/instagram-api/guides/content-publishing
-const IG_API_BASE = `${env.META_API_BASE_URL}/${env.META_API_VERSION}`;
+//
+// Two valid Graph API hosts depending on how the token was minted:
+//   - Page access token from Facebook Login → graph.facebook.com
+//   - User access token from Instagram Business Login → graph.instagram.com
+// We default to the Facebook host (existing creative-bundle path uses page
+// tokens) and let callers override `_apiBase` per-publish for IG-direct
+// tokens — see InstagramPublishService.publishToAccount.
+const DEFAULT_API_BASE = `${env.META_API_BASE_URL}/${env.META_API_VERSION}`;
 const POLL_INTERVAL_MS = 15_000; // 15s between container status polls
 const POLL_MAX_ATTEMPTS = 24;    // 24 × 15s = 6 minutes max
 
@@ -116,6 +123,13 @@ function validateOptionalCoverFields(spec) {
 }
 
 export class PublishingService {
+  constructor() {
+    // Mutable so per-publish callers (InstagramPublishService) can swap the
+    // host to graph.instagram.com when posting with an IG-direct token. Same
+    // pattern as the existing _getPageToken patch in publishBundle.
+    this._apiBase = DEFAULT_API_BASE;
+  }
+
   // -------------------------------------------------------------------------
   // Publish media (new unified API for all types: image, video, reels, carousel, story)
   // -------------------------------------------------------------------------
@@ -349,7 +363,7 @@ export class PublishingService {
       image_url: spec.image_url,
       access_token: token,
     };
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -366,7 +380,7 @@ export class PublishingService {
     };
     if (spec.cover_url) params.cover_url = spec.cover_url;
     if (spec.thumb_offset_ms !== undefined) params.thumb_offset = spec.thumb_offset_ms;
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -385,7 +399,7 @@ export class PublishingService {
     if (spec.cover_url) params.cover_url = spec.cover_url;
     if (spec.thumb_offset_ms !== undefined) params.thumb_offset = spec.thumb_offset_ms;
     if (spec.audio_name) params.audio_name = spec.audio_name;
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -410,7 +424,7 @@ export class PublishingService {
       children: childIds.join(','),
       access_token: token,
     };
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG carousel parent creation failed: ${JSON.stringify(data)}`);
@@ -433,7 +447,7 @@ export class PublishingService {
         params.user_tags = JSON.stringify(child.user_tags);
       }
     }
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG carousel child creation failed: ${JSON.stringify(data)}`);
@@ -451,7 +465,7 @@ export class PublishingService {
     if (Array.isArray(spec.user_tags) && spec.user_tags.length) {
       params.user_tags = JSON.stringify(spec.user_tags);
     }
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -464,7 +478,7 @@ export class PublishingService {
       await this._sleep(POLL_INTERVAL_MS);
 
       const { data } = await axios.get(
-        `${IG_API_BASE}/${containerId}`,
+        `${this._apiBase}/${containerId}`,
         {
           params: { fields: 'status_code,status', access_token: token },
           timeout: 10_000,
@@ -486,7 +500,7 @@ export class PublishingService {
 
   async _publishContainer({ igUserId, token, containerId }) {
     const { data } = await axios.post(
-      `${IG_API_BASE}/${igUserId}/media_publish`,
+      `${this._apiBase}/${igUserId}/media_publish`,
       null,
       {
         params: { creation_id: containerId, access_token: token },

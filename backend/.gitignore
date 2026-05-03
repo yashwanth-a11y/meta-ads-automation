@@ -6,3 +6,6 @@ logs
 coverage
 dist
 .DS_Store
+# Files uploaded for Instagram publishing — temporary, served publicly so
+# Meta's servers can fetch them, then deleted after publish completes.
+uploads/

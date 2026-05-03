@@ -43,6 +43,7 @@ import {
   PhotoLibraryOutlined,
   MovieOutlined,
   ViewCarouselOutlined,
+  Edit as EditIcon,
 } from '@mui/icons-material'
 import {
   useInfiniteQuery,
@@ -55,9 +56,11 @@ import {
   type InstagramAccount,
   type InstagramMediaItem,
   type InstagramMediaResponse,
+  type InstagramPostType,
 } from '../api/instagram'
 import { trendsApi, type Channel } from '../api/trends'
 import { qk } from '../api/queryClient'
+import { InstagramComposer } from '../components/instagram/InstagramComposer'
 
 type Toast = { severity: 'success' | 'error' | 'info'; message: string } | null
 
@@ -876,6 +879,7 @@ function AccountCard({
   onDisconnect,
   onLink,
   onUnlink,
+  onCompose,
   refreshPending,
 }: {
   account: InstagramAccount
@@ -885,6 +889,7 @@ function AccountCard({
   onDisconnect: () => void
   onLink: () => void
   onUnlink: (channelId: string) => void
+  onCompose: () => void
   refreshPending: boolean
 }) {
   return (
@@ -944,7 +949,24 @@ function AccountCard({
             </Typography>
           </Box>
 
-          <Stack direction="row" spacing={0.5} sx={{ mb: { sm: 1 } }}>
+          <Stack direction="row" spacing={0.75} sx={{ mb: { sm: 1 }, alignItems: 'center' }}>
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<EditIcon fontSize="small" />}
+              onClick={onCompose}
+              sx={{
+                background: IG_GRADIENT,
+                color: 'white',
+                fontWeight: 700,
+                textTransform: 'none',
+                px: 1.5,
+                boxShadow: '0 2px 8px rgba(220,39,67,0.30)',
+                '&:hover': { background: IG_GRADIENT, filter: 'brightness(1.05)' },
+              }}
+            >
+              New post
+            </Button>
             <Tooltip title="Refresh token">
               <span>
                 <IconButton
@@ -1036,6 +1058,7 @@ export function InstagramPage() {
   const [toast, setToast] = useState<Toast>(null)
   const [linkDialogFor, setLinkDialogFor] = useState<InstagramAccount | null>(null)
   const [linkDialogChannelId, setLinkDialogChannelId] = useState<string>('')
+  const [composerFor, setComposerFor] = useState<InstagramAccount | null>(null)
   // Per-session in-memory linked-channel map. Backend doesn't expose
   // "channels for this IG account" in v1, so we track links the user makes
   // in this session. Refreshing the page resets this view (the link rows
@@ -1241,6 +1264,7 @@ export function InstagramPage() {
               onUnlink={(channelId) =>
                 unlinkMutation.mutate({ accountId: acct.id, channelId })
               }
+              onCompose={() => setComposerFor(acct)}
               refreshPending={refreshMutation.isPending}
             />
           ))}
@@ -1297,6 +1321,30 @@ export function InstagramPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <InstagramComposer
+        open={!!composerFor}
+        account={composerFor}
+        onClose={() => setComposerFor(null)}
+        onPublished={({ type }: { type: InstagramPostType; mediaId: string }) => {
+          setToast({
+            severity: 'success',
+            message:
+              type === 'story'
+                ? 'Story posted to Instagram'
+                : `Posted to @${composerFor?.ig_username}`,
+          })
+          // Refresh the grid for the account that just got a new post and
+          // bump the account list so media_count / followers reflect.
+          if (composerFor) {
+            void client.invalidateQueries({
+              queryKey: qkInstagram.media(composerFor.id),
+            })
+          }
+          void client.invalidateQueries({ queryKey: qkInstagram.accounts })
+        }}
+        onError={(message: string) => setToast({ severity: 'error', message })}
+      />
 
       <Snackbar
         open={!!toast}

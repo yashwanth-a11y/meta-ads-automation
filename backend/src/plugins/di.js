@@ -16,6 +16,9 @@ import { InstagramAccountRepository } from '../Repositories/InstagramAccountRepo
 import { InstagramApiService } from '../services/InstagramApiService.js';
 import { InstagramOAuthService } from '../services/InstagramOAuthServices.js';
 import { InstagramOAuthController } from '../Controllers/InstagramOAuthController.js';
+import { InstagramUploadService } from '../services/InstagramUploadService.js';
+import { InstagramPublishService } from '../services/InstagramPublishService.js';
+import { publishingService } from '../services/PublishingService.js';
 
 // Build the DI graph and decorate the Fastify instance. Keep this file as
 // the *only* place that knows how the pieces are wired together — routes
@@ -74,9 +77,22 @@ async function plugin(app) {
     repository: instagramAccountRepository,
     apiService: instagramApiService,
   });
+  // Direct-posting pipeline (composer → upload → publish). Reuses the
+  // existing PublishingService singleton for the actual Graph-API calls.
+  const instagramUploadService = new InstagramUploadService({ logger: app.log });
+  const instagramPublishService = new InstagramPublishService({
+    logger: app.log,
+    instagramAccountRepository,
+    publishingService,
+    uploadService: instagramUploadService,
+  });
   const instagramOAuthController = new InstagramOAuthController(
     instagramOAuthService,
     app.log,
+    {
+      publishService: instagramPublishService,
+      uploadService: instagramUploadService,
+    },
   );
 
   app.decorate('db', db);
@@ -88,6 +104,8 @@ async function plugin(app) {
   app.decorate('creativeService', creativeService);
   app.decorate('instagramAccountRepository', instagramAccountRepository);
   app.decorate('instagramOAuthController', instagramOAuthController);
+  app.decorate('instagramUploadService', instagramUploadService);
+  app.decorate('instagramPublishService', instagramPublishService);
 }
 
 export default fp(plugin, { name: 'di', dependencies: ['auth'] });

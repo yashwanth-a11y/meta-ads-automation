@@ -10,6 +10,7 @@ import metaRoutes from './meta/routes.js';
 import { adsRoutes } from '../Routes/AdRoutes.js';
 import { instagramOAuthRoutes } from '../Routes/InstagramOAuthRoutes.js';
 import { instagramCallbackRedirectRoute } from '../Routes/InstagramCallbackRedirectRoute.js';
+import { instagramPublicUploadsRoute } from '../Routes/InstagramPublicUploadsRoute.js';
 import leadsRoutes from './leads/routes.js';
 import analyticsRoutes from './analytics/routes.js';
 import genuiRoutes from './genui/routes.js';
@@ -44,4 +45,7 @@ export async function registerModules(app) {
   // from instagram.com). Mounted outside /api/v1 so the URL stays short
   // and matches the value pasted in the IG App's "OAuth Redirect URIs".
   await app.register(instagramCallbackRedirectRoute);
+  // Public file-serving for files uploaded by the Instagram composer.
+  // Meta fetches these URLs server-side when creating the IG container.
+  await app.register(instagramPublicUploadsRoute);
 }

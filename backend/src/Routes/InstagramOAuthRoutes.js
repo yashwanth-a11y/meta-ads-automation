@@ -79,4 +79,31 @@ export async function instagramOAuthRoutes(fastify) {
     { preHandler: auth },
     (req, reply) => controller.unlinkChannel(req, reply),
   );
+
+  // Direct posting from the dashboard. The composer flow is:
+  //   1. POST /accounts/:accountId/upload (multipart, one file at a time)
+  //      → returns { url, storedPath, kind, mimeType, size }
+  //   2. POST /accounts/:accountId/publish with the spec + the URLs from
+  //      step 1. Spec shape matches PublishingService.MediaSpec.
+  fastify.post('/accounts/:accountId/upload', { preHandler: auth }, (req, reply) =>
+    controller.uploadMedia(req, reply),
+  );
+
+  fastify.post(
+    '/accounts/:accountId/publish',
+    {
+      preHandler: auth,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['spec'],
+          properties: {
+            spec: { type: 'object', additionalProperties: true },
+            cleanup_paths: { type: 'array', items: { type: 'string' } },
+          },
+        },
+      },
+    },
+    (req, reply) => controller.publishMedia(req, reply),
+  );
 }

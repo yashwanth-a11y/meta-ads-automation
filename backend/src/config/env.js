@@ -85,6 +85,10 @@ const schema = z.object({
 
   // Pipeline / scheduler
   FRONTEND_URL: z.string().default('http://localhost:5173'),
+  // Public origin of the backend, used to mint URLs for files we serve to
+  // third parties (e.g. Instagram fetching uploaded media). Optional in
+  // development — when unset, services derive from x-forwarded-host (ngrok).
+  BACKEND_PUBLIC_URL: z.string().optional(),
   CRON_INTERVAL_HOURS: z.coerce.number().int().positive().default(6),
   MIN_BRAND_FIT_SCORE: z.coerce.number().min(0).max(10).default(6),
 
