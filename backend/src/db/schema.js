@@ -102,6 +102,62 @@ export const metaAdAccounts = pgTable(
   }),
 );
 
+// --- Instagram Business accounts (one per Meta IG Business account, per org) ---
+// Connected via Instagram Business Login (NOT the Ads OAuth flow). Each row
+// holds a long-lived IG token; one IG account belongs to exactly one org but
+// can be linked to many channels via channel_instagram_accounts.
+
+export const instagramAccounts = pgTable(
+  'instagram_accounts',
+  {
+    id: id(),
+    organization_id: orgId(),
+    user_id: varchar('user_id', { length: 36 }), // who first connected; nullable for audit
+    ig_business_id: varchar('ig_business_id', { length: 64 }).notNull(),
+    ig_page_id: varchar('ig_page_id', { length: 64 }),
+    ig_username: varchar('ig_username', { length: 255 }),
+    ig_name: varchar('ig_name', { length: 255 }),
+    ig_profile_picture_url: text('ig_profile_picture_url'),
+    account_type: varchar('account_type', { length: 32 }), // BUSINESS | CREATOR
+    followers_count: integer('followers_count').default(0),
+    follows_count: integer('follows_count').default(0),
+    media_count: integer('media_count').default(0),
+    access_token_encrypted: text('access_token_encrypted').notNull(),
+    token_expires_at: timestamp('token_expires_at', { withTimezone: true, mode: 'date' }),
+    last_synced_at: timestamp('last_synced_at', { withTimezone: true, mode: 'date' }),
+    is_active: boolean('is_active').default(true).notNull(),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    org_idx: index('instagram_accounts_org_idx').on(t.organization_id),
+    org_active_idx: index('instagram_accounts_org_active_idx').on(t.organization_id, t.is_active),
+    org_business_unique: uniqueIndex('instagram_accounts_org_business_unique')
+      .on(t.organization_id, t.ig_business_id),
+  }),
+);
+
+// --- Channel ↔ Instagram account links (many-to-many) ---
+// One channel can fan out posts to multiple IG accounts; one IG account can
+// be linked to multiple channels. Cascade deletion is enforced in the
+// repository layer (this codebase doesn't declare FK constraints in drizzle).
+
+export const channelInstagramAccounts = pgTable(
+  'channel_instagram_accounts',
+  {
+    channel_id: varchar('channel_id', { length: 36 }).notNull(),
+    instagram_account_id: varchar('instagram_account_id', { length: 36 }).notNull(),
+    organization_id: orgId(),
+    created_at: ts('created_at'),
+  },
+  (t) => ({
+    pk: uniqueIndex('channel_ig_accounts_pk').on(t.channel_id, t.instagram_account_id),
+    channel_idx: index('channel_ig_accounts_channel_idx').on(t.channel_id),
+    ig_idx: index('channel_ig_accounts_ig_idx').on(t.instagram_account_id),
+    org_idx: index('channel_ig_accounts_org_idx').on(t.organization_id),
+  }),
+);
+
 // --- Click-to-WhatsApp campaigns (PhotonX-side mirror of Meta campaign+adset+ad) ---
 
 export const ctwaCampaigns = pgTable(
@@ -408,6 +464,9 @@ export const creativeBundles = pgTable(
     score_breakdown: jsonb('score_breakdown'),
     // { trend_relevance, viral_hook, clarity, audience_fit, platform_fit, brand_safety, rationale }
     render_job_id: varchar('render_job_id', { length: 128 }),
+    // Per-account fan-out result for IG cross-posting:
+    // [{ instagram_account_id, ig_username, ig_business_id, media_id, error, published_at }]
+    published_targets: jsonb('published_targets').default([]),
     created_at: ts('created_at'),
     updated_at: ts('updated_at'),
   },

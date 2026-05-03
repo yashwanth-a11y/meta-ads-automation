@@ -6,6 +6,15 @@ import { db } from '../../src/db/index.js';
 
 vi.mock('axios');
 
+vi.mock('../../src/utils/encryption.js', () => ({
+  encryptToken: vi.fn((t) => `enc(${t})`),
+  decryptToken: vi.fn((t) => {
+    if (typeof t !== 'string') return null;
+    const m = t.match(/^enc\((.*)\)$/);
+    return m ? m[1] : t;
+  }),
+}));
+
 vi.mock('../../src/db/index.js', () => ({
   db: {
     update: vi.fn(),
@@ -21,7 +30,11 @@ vi.mock('../../src/db/index.js', () => ({
 beforeEach(() => {
   db.update.mockReturnThis();
   db.set.mockReturnThis();
-  db.where.mockResolvedValue(undefined);
+  // Default: terminal where() resolves to [] so callers that do
+  //   await db.select().from(table).where(...)
+  // get an empty array (not undefined). Tests that need rows can override
+  // the resolved value per-test.
+  db.where.mockResolvedValue([]);
   db.select.mockReturnThis();
   db.from.mockReturnThis();
 });
@@ -569,6 +582,93 @@ describe('PublishingService.publishBundle', () => {
   it('rolls bundle status back on container ERROR', async () => {
     axios.post.mockResolvedValueOnce({ data: { id: 'CON' } });
     axios.get.mockResolvedValueOnce({ data: { status_code: 'ERROR' } });
+    await expect(svc.publishBundle(channel, baseBundle)).rejects.toThrow();
+  });
+});
+
+describe('PublishingService.publishBundle — fan-out to linked IG accounts', () => {
+  let svc;
+  const channel = { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER_FALLBACK' };
+  const baseBundle = {
+    id: 'b1', video_url: 'https://x/v.mp4', thumbnail_url: 'https://x/t.jpg',
+    caption: 'hi', hashtags: ['a'],
+  };
+
+  beforeEach(() => {
+    svc = new PublishingService();
+    vi.spyOn(svc, '_getPageToken').mockResolvedValue('TOK');
+    vi.spyOn(svc, '_sleep').mockResolvedValue();
+  });
+
+  it('fans out to all linked IG accounts when join rows exist', async () => {
+    vi.spyOn(svc, '_findLinkedInstagramAccounts').mockResolvedValue([
+      {
+        id: 'IGREC1', ig_business_id: 'IGBIZ_A', ig_username: 'acme_a',
+        access_token_encrypted: 'enc(TOK_A)', is_active: true,
+      },
+      {
+        id: 'IGREC2', ig_business_id: 'IGBIZ_B', ig_username: 'acme_b',
+        access_token_encrypted: 'enc(TOK_B)', is_active: true,
+      },
+    ]);
+
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON_A' } })
+      .mockResolvedValueOnce({ data: { id: 'MED_A' } })
+      .mockResolvedValueOnce({ data: { id: 'CON_B' } })
+      .mockResolvedValueOnce({ data: { id: 'MED_B' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    const out = await svc.publishBundle(channel, baseBundle);
+    expect(out.published).toBe(true);
+    expect(out.results).toHaveLength(2);
+    expect(out.results[0]).toMatchObject({ ig_username: 'acme_a', media_id: 'MED_A' });
+    expect(out.results[1]).toMatchObject({ ig_username: 'acme_b', media_id: 'MED_B' });
+
+    expect(axios.post.mock.calls[0][0]).toMatch(/IGBIZ_A\/media$/);
+    expect(axios.post.mock.calls[2][0]).toMatch(/IGBIZ_B\/media$/);
+  });
+
+  it('falls back to channel.instagram_account_id when no linked IG accounts', async () => {
+    vi.spyOn(svc, '_findLinkedInstagramAccounts').mockResolvedValue([]);
+
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    const out = await svc.publishBundle(channel, baseBundle);
+    expect(out.published).toBe(true);
+    expect(out.mediaId).toBe('MED');
+    expect(axios.post.mock.calls[0][0]).toMatch(/IG_USER_FALLBACK\/media$/);
+  });
+
+  it('returns partial success when one of two linked accounts fails', async () => {
+    vi.spyOn(svc, '_findLinkedInstagramAccounts').mockResolvedValue([
+      { id: 'IGREC1', ig_business_id: 'IGBIZ_A', ig_username: 'a',
+        access_token_encrypted: 'enc(TOK_A)', is_active: true },
+      { id: 'IGREC2', ig_business_id: 'IGBIZ_B', ig_username: 'b',
+        access_token_encrypted: 'enc(TOK_B)', is_active: true },
+    ]);
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON_A' } })
+      .mockResolvedValueOnce({ data: { id: 'MED_A' } })
+      .mockRejectedValueOnce(new Error('Meta API failure'));
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    const out = await svc.publishBundle(channel, baseBundle);
+    expect(out.published).toBe(true);
+    expect(out.results).toHaveLength(2);
+    expect(out.results[0].media_id).toBe('MED_A');
+    expect(out.results[1].error).toMatch(/Meta API failure/);
+  });
+
+  it('rolls back to ready when ALL linked accounts fail', async () => {
+    vi.spyOn(svc, '_findLinkedInstagramAccounts').mockResolvedValue([
+      { id: 'IGREC1', ig_business_id: 'IGBIZ_A', ig_username: 'a',
+        access_token_encrypted: 'enc(TOK_A)', is_active: true },
+    ]);
+    axios.post.mockRejectedValueOnce(new Error('Meta down'));
     await expect(svc.publishBundle(channel, baseBundle)).rejects.toThrow();
   });
 });

@@ -8,6 +8,8 @@ import approvalsRoutes from './approvals/routes.js';
 import publishingRoutes from './publishing/routes.js';
 import metaRoutes from './meta/routes.js';
 import { adsRoutes } from '../Routes/AdRoutes.js';
+import { instagramOAuthRoutes } from '../Routes/InstagramOAuthRoutes.js';
+import { instagramCallbackRedirectRoute } from '../Routes/InstagramCallbackRedirectRoute.js';
 import leadsRoutes from './leads/routes.js';
 import analyticsRoutes from './analytics/routes.js';
 import genuiRoutes from './genui/routes.js';
@@ -29,6 +31,7 @@ export async function registerModules(app) {
       // adsRoutes self-prefixes every path with `/ads/...`, so register without
       // a prefix inside the /api/v1 group → final paths look like /api/v1/ads/*.
       await api.register(adsRoutes);
+      await api.register(instagramOAuthRoutes, { prefix: '/instagram' });
       await api.register(leadsRoutes, { prefix: '/leads' });
       await api.register(analyticsRoutes, { prefix: '/analytics' });
       await api.register(genuiRoutes, { prefix: '/genui' });
@@ -37,4 +40,8 @@ export async function registerModules(app) {
   );
 
   await app.register(webhooksRoutes, { prefix: '/webhooks' });
+  // Public IG OAuth bounce — root path, no auth (browser just bounces back
+  // from instagram.com). Mounted outside /api/v1 so the URL stays short
+  // and matches the value pasted in the IG App's "OAuth Redirect URIs".
+  await app.register(instagramCallbackRedirectRoute);
 }

@@ -8,6 +8,13 @@
       "when": 1777723776696,
       "tag": "0000_nappy_grim_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777810454188,
+      "tag": "0001_odd_namorita",
+      "breakpoints": true
     }
   ]
 }

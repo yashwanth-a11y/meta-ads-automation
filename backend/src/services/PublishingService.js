@@ -1,9 +1,15 @@
 import axios from 'axios';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { creativeBundles, metaAdAccounts } from '../db/schema.js';
+import {
+  creativeBundles,
+  metaAdAccounts,
+  instagramAccounts,
+  channelInstagramAccounts,
+} from '../db/schema.js';
 import { env } from '../config/env.js';
 import { badRequest } from '../lib/errors.js';
+import { decryptToken } from '../utils/encryption.js';
 
 // Instagram Content Publishing API — two-step: create container → publish
 // Docs: https://developers.facebook.com/docs/instagram-api/guides/content-publishing
@@ -153,53 +159,165 @@ export class PublishingService {
   // around publishMedia that owns the creative_bundles status lifecycle.
   // -------------------------------------------------------------------------
   async publishBundle(channel, bundle) {
-    if (!channel.instagram_account_id) {
-      console.warn(`[Publishing] Channel ${channel.id} has no instagram_account_id — skipping publish`);
-      return { published: false, reason: 'No instagram_account_id on channel' };
-    }
     if (!bundle.video_url) {
       return { published: false, reason: 'Bundle has no video_url' };
     }
-    const probeToken = await this._getPageToken(channel.organization_id);
-    if (!probeToken) {
-      console.warn(`[Publishing] No Meta access token for org ${channel.organization_id}`);
-      return { published: false, reason: 'No Meta access token' };
+
+    // Discover IG accounts linked to this channel (many-to-many path).
+    const linkedAccounts = await this._findLinkedInstagramAccounts(channel.id);
+
+    // Legacy fallback: if no linked accounts, fall back to the channel's
+    // single instagram_account_id field with the org's Meta page token.
+    if (linkedAccounts.length === 0) {
+      if (!channel.instagram_account_id) {
+        console.warn(
+          `[Publishing] Channel ${channel.id} has no instagram_account_id and no linked IG accounts — skipping publish`,
+        );
+        return {
+          published: false,
+          reason: 'No instagram_account_id on channel and no linked accounts',
+        };
+      }
+      const probeToken = await this._getPageToken(channel.organization_id);
+      if (!probeToken) {
+        console.warn(`[Publishing] No Meta access token for org ${channel.organization_id}`);
+        return { published: false, reason: 'No Meta access token' };
+      }
+
+      await db
+        .update(creativeBundles)
+        .set({ status: 'publishing', updated_at: new Date() })
+        .where(eq(creativeBundles.id, bundle.id));
+
+      try {
+        const { mediaId } = await this.publishMedia(channel, {
+          type: 'reels',
+          video_url: bundle.video_url,
+          caption: bundle.caption,
+          hashtags: bundle.hashtags ?? [],
+          cover_url: bundle.thumbnail_url ?? undefined,
+        });
+
+        await db
+          .update(creativeBundles)
+          .set({
+            status: 'published',
+            updated_at: new Date(),
+            render_job_id: mediaId,
+            published_targets: [
+              {
+                instagram_account_id: null,
+                ig_username: null,
+                ig_business_id: channel.instagram_account_id,
+                media_id: mediaId,
+                error: null,
+                published_at: new Date().toISOString(),
+              },
+            ],
+          })
+          .where(eq(creativeBundles.id, bundle.id));
+
+        console.log(`[Publishing] Bundle ${bundle.id} published (legacy single-account) → ${mediaId}`);
+        return { published: true, mediaId };
+      } catch (err) {
+        await db
+          .update(creativeBundles)
+          .set({ status: 'ready', updated_at: new Date() })
+          .where(eq(creativeBundles.id, bundle.id));
+        console.error(`[Publishing] Failed for bundle ${bundle.id}:`, err.message);
+        throw err;
+      }
     }
 
+    // Fan-out path: one publish per linked IG account, each using the
+    // IG-account row's own decrypted token.
     await db
       .update(creativeBundles)
       .set({ status: 'publishing', updated_at: new Date() })
       .where(eq(creativeBundles.id, bundle.id));
 
-    try {
-      const { mediaId } = await this.publishMedia(channel, {
-        type: 'reels',
-        video_url: bundle.video_url,
-        caption: bundle.caption,
-        hashtags: bundle.hashtags ?? [],
-        cover_url: bundle.thumbnail_url ?? undefined,
-      });
+    const results = [];
+    for (const acct of linkedAccounts) {
+      const token = decryptToken(acct.access_token_encrypted, 'instagram');
+      const channelStub = {
+        id: channel.id,
+        organization_id: channel.organization_id,
+        instagram_account_id: acct.ig_business_id,
+      };
+      const originalGetPageToken = this._getPageToken;
+      this._getPageToken = async () => token;
+      try {
+        const out = await this.publishMedia(channelStub, {
+          type: 'reels',
+          video_url: bundle.video_url,
+          caption: bundle.caption,
+          hashtags: bundle.hashtags ?? [],
+          cover_url: bundle.thumbnail_url ?? undefined,
+        });
+        results.push({
+          instagram_account_id: acct.id,
+          ig_username: acct.ig_username,
+          ig_business_id: acct.ig_business_id,
+          media_id: out.mediaId,
+          error: null,
+          published_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.error(
+          `[Publishing] Fan-out to ${acct.ig_username || acct.ig_business_id} failed:`,
+          err.message,
+        );
+        results.push({
+          instagram_account_id: acct.id,
+          ig_username: acct.ig_username,
+          ig_business_id: acct.ig_business_id,
+          media_id: null,
+          error: err.message,
+          published_at: new Date().toISOString(),
+        });
+      } finally {
+        this._getPageToken = originalGetPageToken;
+      }
+    }
 
-      await db
-        .update(creativeBundles)
-        .set({
-          status: 'published',
-          updated_at: new Date(),
-          render_job_id: mediaId,
-        })
-        .where(eq(creativeBundles.id, bundle.id));
-
-      console.log(`[Publishing] Bundle ${bundle.id} published → IG media ID: ${mediaId}`);
-      return { published: true, mediaId };
-    } catch (err) {
+    const successes = results.filter((r) => r.media_id);
+    if (successes.length === 0) {
       await db
         .update(creativeBundles)
         .set({ status: 'ready', updated_at: new Date() })
         .where(eq(creativeBundles.id, bundle.id));
-
-      console.error(`[Publishing] Failed for bundle ${bundle.id}:`, err.message);
-      throw err;
+      const firstError = results.find((r) => r.error)?.error || 'All fan-out targets failed';
+      throw new Error(firstError);
     }
+
+    await db
+      .update(creativeBundles)
+      .set({
+        status: 'published',
+        updated_at: new Date(),
+        render_job_id: successes[0].media_id,
+        published_targets: results,
+      })
+      .where(eq(creativeBundles.id, bundle.id));
+
+    console.log(
+      `[Publishing] Bundle ${bundle.id} fanned out → ${successes.length}/${results.length} succeeded`,
+    );
+    return { published: true, results, mediaId: successes[0].media_id };
+  }
+
+  async _findLinkedInstagramAccounts(channelId) {
+    const links = await db
+      .select()
+      .from(channelInstagramAccounts)
+      .where(eq(channelInstagramAccounts.channel_id, channelId));
+    if (links.length === 0) return [];
+    const ids = links.map((l) => l.instagram_account_id);
+    const rows = await db
+      .select()
+      .from(instagramAccounts)
+      .where(inArray(instagramAccounts.id, ids));
+    return rows.filter((r) => r.is_active);
   }
 
   // -------------------------------------------------------------------------

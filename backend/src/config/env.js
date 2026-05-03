@@ -50,6 +50,25 @@ const schema = z.object({
   FACEBOOK_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   META_CAPI_TEST_CODE: z.string().optional(),
 
+  // Instagram Business Login (separate flow from Ads OAuth)
+  INSTAGRAM_APP_ID: z.string().optional(),
+  INSTAGRAM_APP_SECRET: z.string().optional(),
+  INSTAGRAM_REDIRECT_URI: z.string().optional(),
+  INSTAGRAM_FORCE_REAUTH: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true'),
+  // Match the existing variable name in .env. Default covers the minimum
+  // scopes for posting + insights.
+  INSTAGRAM_SCOPES: z
+    .string()
+    .default('instagram_business_basic,instagram_business_content_publish,instagram_business_manage_insights'),
+  INSTAGRAM_AUTH_BASE_URL: z
+    .string()
+    .default('https://www.instagram.com/oauth/authorize'),
+  INSTAGRAM_GRAPH_API_BASE_URL: z.string().default('https://graph.instagram.com'),
+  INSTAGRAM_API_VERSION: z.string().default('v21.0'),
+
   // LLM
   ANTHROPIC_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),

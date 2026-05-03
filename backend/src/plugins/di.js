@@ -11,6 +11,10 @@ import { AdsService } from '../services/AdsService.js';
 import { AuthService } from '../services/AuthService.js';
 import { AdsController } from '../Controllers/AdsController.js';
 import { CreativeService } from '../services/CreativeService.js';
+import { InstagramAccountRepository } from '../Repositories/InstagramAccountRepository.js';
+import { InstagramApiService } from '../services/InstagramApiService.js';
+import { InstagramOAuthService } from '../services/InstagramOAuthServices.js';
+import { InstagramOAuthController } from '../Controllers/InstagramOAuthController.js';
 
 // Build the DI graph and decorate the Fastify instance. Keep this file as
 // the *only* place that knows how the pieces are wired together — routes
@@ -52,12 +56,27 @@ async function plugin(app) {
   const adsController = new AdsController(adsService, app.log);
   const creativeService = new CreativeService({ logger: app.log });
 
+  // Instagram Business Login pipeline (separate from Ads OAuth).
+  const instagramAccountRepository = new InstagramAccountRepository(db);
+  const instagramApiService = new InstagramApiService({ logger: app.log });
+  const instagramOAuthService = new InstagramOAuthService({
+    logger: app.log,
+    repository: instagramAccountRepository,
+    apiService: instagramApiService,
+  });
+  const instagramOAuthController = new InstagramOAuthController(
+    instagramOAuthService,
+    app.log,
+  );
+
   app.decorate('db', db);
   app.decorate('userRepository', userRepository);
   app.decorate('authService', authService);
   app.decorate('adsService', adsService);
   app.decorate('adsController', adsController);
   app.decorate('creativeService', creativeService);
+  app.decorate('instagramAccountRepository', instagramAccountRepository);
+  app.decorate('instagramOAuthController', instagramOAuthController);
 }
 
 export default fp(plugin, { name: 'di', dependencies: ['auth'] });

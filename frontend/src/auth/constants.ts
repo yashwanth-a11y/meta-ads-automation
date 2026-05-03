@@ -21,4 +21,6 @@ export const paths = {
   analytics: '/analytics',
   genui: '/genui',
   settings: '/settings',
+  instagram: '/instagram',
+  instagramCallback: '/instagram-callback',
 } as const

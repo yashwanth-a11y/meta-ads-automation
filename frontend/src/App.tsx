@@ -15,6 +15,8 @@ import { SettingsPage } from './pages/SettingsPage'
 import { TrendsPage } from './pages/TrendsPage'
 import { ApprovalsPage } from './pages/ApprovalsPage'
 import GenUIPage from './pages/GenUIPage'
+import { InstagramPage } from './pages/InstagramPage'
+import { InstagramCallbackPage } from './pages/InstagramCallbackPage'
 
 function isAuthenticated() {
   const localToken = localStorage.getItem('auth_token')
@@ -63,6 +65,10 @@ export default function App() {
           popup can reach it even if it has no JWT (the page just postMessages
           the code+state back to the opener and closes). */}
       <Route path="oauth/meta-ads/callback" element={<OAuthCallback />} />
+      {/* Instagram Business Login redirects here with ?code & ?state. The
+          callback exchanges the code via /oauth/exchange. Lives outside
+          ProtectedRoute because the user just bounced back from Meta. */}
+      <Route path="instagram-callback" element={<InstagramCallbackPage />} />
       <Route
         element={
           <ProtectedRoute>
@@ -75,6 +81,7 @@ export default function App() {
         <Route path="trends" element={<TrendsPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="creatives" element={<CreativesPage />} />
+        <Route path="instagram" element={<InstagramPage />} />
         <Route path="ads" element={<AdsPage />} />
         <Route path="ads/setup" element={<AdsSetupPage />} />
         <Route path="ads/create" element={<AdsCreatePage />} />
