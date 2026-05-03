@@ -4,6 +4,11 @@ import { scriptGeneratorService } from '../../services/ScriptGeneratorService.js
 import { channelService } from '../../services/ChannelService.js';
 import { approvalService } from '../../services/ApprovalService.js';
 import { env } from '../../config/env.js';
+import { db } from '../../db/index.js';
+import { pipelineRuns } from '../../db/schema.js';
+import { eq } from 'drizzle-orm';
+import { v4 as uuidv4 } from 'uuid';
+import { notificationService } from '../../services/NotificationService.js';
 
 // MS1 — trend pipeline: ingest → classify → score per channel → generate bundles
 export default async function routes(app) {
@@ -43,18 +48,81 @@ export default async function routes(app) {
     });
   });
 
-  // Manual trigger: run full ingestion pipeline
-  app.post('/ingest/run', async (_req, reply) => {
-    // Run async, return immediately with job status
-    const summary = await trendIngestionService.runAll();
+  // Manual trigger: fire-and-forget, returns runId immediately for status polling
+  app.post('/ingest/run', async (req, reply) => {
+    const runId = uuidv4();
 
-    // Classify newly ingested candidates
-    const { classified } = await contentIntelligenceService.classifyPendingCandidates();
+    try {
+      await db.insert(pipelineRuns).values({ id: runId, status: 'running', started_at: new Date() });
+    } catch (err) {
+      if (err?.code !== '42P01') throw err;
+      // pipeline_runs table not migrated yet — proceed without DB tracking
+    }
 
-    // Score for all active channels of this org
-    const { totalScored } = await contentIntelligenceService.scoreCandidatesForAllChannels();
+    const orgId = req.user.organization_id ?? req.user.id;
 
-    return reply.code(200).send({ ...summary, classified, scored: totalScored });
+    setImmediate(async () => {
+      const stats = { ingested: 0, skipped: 0, classified: 0, scored: 0, errors: [] };
+      try {
+        const ingestResult = await trendIngestionService.runAll();
+        stats.ingested = ingestResult.ingested;
+        stats.skipped = ingestResult.skipped;
+        if (ingestResult.errors?.length) stats.errors.push(...ingestResult.errors);
+
+        const { classified } = await contentIntelligenceService.classifyPendingCandidates();
+        stats.classified = classified;
+
+        const { totalScored } = await contentIntelligenceService.scoreCandidatesForAllChannels();
+        stats.scored = totalScored;
+
+        await db.update(pipelineRuns).set({
+          status: 'done',
+          completed_at: new Date(),
+          ingested: stats.ingested,
+          skipped: stats.skipped,
+          classified: stats.classified,
+          scored: stats.scored,
+          errors: stats.errors,
+        }).where(eq(pipelineRuns.id, runId));
+
+        notificationService.notify(orgId, {
+          type: 'pipeline_done',
+          runId,
+          ingested: stats.ingested,
+          classified: stats.classified,
+          scored: stats.scored,
+        });
+
+        console.info('[Trends] Manual pipeline complete —', stats);
+      } catch (err) {
+        stats.errors.push(err.message);
+        console.error('[Trends] Manual pipeline failed:', err.message);
+        try {
+          await db.update(pipelineRuns).set({
+            status: 'failed',
+            completed_at: new Date(),
+            errors: stats.errors,
+          }).where(eq(pipelineRuns.id, runId));
+        } catch (_) { /* ignore DB error on failure path */ }
+        notificationService.notify(orgId, {
+          type: 'pipeline_failed',
+          runId,
+          error: err.message,
+        });
+      }
+    });
+
+    return reply.code(202).send({ runId });
+  });
+
+  // Poll status of a manual pipeline run
+  app.get('/ingest/status/:runId', async (req, reply) => {
+    const [run] = await db
+      .select()
+      .from(pipelineRuns)
+      .where(eq(pipelineRuns.id, req.params.runId));
+    if (!run) throw app.httpErrors.notFound('Run not found');
+    return reply.send(run);
   });
 
   // Update custom labels on a trend candidate

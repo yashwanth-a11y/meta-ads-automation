@@ -32,6 +32,7 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { trendsApi } from '../api/trends'
 import { qk } from '../api/queryClient'
 import type { CreativeBundle, QualityScores, TrendWithScore } from '../api/trends'
+import type { AppNotification } from '../context/NotificationsContext'
 
 // ─── Score colour helpers ─────────────────────────────────────────────────────
 
@@ -495,8 +496,30 @@ export function TrendsPage() {
   const [selectedChannelId, setSelectedChannelId] = useState<string>('')
   const [snackOpen, setSnackOpen] = useState(false)
   const [snackMsg, setSnackMsg] = useState('')
+  const [snackSeverity, setSnackSeverity] = useState<'success' | 'error' | 'info'>('success')
   const [activeBundle, setActiveBundle] = useState<CreativeBundle | null>(null)
   const [bundleOpen, setBundleOpen] = useState(false)
+
+  const notify = (msg: string, severity: 'success' | 'error' | 'info' = 'success') => {
+    setSnackMsg(msg)
+    setSnackSeverity(severity)
+    setSnackOpen(true)
+  }
+
+  // Listen for pipeline notifications pushed via SSE
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const n = (e as CustomEvent<AppNotification>).detail
+      if (n.type === 'pipeline_done') {
+        client.invalidateQueries({ queryKey: qk.topTrends(selectedChannelId) })
+        notify(`Pipeline complete — ${n.scored ?? 0} trend${n.scored !== 1 ? 's' : ''} scored, ${n.classified ?? 0} classified.`)
+      } else if (n.type === 'pipeline_failed') {
+        notify(`Pipeline failed: ${n.error ?? 'unknown error'}`, 'error')
+      }
+    }
+    window.addEventListener('app:notification', handler)
+    return () => window.removeEventListener('app:notification', handler)
+  }, [selectedChannelId, client])
 
   // ── Channels ──────────────────────────────────────────────────────────────
 
@@ -528,16 +551,11 @@ export function TrendsPage() {
 
   const { mutate: runPipeline, isPending: pipelineRunning } = useMutation({
     mutationFn: trendsApi.runPipeline,
-    onSuccess: (result) => {
-      client.invalidateQueries({ queryKey: qk.topTrends(selectedChannelId) })
-      setSnackMsg(
-        `Pipeline complete — ${result.scored} new trend${result.scored !== 1 ? 's' : ''} scored.`,
-      )
-      setSnackOpen(true)
+    onSuccess: () => {
+      notify('Pipeline started — you\'ll be notified when it\'s done.', 'info')
     },
     onError: (err: Error) => {
-      setSnackMsg(`Pipeline failed: ${err.message}`)
-      setSnackOpen(true)
+      notify(`Failed to start pipeline: ${err.message}`, 'error')
     },
   })
 
@@ -608,7 +626,7 @@ export function TrendsPage() {
           }
           sx={{ height: 48, px: 2.5 }}
         >
-          {pipelineRunning ? 'Running pipeline…' : 'Run pipeline'}
+          {pipelineRunning ? 'Starting…' : 'Run pipeline'}
         </Button>
       </Stack>
 
@@ -657,12 +675,12 @@ export function TrendsPage() {
       {/* Pipeline snackbar */}
       <Snackbar
         open={snackOpen}
-        autoHideDuration={5000}
-        onClose={() => setSnackOpen(false)}
+        autoHideDuration={snackSeverity === 'info' ? null : 6000}
+        onClose={(_e, reason) => { if (reason !== 'clickaway') setSnackOpen(false) }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
         <Alert
-          severity={snackMsg.startsWith('Pipeline failed') ? 'error' : 'success'}
+          severity={snackSeverity}
           onClose={() => setSnackOpen(false)}
           sx={{ borderRadius: '10px', fontWeight: 600 }}
         >

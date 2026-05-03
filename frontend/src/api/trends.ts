@@ -143,11 +143,19 @@ export type CreativeBundle = {
 }
 
 export type PipelineResult = {
+  runId: string
+}
+
+export type PipelineRun = {
+  id: string
+  status: 'running' | 'done' | 'failed'
+  started_at: string
+  completed_at: string | null
   ingested: number
   skipped: number
   classified: number
   scored: number
-  errors?: string[]
+  errors: string[]
 }
 
 // ─── API functions ────────────────────────────────────────────────────────────
@@ -163,6 +171,7 @@ export const trendsApi = {
     patch<Channel>(`/channels/${id}`, data),
   deleteChannel: (id: string) => del<void>(`/channels/${id}`),
   runPipeline: () => post<PipelineResult>('/trends/ingest/run'),
+  getPipelineStatus: (runId: string) => get<PipelineRun>(`/trends/ingest/status/${runId}`),
   getTopTrends: (channelId: string, minScore = 5, limit = 12) =>
     get<TrendWithScore[]>(`/trends/channels/${channelId}/top?min_score=${minScore}&limit=${limit}`),
   generateBundle: (channelId: string, trendCandidateId: string) =>

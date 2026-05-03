@@ -137,19 +137,27 @@ async function _runPipeline(log) {
     await Promise.allSettled(
       allChannelsForReddit.map(async (ch) => {
         try {
+          const src = ch.trend_sources ?? {};
           const sources = await trendIngestionService.getBrandSourcesForChannel(ch);
-          const [reddit, news, twitter, websites] = await Promise.allSettled([
-            trendIngestionService.ingestReddit(sources.subreddits),
-            trendIngestionService.ingestGoogleNews(sources.keywords),
-            trendIngestionService.ingestTwitterAccountsForChannel(ch),
-            trendIngestionService.ingestWatchedWebsitesForChannel(ch),
-          ]);
-          for (const { label, result } of [
-            { label: 'reddit', result: reddit },
-            { label: 'google_news', result: news },
-            { label: 'twitter', result: twitter },
-            { label: 'website', result: websites },
-          ]) {
+
+          // Build task list respecting each channel's trend_sources toggles.
+          // Google News and watched websites have no dedicated toggle so they always run.
+          // Reddit and Twitter are user-controllable and default to enabled if unset.
+          const ingestions = [
+            { label: 'google_news', promise: trendIngestionService.ingestGoogleNews(sources.keywords) },
+            { label: 'website', promise: trendIngestionService.ingestWatchedWebsitesForChannel(ch) },
+            ...(src.reddit !== false
+              ? [{ label: 'reddit', promise: trendIngestionService.ingestReddit(sources.subreddits) }]
+              : []),
+            ...(src.twitter !== false
+              ? [{ label: 'twitter', promise: trendIngestionService.ingestTwitterAccountsForChannel(ch) }]
+              : []),
+          ];
+
+          const results = await Promise.allSettled(ingestions.map((i) => i.promise));
+          for (let idx = 0; idx < ingestions.length; idx++) {
+            const { label } = ingestions[idx];
+            const result = results[idx];
             if (result.status === 'fulfilled') {
               stats.ingested += result.value.ingested;
               stats.skipped += result.value.skipped;
