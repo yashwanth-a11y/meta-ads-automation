@@ -35,21 +35,32 @@ function makeUploader() {
   return { delete: vi.fn(async () => undefined) };
 }
 
+function makeAiClient() {
+  return {
+    generate: vi.fn(),
+    reject: vi.fn(async () => ({ success: true, deleted: true })),
+    healthCheck: vi.fn(),
+  };
+}
+
 describe('InstagramPublishService.publishToAccount', () => {
   let svc;
   let repo;
   let publisher;
   let uploader;
+  let aiClient;
 
   beforeEach(() => {
     repo = makeRepo();
     publisher = makePublisher();
     uploader = makeUploader();
+    aiClient = makeAiClient();
     svc = new InstagramPublishService({
       logger: stubLogger(),
       instagramAccountRepository: repo,
       publishingService: publisher,
       uploadService: uploader,
+      aiImageClient: aiClient,
     });
   });
 
@@ -160,6 +171,49 @@ describe('InstagramPublishService.publishToAccount', () => {
     ).rejects.toThrow(/not found/i);
 
     expect(publisher.publishMedia).not.toHaveBeenCalled();
+  });
+
+  it('calls aiImageClient.reject for each cleanupAiUrls entry after publish', async () => {
+    repo.findById.mockResolvedValue({
+      id: 'IG1',
+      organization_id: 'org1',
+      ig_business_id: 'IGBIZ1',
+      access_token_encrypted: 'enc(TOKEN)',
+      is_active: true,
+    });
+    await svc.publishToAccount({
+      organizationId: 'org1',
+      accountId: 'IG1',
+      spec: { type: 'image', image_url: 'https://ms.example.com/i/x.jpg' },
+      cleanupAiUrls: ['https://ms.example.com/i/x.jpg', 'https://ms.example.com/i/y.jpg'],
+    });
+    expect(aiClient.reject).toHaveBeenCalledTimes(2);
+    expect(aiClient.reject).toHaveBeenCalledWith('https://ms.example.com/i/x.jpg');
+    expect(aiClient.reject).toHaveBeenCalledWith('https://ms.example.com/i/y.jpg');
+    // Regular cleanupPaths still untouched in this case.
+    expect(uploader.delete).not.toHaveBeenCalled();
+  });
+
+  it('cleans up both upload paths AND AI urls even when publish fails', async () => {
+    repo.findById.mockResolvedValue({
+      id: 'IG1',
+      organization_id: 'org1',
+      ig_business_id: 'IGBIZ1',
+      access_token_encrypted: 'enc(TOKEN)',
+      is_active: true,
+    });
+    publisher.publishMedia.mockRejectedValueOnce(new Error('IG container ERROR'));
+    await expect(
+      svc.publishToAccount({
+        organizationId: 'org1',
+        accountId: 'IG1',
+        spec: { type: 'image', image_url: 'https://ms.example.com/i/x.jpg' },
+        cleanupPaths: ['org1/abc.jpg'],
+        cleanupAiUrls: ['https://ms.example.com/i/x.jpg'],
+      }),
+    ).rejects.toThrow(/IG container ERROR/);
+    expect(uploader.delete).toHaveBeenCalledWith('org1/abc.jpg');
+    expect(aiClient.reject).toHaveBeenCalledWith('https://ms.example.com/i/x.jpg');
   });
 
   it('rejects publishing through an inactive account', async () => {

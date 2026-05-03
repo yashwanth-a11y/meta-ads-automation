@@ -18,6 +18,8 @@ import { InstagramOAuthService } from '../services/InstagramOAuthServices.js';
 import { InstagramOAuthController } from '../Controllers/InstagramOAuthController.js';
 import { InstagramUploadService } from '../services/InstagramUploadService.js';
 import { InstagramPublishService } from '../services/InstagramPublishService.js';
+import { InstagramAiGenerationService } from '../services/InstagramAiGenerationService.js';
+import { AiImageMicroserviceClient } from '../services/AiImageMicroserviceClient.js';
 import { publishingService } from '../services/PublishingService.js';
 
 // Build the DI graph and decorate the Fastify instance. Keep this file as
@@ -80,11 +82,23 @@ async function plugin(app) {
   // Direct-posting pipeline (composer → upload → publish). Reuses the
   // existing PublishingService singleton for the actual Graph-API calls.
   const instagramUploadService = new InstagramUploadService({ logger: app.log });
+  // Shared AI image microservice client — used by both ads (AdsService owns
+  // its own instance) and now Instagram. Reusing the same client class keeps
+  // bucket-cleanup behaviour consistent. AdsService instantiates its own;
+  // we instantiate ours here so the IG publish service can call .reject()
+  // for cleanup of AI-generated images that bypassed our upload service.
+  const aiImageClient = new AiImageMicroserviceClient({ logger: app.log });
+  const instagramAiGenerationService = new InstagramAiGenerationService({
+    logger: app.log,
+    instagramAccountRepository,
+    aiImageClient,
+  });
   const instagramPublishService = new InstagramPublishService({
     logger: app.log,
     instagramAccountRepository,
     publishingService,
     uploadService: instagramUploadService,
+    aiImageClient,
   });
   const instagramOAuthController = new InstagramOAuthController(
     instagramOAuthService,
@@ -92,6 +106,7 @@ async function plugin(app) {
     {
       publishService: instagramPublishService,
       uploadService: instagramUploadService,
+      aiGenerationService: instagramAiGenerationService,
     },
   );
 
@@ -106,6 +121,7 @@ async function plugin(app) {
   app.decorate('instagramOAuthController', instagramOAuthController);
   app.decorate('instagramUploadService', instagramUploadService);
   app.decorate('instagramPublishService', instagramPublishService);
+  app.decorate('instagramAiGenerationService', instagramAiGenerationService);
 }
 
 export default fp(plugin, { name: 'di', dependencies: ['auth'] });

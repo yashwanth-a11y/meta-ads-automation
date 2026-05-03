@@ -123,6 +123,22 @@ export type InstagramPublishResult = {
   published_at: string
 }
 
+// AI generation result — returned by /accounts/:id/generate. The image_url is
+// the microservice-hosted public JPEG; pass it as cleanup_ai_urls on publish
+// so the microservice cleans up after IG fetches the bytes.
+export type InstagramAiGenerationResult = {
+  image_url: string
+  caption: string
+  hashtags: string[]
+  post_type: 'image' | 'carousel' | 'story'
+  aspect_ratio: '1:1' | '4:5' | '9:16' | '16:9'
+  width: number | null
+  height: number | null
+  mime_type: string
+  refined_prompt: string
+  ai_microservice_url: string
+}
+
 export const instagramApi = {
   getAuthUrl: () => {
     const origin = window.location.origin
@@ -222,16 +238,47 @@ export const instagramApi = {
     accountId: string,
     spec: InstagramPublishSpec,
     cleanupPaths: string[] = [],
+    cleanupAiUrls: string[] = [],
   ) =>
     unwrap<InstagramPublishResult>(
       http.post<ApiResponse<InstagramPublishResult>>(
         `/instagram/accounts/${accountId}/publish`,
-        { spec, cleanup_paths: cleanupPaths },
+        {
+          spec,
+          cleanup_paths: cleanupPaths,
+          cleanup_ai_urls: cleanupAiUrls,
+        },
         // Publish includes a 15s × up to 24 attempts (~6 min) container poll
         // for video/reels — the request stays open until the IG container
         // reaches FINISHED. Bump axios timeout above the worst-case poll
         // budget so we don't time out before the backend does.
         { timeout: 8 * 60 * 1000 },
+      ),
+    ),
+  // AI generation — returns a hosted JPEG URL (microservice S3) plus a
+  // caption + hashtags. Caller passes the URL straight back into
+  // publishMedia's spec.image_url, and adds the URL to cleanupAiUrls so the
+  // microservice cleans up the object after publish completes.
+  generateAiPost: (
+    accountId: string,
+    body: {
+      prompt: string
+      post_type?: 'image' | 'carousel' | 'story'
+      context_hint?: {
+        industry?: string
+        brand_description?: string
+        target_audience?: string
+        tone?: string
+      }
+    },
+  ) =>
+    unwrap<InstagramAiGenerationResult>(
+      http.post<ApiResponse<InstagramAiGenerationResult>>(
+        `/instagram/accounts/${accountId}/generate`,
+        body,
+        // OpenAI refine ~2-5s + microservice generation ~30-90s. Allow
+        // headroom — server-side timeout in the microservice client is 120s.
+        { timeout: 3 * 60 * 1000 },
       ),
     ),
 }

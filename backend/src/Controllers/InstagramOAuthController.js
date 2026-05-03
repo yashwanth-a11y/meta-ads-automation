@@ -1,8 +1,13 @@
 export class InstagramOAuthController {
-  constructor(instagramOAuthService, logger, { publishService, uploadService } = {}) {
+  constructor(
+    instagramOAuthService,
+    logger,
+    { publishService, uploadService, aiGenerationService } = {},
+  ) {
     this.service = instagramOAuthService;
     this.publishService = publishService;
     this.uploadService = uploadService;
+    this.aiGenerationService = aiGenerationService;
     this.logger = logger;
   }
 
@@ -274,12 +279,17 @@ export class InstagramOAuthController {
   async publishMedia(request, reply) {
     try {
       if (!this.publishService) throw new Error('Publish service not configured');
-      const { spec, cleanup_paths: cleanupPaths } = request.body || {};
+      const {
+        spec,
+        cleanup_paths: cleanupPaths,
+        cleanup_ai_urls: cleanupAiUrls,
+      } = request.body || {};
       const result = await this.publishService.publishToAccount({
         organizationId: request.user.organization_id,
         accountId: request.params.accountId,
         spec,
         cleanupPaths: Array.isArray(cleanupPaths) ? cleanupPaths : [],
+        cleanupAiUrls: Array.isArray(cleanupAiUrls) ? cleanupAiUrls : [],
       });
       return { success: true, data: result };
     } catch (err) {
@@ -313,6 +323,37 @@ export class InstagramOAuthController {
       return reply.status(status).send({
         success: false,
         error: err.message || 'Publish failed',
+        code: err.code,
+      });
+    }
+  }
+
+  // AI generation — produces an image (via the microservice) plus a caption +
+  // hashtags (via GPT-4o-mini) from a short user brief. The frontend reviews
+  // the result, lets the user tweak caption/hashtags, then calls /publish
+  // with the AI image URL.
+  async generateAiPost(request, reply) {
+    try {
+      if (!this.aiGenerationService) throw new Error('AI generation not configured');
+      const body = request.body || {};
+      const result = await this.aiGenerationService.generatePost({
+        organizationId: request.user.organization_id,
+        accountId: request.params.accountId,
+        prompt: body.prompt,
+        postType: body.post_type || 'image',
+        contextHint: body.context_hint,
+      });
+      return { success: true, data: result };
+    } catch (err) {
+      const status = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+      this.logger.error({
+        message: 'Instagram AI generation failed',
+        err: err.message,
+        accountId: request.params.accountId,
+      });
+      return reply.status(status).send({
+        success: false,
+        error: err.message || 'AI generation failed',
         code: err.code,
       });
     }

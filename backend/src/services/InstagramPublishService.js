@@ -21,18 +21,35 @@ const IG_GRAPH_API_BASE = `${env.INSTAGRAM_GRAPH_API_BASE_URL}/${env.INSTAGRAM_A
 // /media_publish call all live in PublishingService — this class is glue.
 
 export class InstagramPublishService {
-  constructor({ logger, instagramAccountRepository, publishingService, uploadService }) {
+  constructor({
+    logger,
+    instagramAccountRepository,
+    publishingService,
+    uploadService,
+    aiImageClient,
+  }) {
     this.logger = logger;
     this.repository = instagramAccountRepository;
     this.publishingService = publishingService;
     this.uploadService = uploadService;
+    // Optional — only used when the user posts an AI-generated image. We
+    // call aiImageClient.reject() per URL after publish (success or failure)
+    // so the microservice doesn't accumulate orphaned S3 objects.
+    this.aiImageClient = aiImageClient ?? null;
   }
 
   // Publish a media spec to a specific IG account. `spec` shape matches
   // PublishingService MediaSpec — see that file's JSDoc. `cleanupPaths` is an
   // optional list of stored-path tokens (from upload service) to delete after
-  // the publish call returns.
-  async publishToAccount({ organizationId, accountId, spec, cleanupPaths = [] }) {
+  // the publish call returns. `cleanupAiUrls` is the same idea but for
+  // AI-microservice-hosted images that bypassed our upload service.
+  async publishToAccount({
+    organizationId,
+    accountId,
+    spec,
+    cleanupPaths = [],
+    cleanupAiUrls = [],
+  }) {
     if (!organizationId) throw badRequest('organizationId required');
     if (!accountId) throw badRequest('accountId required');
 
@@ -93,6 +110,14 @@ export class InstagramPublishService {
       if (this.uploadService && cleanupPaths.length) {
         for (const p of cleanupPaths) {
           await this.uploadService.delete(p).catch(() => {});
+        }
+      }
+      // Same for AI-generated images hosted in the microservice's S3 —
+      // aiImageClient.reject is idempotent and never throws (returns
+      // {success:false} on failure) but we wrap defensively anyway.
+      if (this.aiImageClient && cleanupAiUrls.length) {
+        for (const url of cleanupAiUrls) {
+          await this.aiImageClient.reject(url).catch(() => {});
         }
       }
     }

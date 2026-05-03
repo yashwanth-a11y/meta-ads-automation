@@ -106,10 +106,42 @@ export async function instagramOAuthRoutes(fastify) {
           properties: {
             spec: { type: 'object', additionalProperties: true },
             cleanup_paths: { type: 'array', items: { type: 'string' } },
+            cleanup_ai_urls: { type: 'array', items: { type: 'string' } },
           },
         },
       },
     },
     (req, reply) => controller.publishMedia(req, reply),
+  );
+
+  // AI generation — produces image + caption + hashtags from a brief.
+  // Reels are NOT supported here (image-only microservice). Carousel callers
+  // invoke this once per child slide.
+  fastify.post(
+    '/accounts/:accountId/generate',
+    {
+      preHandler: auth,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['prompt'],
+          properties: {
+            prompt: { type: 'string', minLength: 5, maxLength: 2000 },
+            post_type: { type: 'string', enum: ['image', 'carousel', 'story'] },
+            context_hint: {
+              type: 'object',
+              additionalProperties: true,
+              properties: {
+                industry: { type: 'string' },
+                brand_description: { type: 'string' },
+                target_audience: { type: 'string' },
+                tone: { type: 'string' },
+              },
+            },
+          },
+        },
+      },
+    },
+    (req, reply) => controller.generateAiPost(req, reply),
   );
 }
