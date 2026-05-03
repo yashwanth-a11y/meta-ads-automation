@@ -93,3 +93,20 @@ describe('PublishingService._buildCaption', () => {
     expect(svc._buildCaption({ caption: 'hi', hashtags: ['only'] })).toBe('hi\n\n#only');
   });
 });
+
+describe('PublishingService._validateSpec', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('rejects when type is missing', () => {
+    expect(() => svc._validateSpec({})).toThrowError(/type/i);
+  });
+
+  it('rejects unknown type', () => {
+    expect(() => svc._validateSpec({ type: 'audio' })).toThrowError(/type/i);
+  });
+
+  it('accepts a known type and dispatches (smoke — image with url)', () => {
+    expect(() => svc._validateSpec({ type: 'image', image_url: 'https://x/a.jpg' })).not.toThrow();
+  });
+});

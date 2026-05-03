@@ -11,6 +11,79 @@ const IG_API_BASE = `${env.META_API_BASE_URL}/${env.META_API_VERSION}`;
 const POLL_INTERVAL_MS = 15_000; // 15s between container status polls
 const POLL_MAX_ATTEMPTS = 24;    // 24 × 15s = 6 minutes max
 
+/**
+ * @typedef {object} UserTag
+ * @property {string} username
+ * @property {number} [x]   // 0..1, REQUIRED for image
+ * @property {number} [y]   // 0..1, REQUIRED for image
+ *
+ * @typedef {object} Partnership
+ * @property {true} is_paid_partnership
+ * @property {string[]} [sponsor_ig_user_ids]    // ≤2
+ *
+ * @typedef {object} CarouselChild
+ * @property {'image'|'video'} kind
+ * @property {string} [image_url]
+ * @property {string} [video_url]
+ * @property {UserTag[]} [user_tags]
+ * @property {string} [alt_text]                 // image children only
+ *
+ * @typedef {object} ImageSpec
+ * @property {'image'} type
+ * @property {string} image_url
+ * @property {string} [caption]
+ * @property {string[]} [hashtags]
+ * @property {string} [location_id]
+ * @property {UserTag[]} [user_tags]
+ * @property {string[]} [collaborators]
+ * @property {string} [alt_text]
+ * @property {Partnership} [partnership]
+ *
+ * @typedef {object} VideoSpec
+ * @property {'video'} type
+ * @property {string} video_url
+ * @property {string} [caption]
+ * @property {string[]} [hashtags]
+ * @property {string} [location_id]
+ * @property {UserTag[]} [user_tags]
+ * @property {string[]} [collaborators]
+ * @property {string} [cover_url]
+ * @property {number} [thumb_offset_ms]
+ * @property {Partnership} [partnership]
+ *
+ * @typedef {object} ReelsSpec
+ * @property {'reels'} type
+ * @property {string} video_url
+ * @property {string} [caption]
+ * @property {string[]} [hashtags]
+ * @property {string} [location_id]
+ * @property {UserTag[]} [user_tags]
+ * @property {string[]} [collaborators]
+ * @property {string} [cover_url]
+ * @property {number} [thumb_offset_ms]
+ * @property {boolean} [share_to_feed]      // defaults true
+ * @property {string} [audio_name]
+ * @property {Partnership} [partnership]
+ *
+ * @typedef {object} CarouselSpec
+ * @property {'carousel'} type
+ * @property {CarouselChild[]} children      // 2..10
+ * @property {string} [caption]
+ * @property {string[]} [hashtags]
+ * @property {string[]} [collaborators]
+ * @property {Partnership} [partnership]
+ *
+ * @typedef {object} StorySpec
+ * @property {'story'} type
+ * @property {string} [image_url]
+ * @property {string} [video_url]
+ * @property {UserTag[]} [user_tags]
+ *
+ * @typedef {ImageSpec|VideoSpec|ReelsSpec|CarouselSpec|StorySpec} MediaSpec
+ */
+
+const MEDIA_TYPES = new Set(['image', 'video', 'reels', 'carousel', 'story']);
+
 export class PublishingService {
   // -------------------------------------------------------------------------
   // Publish an approved creative bundle to Instagram
@@ -215,6 +288,17 @@ export class PublishingService {
       throw badRequest('Caption + hashtags combined exceed 2200 characters', { length: out.length });
     }
     return out;
+  }
+
+  /** @param {MediaSpec} spec */
+  _validateSpec(spec) {
+    if (!spec || typeof spec !== 'object') {
+      throw badRequest('MediaSpec is required', { spec });
+    }
+    if (!MEDIA_TYPES.has(spec.type)) {
+      throw badRequest(`Unknown MediaSpec type: ${spec.type}`, { allowed: [...MEDIA_TYPES] });
+    }
+    // Per-type validation lands in subsequent tasks.
   }
 
   _sleep(ms) {
