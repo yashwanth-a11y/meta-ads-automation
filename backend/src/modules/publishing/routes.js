@@ -25,7 +25,7 @@ export default async function routes(app) {
     }
 
     const channel = await channelService.get(orgId(req), job.channel_id);
-    const result = await publishingService.publish(channel, job);
+    const result = await publishingService.publishBundle(channel, job);
     return reply.code(200).send(result);
   });
 
@@ -35,7 +35,7 @@ export default async function routes(app) {
     if (!job) throw app.httpErrors.notFound('Job not found');
 
     const channel = await channelService.get(orgId(req), job.channel_id);
-    const result = await publishingService.publish(channel, job);
+    const result = await publishingService.publishBundle(channel, job);
     return reply.code(200).send(result);
   });
 }
