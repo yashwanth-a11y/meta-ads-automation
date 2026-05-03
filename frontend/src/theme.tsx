@@ -221,10 +221,10 @@ export const theme = createTheme({
     h6: { ...fontStyles.b14 },
     subtitle1: { ...fontStyles.m14 },
     subtitle2: { ...fontStyles.sb14 },
-    body1: { ...fontStyles.r14, color: '#808CA0' },
+    body1: { ...fontStyles.r14, color: '#808CA0', lineHeight: 1.6 },
     body2: { ...fontStyles.sb18 },
     caption: { fontSize: '10px' },
-    
+
   },
   shape: {
     borderRadius: 8,
