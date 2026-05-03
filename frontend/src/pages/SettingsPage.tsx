@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Box, Stack, Tab, Tabs } from '@mui/material'
 import { PageHeader } from '../components/ui/PageHeader'
 import { GeneralSection } from '../components/settings/GeneralSection'
+import { ProfileSection } from '../components/settings/ProfileSection'
 import { NotificationsSection } from '../components/settings/NotificationsSection'
 import { IntegrationsSection } from '../components/settings/IntegrationsSection'
 
@@ -23,16 +24,18 @@ export function SettingsPage() {
             '& .MuiTab-root': { textTransform: 'none', fontWeight: 600, fontSize: '14px', minWidth: 120 },
           }}
         >
-          <Tab label="General" id="settings-tab-0" />
-          <Tab label="Notifications" id="settings-tab-1" />
-          <Tab label="Integrations" id="settings-tab-2" />
+          <Tab label="Profile" id="settings-tab-0" />
+          <Tab label="General" id="settings-tab-1" />
+          <Tab label="Notifications" id="settings-tab-2" />
+          <Tab label="Integrations" id="settings-tab-3" />
         </Tabs>
       </Box>
 
       <Box sx={{ maxWidth: 820 }}>
-        {tab === 0 && <GeneralSection />}
-        {tab === 1 && <NotificationsSection />}
-        {tab === 2 && <IntegrationsSection />}
+        {tab === 0 && <ProfileSection />}
+        {tab === 1 && <GeneralSection />}
+        {tab === 2 && <NotificationsSection />}
+        {tab === 3 && <IntegrationsSection />}
       </Box>
     </Stack>
   )

@@ -117,6 +117,9 @@ export function post<T>(url: string, data?: unknown, config?: AxiosRequestConfig
 export function patch<T>(url: string, data?: unknown, config?: AxiosRequestConfig) {
   return unwrap<T>(http.patch(url, data, config))
 }
+export function put<T>(url: string, data?: unknown, config?: AxiosRequestConfig) {
+  return unwrap<T>(http.put(url, data, config))
+}
 export function del<T>(url: string, config?: AxiosRequestConfig) {
   return unwrap<T>(http.delete(url, config))
 }

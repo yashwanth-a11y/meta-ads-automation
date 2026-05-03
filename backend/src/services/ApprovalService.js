@@ -25,11 +25,12 @@ export class ApprovalService {
   // STAGE 1 — Send top trends, let user pick one
   // ───────────────────────────────────────────────────────────────────────────
   async sendTopicSelectionEmail(channel, topTrends) {
-    const userEmail = await this._getOrgEmail(channel.organization_id);
-    if (!userEmail) {
-      console.warn(`[Approvals] No email for org ${channel.organization_id} — skipping topic email`);
+    const contact = await this._getOrgContact(channel.organization_id);
+    if (!contact?.email && !contact?.phone) {
+      console.warn(`[Approvals] No contact info for org ${channel.organization_id} — skipping topic notification`);
       return null;
     }
+    const { email: userEmail, phone: userPhone } = contact;
 
     const { token, tokenHash } = this._generateToken();
     const expiresAt = new Date(Date.now() + APPROVAL_EXPIRY_MS);
@@ -49,13 +50,28 @@ export class ApprovalService {
     });
 
     const baseUrl = `${env.FRONTEND_URL}/api/v1/approvals/review/${token}`;
-    await this._sendEmail({
-      to: userEmail,
-      subject: `[PhotonX] 🔥 ${topTrends.length} trending topics for ${channel.brand_name} — pick one`,
-      html: this._topicSelectionEmailHtml({ channel, topTrends, baseUrl }),
-    });
+    
+    let sentViaWhatsApp = false;
+    if (userPhone) {
+      const { whatsappService } = await import('./whatsapp/WhatsAppService.js');
+      // For topic selection, we send an interactive list or multiple buttons.
+      // WhatsApp max 3 buttons per interactive message.
+      const buttons = topTrends.slice(0, 3).map(t => ({ id: `approval:${approvalId}:select_topic:${t.id}`, title: t.title.slice(0, 20) }));
+      const msgText = `🔥 We found ${topTrends.length} trending topics for ${channel.brand_name}. Pick one to generate your content!`;
+      sentViaWhatsApp = await whatsappService.sendInteractiveMessage(userPhone, msgText, buttons);
+    }
 
-    console.log(`[Approvals] Topic selection email sent to ${userEmail} for channel ${channel.id}`);
+    if (!sentViaWhatsApp && userEmail) {
+      await this._sendEmail({
+        to: userEmail,
+        subject: `[PhotonX] 🔥 ${topTrends.length} trending topics for ${channel.brand_name} — pick one`,
+        html: this._topicSelectionEmailHtml({ channel, topTrends, baseUrl }),
+      });
+      console.log(`[Approvals] Topic selection email sent to ${userEmail} for channel ${channel.id}`);
+    } else {
+      console.log(`[Approvals] Topic selection WhatsApp sent to ${userPhone} for channel ${channel.id}`);
+    }
+
     return approvalId;
   }
 
@@ -63,11 +79,12 @@ export class ApprovalService {
   // STAGE 2 — Send generated content for review
   // ───────────────────────────────────────────────────────────────────────────
   async sendContentReviewEmail(channel, bundle, trend = null) {
-    const userEmail = await this._getOrgEmail(channel.organization_id);
-    if (!userEmail) {
-      console.warn(`[Approvals] No email for org ${channel.organization_id} — skipping content email`);
+    const contact = await this._getOrgContact(channel.organization_id);
+    if (!contact?.email && !contact?.phone) {
+      console.warn(`[Approvals] No contact info for org ${channel.organization_id} — skipping content notification`);
       return null;
     }
+    const { email: userEmail, phone: userPhone } = contact;
 
     const { token, tokenHash } = this._generateToken();
     const expiresAt = new Date(Date.now() + APPROVAL_EXPIRY_MS);
@@ -87,13 +104,30 @@ export class ApprovalService {
     });
 
     const baseUrl = `${env.FRONTEND_URL}/api/v1/approvals/review/${token}`;
-    await this._sendEmail({
-      to: userEmail,
-      subject: `[PhotonX] Review content for ${channel.brand_name} — "${(bundle.hook ?? '').slice(0, 50)}"`,
-      html: this._contentReviewEmailHtml({ channel, bundle, trend, baseUrl }),
-    });
 
-    console.log(`[Approvals] Content review email sent to ${userEmail} for bundle ${bundle.id}`);
+    let sentViaWhatsApp = false;
+    if (userPhone) {
+      const { whatsappService } = await import('./whatsapp/WhatsAppService.js');
+      const msgText = `✍️ Your content for ${channel.brand_name} is ready!\n\n*Hook:* ${bundle.hook ?? '—'}\n\n*Script:* ${bundle.script ?? '—'}\n\nApprove this to generate the video?`;
+      const buttons = [
+        { id: `approval:${approvalId}:approve`, title: '✅ Approve' },
+        { id: `approval:${approvalId}:regenerate`, title: '🔄 Regenerate' },
+        { id: `approval:${approvalId}:reject`, title: '❌ Reject' }
+      ];
+      sentViaWhatsApp = await whatsappService.sendInteractiveMessage(userPhone, msgText, buttons);
+    }
+
+    if (!sentViaWhatsApp && userEmail) {
+      await this._sendEmail({
+        to: userEmail,
+        subject: `[PhotonX] Review content for ${channel.brand_name} — "${(bundle.hook ?? '').slice(0, 50)}"`,
+        html: this._contentReviewEmailHtml({ channel, bundle, trend, baseUrl }),
+      });
+      console.log(`[Approvals] Content review email sent to ${userEmail} for bundle ${bundle.id}`);
+    } else {
+      console.log(`[Approvals] Content review WhatsApp sent to ${userPhone} for bundle ${bundle.id}`);
+    }
+
     return approvalId;
   }
 
@@ -101,8 +135,9 @@ export class ApprovalService {
   // STAGE 3 — Send video for final approval
   // ───────────────────────────────────────────────────────────────────────────
   async sendVideoReviewEmail(channel, bundle) {
-    const userEmail = await this._getOrgEmail(channel.organization_id);
-    if (!userEmail) return null;
+    const contact = await this._getOrgContact(channel.organization_id);
+    if (!contact?.email && !contact?.phone) return null;
+    const { email: userEmail, phone: userPhone } = contact;
 
     const { token, tokenHash } = this._generateToken();
     const expiresAt = new Date(Date.now() + APPROVAL_EXPIRY_MS);
@@ -122,13 +157,30 @@ export class ApprovalService {
     });
 
     const baseUrl = `${env.FRONTEND_URL}/api/v1/approvals/review/${token}`;
-    await this._sendEmail({
-      to: userEmail,
-      subject: `[PhotonX] 🎬 Your video is ready — ${channel.brand_name}`,
-      html: this._videoReviewEmailHtml({ channel, bundle, baseUrl }),
-    });
 
-    console.log(`[Approvals] Video review email sent to ${userEmail} for bundle ${bundle.id}`);
+    let sentViaWhatsApp = false;
+    if (userPhone) {
+      const { whatsappService } = await import('./whatsapp/WhatsAppService.js');
+      const msgText = `🎬 Your video for ${channel.brand_name} is ready!\n\nLink: ${bundle.video_url || baseUrl}\n\nDo you want to publish this to Instagram?`;
+      const buttons = [
+        { id: `approval:${approvalId}:approve`, title: '✅ Publish' },
+        { id: `approval:${approvalId}:regenerate`, title: '🔄 Regenerate' },
+        { id: `approval:${approvalId}:reject`, title: '❌ Reject' }
+      ];
+      sentViaWhatsApp = await whatsappService.sendInteractiveMessage(userPhone, msgText, buttons);
+    }
+
+    if (!sentViaWhatsApp && userEmail) {
+      await this._sendEmail({
+        to: userEmail,
+        subject: `[PhotonX] 🎬 Your video is ready — ${channel.brand_name}`,
+        html: this._videoReviewEmailHtml({ channel, bundle, baseUrl }),
+      });
+      console.log(`[Approvals] Video review email sent to ${userEmail} for bundle ${bundle.id}`);
+    } else {
+      console.log(`[Approvals] Video review WhatsApp sent to ${userPhone} for bundle ${bundle.id}`);
+    }
+
     return approvalId;
   }
 
@@ -577,9 +629,14 @@ export class ApprovalService {
   // ───────────────────────────────────────────────────────────────────────────
   // Internal helpers
   // ───────────────────────────────────────────────────────────────────────────
+  async _getOrgContact(organizationId) {
+    const [user] = await db.select({ email: users.email, phone: users.phone }).from(users).where(eq(users.id, organizationId));
+    return user ?? null;
+  }
+
   async _getOrgEmail(organizationId) {
-    const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, organizationId));
-    return user?.email ?? null;
+    const contact = await this._getOrgContact(organizationId);
+    return contact?.email ?? null;
   }
 
   _generateToken() {
