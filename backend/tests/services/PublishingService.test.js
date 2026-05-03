@@ -32,3 +32,34 @@ describe('PublishingService — Graph URL', () => {
     expect(axios.post.mock.calls[0][0].startsWith(expectedPrefix)).toBe(true);
   });
 });
+
+describe('PublishingService._buildCaption', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('joins caption + hashtags', () => {
+    const out = svc._buildCaption({ caption: 'hello', hashtags: ['ai', 'dev'] });
+    expect(out).toBe('hello\n\n#ai #dev');
+  });
+
+  it('rejects caption longer than 2200 chars', () => {
+    expect(() => svc._buildCaption({ caption: 'x'.repeat(2201), hashtags: [] }))
+      .toThrowError(/2200/);
+  });
+
+  it('rejects more than 30 hashtags', () => {
+    const tags = Array.from({ length: 31 }, (_, i) => `t${i}`);
+    expect(() => svc._buildCaption({ caption: 'hi', hashtags: tags }))
+      .toThrowError(/hashtag/i);
+  });
+
+  it('rejects more than 20 @mentions in caption', () => {
+    const mentions = Array.from({ length: 21 }, (_, i) => `@u${i}`).join(' ');
+    expect(() => svc._buildCaption({ caption: mentions, hashtags: [] }))
+      .toThrowError(/mention/i);
+  });
+
+  it('returns empty string if no caption and no hashtags', () => {
+    expect(svc._buildCaption({})).toBe('');
+  });
+});

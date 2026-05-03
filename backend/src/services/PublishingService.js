@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { creativeBundles, metaAdAccounts } from '../db/schema.js';
 import { env } from '../config/env.js';
+import { badRequest } from '../lib/errors.js';
 
 // Instagram Content Publishing API — two-step: create container → publish
 // Docs: https://developers.facebook.com/docs/instagram-api/guides/content-publishing
@@ -39,7 +40,7 @@ export class PublishingService {
       .where(eq(creativeBundles.id, bundle.id));
 
     try {
-      const caption = this._buildCaption(bundle);
+      const caption = this._buildCaption({ caption: bundle.caption, hashtags: bundle.hashtags });
 
       // Step 1: Create media container (Reels)
       const containerId = await this._createContainer({
@@ -193,13 +194,29 @@ export class PublishingService {
     }
   }
 
-  _buildCaption(bundle) {
-    const parts = [];
-    if (bundle.caption) parts.push(bundle.caption);
-    if (bundle.hashtags?.length) {
-      parts.push('\n' + bundle.hashtags.map((h) => `#${h}`).join(' '));
+  _buildCaption({ caption, hashtags } = {}) {
+    const cap = typeof caption === 'string' ? caption : '';
+    const tags = Array.isArray(hashtags) ? hashtags : [];
+
+    if (cap.length > 2200) {
+      throw badRequest('Caption exceeds 2200 characters', {
+        details: { length: cap.length },
+      });
     }
-    return parts.join('\n').slice(0, 2200);
+    if (tags.length > 30) {
+      throw badRequest('Caption has more than 30 hashtags', {
+        details: { count: tags.length },
+      });
+    }
+    const mentionMatches = cap.match(/@[A-Za-z0-9._]+/g) ?? [];
+    if (mentionMatches.length > 20) {
+      throw badRequest('Caption has more than 20 @-mentions', {
+        details: { count: mentionMatches.length },
+      });
+    }
+    if (!cap && tags.length === 0) return '';
+    const tagBlock = tags.length ? `\n\n${tags.map((h) => `#${h}`).join(' ')}` : '';
+    return `${cap}${tagBlock}`.slice(0, 2200);
   }
 
   _sleep(ms) {
