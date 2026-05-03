@@ -14,7 +14,7 @@ import {
 import { alpha } from '@mui/material/styles'
 import {
   AnalyticsOutlined,
-  AutoAwesome,
+  CalendarMonthOutlined,
   CampaignOutlined,
   CheckCircleOutlined,
   DashboardOutlined,
@@ -38,12 +38,12 @@ const navItems = [
   { to: paths.channels, label: 'Channels', icon: HubOutlined },
   { to: paths.trends, label: 'Trends', icon: TrendingUpOutlined },
   { to: paths.creatives, label: 'Creatives', icon: VideoLibraryOutlined },
+  { to: paths.calendar, label: 'Calendar', icon: CalendarMonthOutlined },
   { to: paths.instagram, label: 'Instagram', icon: PhotoCameraOutlined },
   { to: paths.ads, label: 'Ads', icon: CampaignOutlined },
   { to: paths.approvals, label: 'Approvals', icon: CheckCircleOutlined },
   { to: paths.crm, label: 'CRM', icon: PeopleOutlined },
   { to: paths.analytics, label: 'Analytics', icon: AnalyticsOutlined },
-  // { to: paths.genui, label: 'AI Assistant', icon: AutoAwesome },
 ]
 
 type SidebarProps = {

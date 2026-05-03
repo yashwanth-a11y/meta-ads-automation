@@ -172,9 +172,64 @@ export class PublishingService {
   // Publish an approved creative bundle to Instagram (Reels). Thin wrapper
   // around publishMedia that owns the creative_bundles status lifecycle.
   // -------------------------------------------------------------------------
+  /**
+   * Build an Instagram MediaSpec from a creative bundle based on content_type.
+   */
+  _buildMediaSpec(bundle) {
+    const type = bundle.content_type || 'reel';
+
+    if (type === 'image_post') {
+      const imageUrl = Array.isArray(bundle.image_urls) && bundle.image_urls[0]
+        ? bundle.image_urls[0]
+        : bundle.thumbnail_url;
+      if (!imageUrl) return null;
+      return {
+        type: 'image',
+        image_url: imageUrl,
+        caption: bundle.caption,
+        hashtags: bundle.hashtags ?? [],
+        alt_text: bundle.hook || undefined,
+      };
+    }
+
+    if (type === 'carousel') {
+      const imageUrls = Array.isArray(bundle.image_urls) ? bundle.image_urls : [];
+      if (imageUrls.length < 2) return null;
+      return {
+        type: 'carousel',
+        children: imageUrls.map((url) => ({ kind: 'image', image_url: url })),
+        caption: bundle.caption,
+        hashtags: bundle.hashtags ?? [],
+      };
+    }
+
+    if (type === 'story') {
+      const imageUrl = Array.isArray(bundle.image_urls) && bundle.image_urls[0]
+        ? bundle.image_urls[0]
+        : null;
+      const videoUrl = bundle.video_url || null;
+      if (!imageUrl && !videoUrl) return null;
+      return imageUrl
+        ? { type: 'story', image_url: imageUrl }
+        : { type: 'story', video_url: videoUrl };
+    }
+
+    // Default: reel
+    if (!bundle.video_url) return null;
+    return {
+      type: 'reels',
+      video_url: bundle.video_url,
+      caption: bundle.caption,
+      hashtags: bundle.hashtags ?? [],
+      cover_url: bundle.thumbnail_url ?? undefined,
+    };
+  }
+
   async publishBundle(channel, bundle) {
-    if (!bundle.video_url) {
-      return { published: false, reason: 'Bundle has no video_url' };
+    const spec = this._buildMediaSpec(bundle);
+    if (!spec) {
+      const type = bundle.content_type || 'reel';
+      return { published: false, reason: `Bundle has no media URL for content_type=${type}` };
     }
 
     // Discover IG accounts linked to this channel (many-to-many path).
@@ -204,13 +259,7 @@ export class PublishingService {
         .where(eq(creativeBundles.id, bundle.id));
 
       try {
-        const { mediaId } = await this.publishMedia(channel, {
-          type: 'reels',
-          video_url: bundle.video_url,
-          caption: bundle.caption,
-          hashtags: bundle.hashtags ?? [],
-          cover_url: bundle.thumbnail_url ?? undefined,
-        });
+        const { mediaId } = await this.publishMedia(channel, spec);
 
         await db
           .update(creativeBundles)
@@ -261,13 +310,7 @@ export class PublishingService {
       const originalGetPageToken = this._getPageToken;
       this._getPageToken = async () => token;
       try {
-        const out = await this.publishMedia(channelStub, {
-          type: 'reels',
-          video_url: bundle.video_url,
-          caption: bundle.caption,
-          hashtags: bundle.hashtags ?? [],
-          cover_url: bundle.thumbnail_url ?? undefined,
-        });
+        const out = await this.publishMedia(channelStub, spec);
         results.push({
           instagram_account_id: acct.id,
           ig_username: acct.ig_username,

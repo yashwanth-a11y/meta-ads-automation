@@ -548,6 +548,16 @@ export function ChannelsPage() {
     onError: (err: Error) => setMutationError(err.message || 'Failed to generate labels.'),
   })
 
+  const [eventProfileGenerated, setEventProfileGenerated] = useState(false)
+  const { mutate: generateEventProfile, isPending: isGeneratingEventProfile } = useMutation({
+    mutationFn: (channelId: string) => trendsApi.generateEventProfile(channelId),
+    onSuccess: () => {
+      setEventProfileGenerated(true)
+      client.invalidateQueries({ queryKey: qk.channels })
+    },
+    onError: (err: Error) => setMutationError(err.message || 'Failed to generate event profile.'),
+  })
+
   const isPending = isCreating || isUpdating
 
   const handleCloseDialog = () => {
@@ -1087,6 +1097,68 @@ export function ChannelsPage() {
                         </Tooltip>
                       )}
                     </Stack>
+                  </Box>
+                )}
+
+                {/* Event Relevance Profile — personalises the festival calendar */}
+                {mode === 'edit' && editChannel && (
+                  <Box sx={{ p: 3, pt: 0 }}>
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.25 }}>
+                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: 'text.secondary', flex: 1 }}>
+                        Festival Calendar Profile
+                      </Typography>
+                      <Tooltip title="AI analyses your brand and generates a relevance score for each festival/event category, personalising the content calendar for your brand type">
+                        <span>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={isGeneratingEventProfile ? <CircularProgress size={12} sx={{ color: 'inherit' }} /> : <AutoAwesomeIcon sx={{ fontSize: 14 }} />}
+                            disabled={isGeneratingEventProfile}
+                            onClick={() => editChannel && generateEventProfile(editChannel.id)}
+                            sx={{
+                              fontSize: 11,
+                              height: 30,
+                              px: 1.5,
+                              borderColor: alpha('#22D3EE', 0.4),
+                              color: '#0891B2',
+                              '&:hover': { borderColor: '#22D3EE', bgcolor: alpha('#22D3EE', 0.06) },
+                            }}
+                          >
+                            {isGeneratingEventProfile ? 'Generating…' : eventProfileGenerated ? 'Regenerate Profile' : 'Generate Profile'}
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    </Stack>
+                    {(editChannel.brand_assets as { event_relevance_profile?: Record<string, unknown> })?.event_relevance_profile ? (
+                      <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+                        {(['festival', 'national', 'shopping', 'wedding', 'tech'] as string[]).map((cat) => {
+                          const score = ((editChannel.brand_assets as Record<string, unknown>)?.event_relevance_profile as Record<string, number>)?.[cat]
+                          if (!score && score !== 0) return null
+                          const intensity = Math.min(1, score / 10)
+                          return (
+                            <Chip
+                              key={cat}
+                              label={`${cat} ${score}/10`}
+                              size="small"
+                              sx={{
+                                height: 22,
+                                fontSize: 10,
+                                fontWeight: 700,
+                                borderRadius: '5px',
+                                bgcolor: alpha('#22D3EE', intensity * 0.25 + 0.05),
+                                color: intensity > 0.6 ? '#0891B2' : 'text.secondary',
+                                border: `1px solid ${alpha('#22D3EE', intensity * 0.4 + 0.1)}`,
+                                textTransform: 'capitalize',
+                              }}
+                            />
+                          )
+                        })}
+                      </Stack>
+                    ) : (
+                      <Typography sx={{ fontSize: 11, color: 'text.disabled', fontStyle: 'italic' }}>
+                        No profile yet — click Generate Profile so the calendar knows which festivals are relevant for this brand.
+                      </Typography>
+                    )}
                   </Box>
                 )}
 

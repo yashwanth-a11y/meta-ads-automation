@@ -15,6 +15,7 @@ import leadsRoutes from './leads/routes.js';
 import analyticsRoutes from './analytics/routes.js';
 import genuiRoutes from './genui/routes.js';
 import webhooksRoutes from './webhooks/routes.js';
+import calendarRoutes from './calendar/routes.js';
 
 export async function registerModules(app) {
   await app.register(healthRoutes);
@@ -36,6 +37,7 @@ export async function registerModules(app) {
       await api.register(leadsRoutes, { prefix: '/leads' });
       await api.register(analyticsRoutes, { prefix: '/analytics' });
       await api.register(genuiRoutes, { prefix: '/genui' });
+      await api.register(calendarRoutes, { prefix: '/calendar' });
     },
     { prefix: '/api/v1' },
   );

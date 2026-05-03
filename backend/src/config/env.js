@@ -117,6 +117,14 @@ const schema = z.object({
   BREVO_API_KEY: z.string().optional(),
   FROM_EMAIL: z.string().default('hussain@photonxtech.com'),
 
+  // Holiday sync — optional, enhances special_days calendar
+  // Free tier: 500 req/month at https://calendarific.com
+  CALENDARIFIC_API_KEY: z.string().optional(),
+
+  // Image generation providers
+  REPLICATE_API_KEY: z.string().optional(),
+  MODELSLAB_API_KEY: z.string().optional(),
+
   // Feature flags
   FEATURE_ADS_ENABLED: z
     .string()

@@ -140,6 +140,70 @@ export class ChannelService {
     await this.update(organizationId, channelId, { custom_labels: labels });
     return labels;
   }
+
+  // Generate an event relevance profile: scores 0–10 for each event category and
+  // industry category. Stored in brand_assets.event_relevance_profile.
+  async generateEventProfile(organizationId, channelId) {
+    const channel = await this.get(organizationId, channelId);
+
+    const profile = [
+      `Brand: ${channel.brand_name}`,
+      channel.industry && `Industry: ${channel.industry}`,
+      channel.niche && `Niche: ${channel.niche}`,
+      channel.tone && `Tone: ${channel.tone}`,
+      channel.target_audience && `Target audience: ${channel.target_audience}`,
+      channel.brand_description,
+      (channel.products?.length) && `Products: ${channel.products.join(', ')}`,
+      (channel.tracked_keywords?.length) && `Keywords: ${channel.tracked_keywords.join(', ')}`,
+    ].filter(Boolean).join('\n');
+
+    const systemPrompt = `You are a social media content strategist for Indian brands.
+Given a brand profile, return an event relevance profile that scores (0-10) how relevant different event types and industry categories are for this brand's content calendar.
+
+Event categories: festival, national, international, shopping, wedding, tech, sports
+Industry categories: fashion, ethnic_wear, jewellery, gifts, beauty, home_decor, food, electronics, mobile, tech, lifestyle, sustainable, handloom, kids, education, automotive, finance, health, travel, sports
+
+Rules:
+- A saree brand scores: festival:9, wedding:9, ethnic_wear:10, fashion:9, jewellery:7
+- A tech/mobile brand scores: tech:9, electronics:8, mobile:8, festival:4, shopping:7
+- A food brand scores: festival:8, food:10, gifts:6
+- Be specific to the brand. Score 0 for totally irrelevant categories.
+
+Return JSON: {
+  "festival": number,
+  "national": number,
+  "international": number,
+  "shopping": number,
+  "wedding": number,
+  "tech": number,
+  "sports": number,
+  "categories": {
+    "fashion": number, "ethnic_wear": number, "jewellery": number, "gifts": number,
+    "beauty": number, "home_decor": number, "food": number, "electronics": number,
+    "mobile": number, "tech": number, "lifestyle": number, "sustainable": number,
+    "handloom": number, "kids": number, "education": number, "automotive": number,
+    "finance": number, "health": number, "travel": number, "sports": number
+  }
+}`;
+
+    const result = await _openaiJSON(systemPrompt, profile);
+
+    const eventProfile = {
+      festival: result.festival ?? 5,
+      national: result.national ?? 3,
+      international: result.international ?? 3,
+      shopping: result.shopping ?? 4,
+      wedding: result.wedding ?? 3,
+      tech: result.tech ?? 1,
+      sports: result.sports ?? 1,
+      categories: result.categories ?? {},
+      generated_at: new Date().toISOString(),
+    };
+
+    const assets = { ...(channel.brand_assets ?? {}), event_relevance_profile: eventProfile };
+    await this.update(organizationId, channelId, { brand_assets: assets });
+    return eventProfile;
+  }
 }
 
 export const channelService = new ChannelService();
