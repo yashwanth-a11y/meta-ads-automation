@@ -263,7 +263,7 @@ export class ApprovalService {
 
     if (action === 'approve') {
       const { publishingService } = await import('./PublishingService.js');
-      const result = await publishingService.publish(channel, bundle);
+      const result = await publishingService.publishBundle(channel, bundle);
       return {
         ok: true,
         message: result.published ? 'Published to Instagram! 🎉' : `Publish queued (${result.reason})`,
@@ -504,7 +504,7 @@ export class ApprovalService {
     if (approval.stage === 'video_review') {
       if (action === 'approve') {
         const { publishingService } = await import('./PublishingService.js');
-        const result = await publishingService.publish(channel, bundle);
+        const result = await publishingService.publishBundle(channel, bundle);
         return { ok: true, message: 'Published to Instagram.', result };
       }
       if (action === 'regenerate') {

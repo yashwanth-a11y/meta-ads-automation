@@ -189,7 +189,7 @@ async function _runPipeline(log) {
             if (qualityScore >= Number(channel.auto_publish_threshold ?? 8.5)) {
               log.info({ runId, bundleId: bundle.id, qualityScore }, '[Scheduler] Auto-publishing');
               const { publishingService } = await import('./services/PublishingService.js');
-              await publishingService.publish(channel, bundle).catch((err) => {
+              await publishingService.publishBundle(channel, bundle).catch((err) => {
                 stats.errors.push(`Auto-publish ${bundle.id}: ${err.message}`);
               });
             } else {
