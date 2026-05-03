@@ -10,10 +10,10 @@
  *   Ingest → Classify → Score → Generate bundles → Send approval emails
  */
 
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, isNull, lt, and, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db/index.js';
-import { pipelineRuns, channels } from './db/schema.js';
+import { pipelineRuns, channels, trendCandidates, trendScores } from './db/schema.js';
 import { trendIngestionService } from './services/TrendIngestionService.js';
 import { contentIntelligenceService } from './services/ContentIntelligenceService.js';
 import { scriptGeneratorService } from './services/ScriptGeneratorService.js';
@@ -222,7 +222,26 @@ async function _runPipeline(log) {
       }
     }
 
-    // ── 5. Mark run as done ─────────────────────────────────────────────────
+    // ── 5. Clean up stale unscored candidates (older than 7 days) ──────────
+    try {
+      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const staleIds = await db
+        .select({ id: trendCandidates.id })
+        .from(trendCandidates)
+        .leftJoin(trendScores, eq(trendScores.trend_candidate_id, trendCandidates.id))
+        .where(and(isNull(trendScores.id), lt(trendCandidates.ingested_at, cutoff)));
+
+      if (staleIds.length) {
+        await db.delete(trendCandidates).where(
+          inArray(trendCandidates.id, staleIds.map((r) => r.id)),
+        );
+        log.info({ runId, deleted: staleIds.length }, '[Scheduler] Cleaned up stale unscored candidates');
+      }
+    } catch (err) {
+      log.warn({ runId, err }, '[Scheduler] Cleanup failed — non-fatal');
+    }
+
+    // ── 6. Mark run as done ─────────────────────────────────────────────────
     if (dbTracking) {
       await db
         .update(pipelineRuns)

@@ -14,22 +14,15 @@ const YOUTUBE_CATEGORIES = [
   { id: '22', name: 'People & Blogs' },  // lifestyle, creator trends
 ];
 
-// Hacker News: top stories batch size to check
+// Hacker News: only store genuinely viral stories
 const HN_STORY_LIMIT = 30;
+const HN_MIN_SCORE = 200;
 
 // Wikipedia top articles: minimum daily views to qualify as a trend signal
 const WIKIPEDIA_MIN_VIEWS = 50000;
 // Min percentile rank (out of 1000) to qualify — top 10% of ranked articles
 const WIKIPEDIA_TOP_N = 100;
 
-// Universal RSS feeds (tech/product/AI launches)
-const RSS_FEEDS = [
-  { name: 'Hacker News', url: 'https://news.ycombinator.com/rss' },
-  { name: 'TechCrunch', url: 'https://techcrunch.com/feed/' },
-  { name: 'Product Hunt Daily', url: 'https://www.producthunt.com/feed' },
-  { name: 'The Verge', url: 'https://www.theverge.com/rss/index.xml' },
-  { name: 'VentureBeat', url: 'https://feeds.feedburner.com/venturebeat/SZYF' },
-];
 
 // Fallback subreddits used only when AI generation fails
 const REDDIT_FALLBACK = ['entrepreneur', 'startups', 'marketing', 'technology', 'business'];
@@ -42,16 +35,13 @@ const NEWS_KEYWORD_FALLBACK = ['startup trends', 'marketing strategy', 'business
 const FRESHNESS_HOURS = 48;
 
 export class TrendIngestionService {
-  // Main entry: universal sources only (Reddit is channel-specific via ingestRedditForChannel)
+  // Main entry: universal signals only — Google Trends, Wikipedia, HN (viral threshold)
+  // Brand-specific news (Google News + Reddit) runs per-channel in the scheduler
   async runAll() {
     const results = await Promise.allSettled([
-      this.ingestRSS(),
       this.ingestGoogleTrends(),
-      this.ingestProductHunt(),
       this.ingestWikipediaTrending(),
       this.ingestHackerNews(),
-      this.ingestYouTubeTrending(),
-      this.ingestSpotifyViral(),
     ]);
 
     const summary = { ingested: 0, skipped: 0, errors: [] };
@@ -460,7 +450,7 @@ Return JSON: { "subreddits": ["name1", ...], "keywords": ["keyword1", ...] }`,
 
         for (const story of stories) {
           if (!story || story.type !== 'story' || !story.title) { skipped++; continue; }
-          if ((story.score ?? 0) < 50) { skipped++; continue; }
+          if ((story.score ?? 0) < HN_MIN_SCORE) { skipped++; continue; }
 
           const pubDate = story.time ? new Date(story.time * 1000) : new Date();
           if (pubDate < this._freshnessCutoff()) { skipped++; continue; }
