@@ -111,6 +111,33 @@ function validateOptionalCoverFields(spec) {
 
 export class PublishingService {
   // -------------------------------------------------------------------------
+  // Publish media (new unified API for all types: image, video, reels, carousel, story)
+  // -------------------------------------------------------------------------
+  async publishMedia(channel, spec) {
+    this._validateSpec(spec);
+    if (!channel?.instagram_account_id) {
+      throw badRequest('Channel is missing instagram_account_id');
+    }
+    const token = await this._getPageToken(channel.organization_id);
+    if (!token) {
+      throw badRequest('No Meta access token configured for this organization');
+    }
+    const igUserId = channel.instagram_account_id;
+    let containerId;
+    switch (spec.type) {
+      case 'image':
+        containerId = await this._createImageContainer({ spec, igUserId, token });
+        break;
+      // other branches added in Tasks 9-12
+      default:
+        throw badRequest(`publishMedia does not yet handle type=${spec.type}`);
+    }
+    await this._waitForContainer({ igUserId, token, containerId });
+    const mediaId = await this._publishContainer({ igUserId, token, containerId });
+    return { containerId, mediaId };
+  }
+
+  // -------------------------------------------------------------------------
   // Publish an approved creative bundle to Instagram
   // -------------------------------------------------------------------------
   async publish(channel, bundle) {
@@ -221,6 +248,20 @@ export class PublishingService {
 
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
     console.log(`[Publishing] Container created: ${data.id}`);
+    return data.id;
+  }
+
+  async _createImageContainer({ spec, igUserId, token }) {
+    const params = {
+      ...this._buildCommonParams(spec),
+      image_url: spec.image_url,
+      access_token: token,
+    };
+    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+      params, timeout: 30_000,
+    });
+    if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
+    console.log(`[Publishing] Image container created: ${data.id}`);
     return data.id;
   }
 

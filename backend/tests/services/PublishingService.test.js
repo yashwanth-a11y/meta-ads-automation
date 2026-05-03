@@ -279,3 +279,48 @@ describe('PublishingService._buildCommonParams', () => {
     expect('is_paid_partnership' in p).toBe(false);
   });
 });
+
+describe('PublishingService.publishMedia — image', () => {
+  let svc;
+  const channel = { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER' };
+  beforeEach(() => {
+    svc = new PublishingService();
+    vi.spyOn(svc, '_getPageToken').mockResolvedValue('TOK');
+    vi.spyOn(svc, '_sleep').mockResolvedValue();
+  });
+
+  it('creates image container then publishes; returns mediaId/containerId', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON_1' } })   // create container
+      .mockResolvedValueOnce({ data: { id: 'MED_1' } });  // publish
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    const out = await svc.publishMedia(channel, {
+      type: 'image',
+      image_url: 'https://x/a.jpg',
+      caption: 'hi',
+      hashtags: ['a'],
+      alt_text: 'photo',
+      location_id: '999',
+      collaborators: ['friend1'],
+    });
+
+    expect(out).toEqual({ containerId: 'CON_1', mediaId: 'MED_1' });
+
+    const [createUrl, , createOpts] = axios.post.mock.calls[0];
+    expect(createUrl).toMatch(new RegExp(`/IG_USER/media$`));
+    expect(createOpts.params).toMatchObject({
+      image_url: 'https://x/a.jpg',
+      caption: 'hi\n\n#a',
+      access_token: 'TOK',
+      alt_text: 'photo',
+      location_id: '999',
+      collaborators: JSON.stringify(['friend1']),
+    });
+    expect(createOpts.params.media_type).toBeUndefined();
+
+    const [publishUrl, , publishOpts] = axios.post.mock.calls[1];
+    expect(publishUrl).toMatch(new RegExp(`/IG_USER/media_publish$`));
+    expect(publishOpts.params).toMatchObject({ creation_id: 'CON_1', access_token: 'TOK' });
+  });
+});
