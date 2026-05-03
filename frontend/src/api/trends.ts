@@ -1,6 +1,20 @@
-import { get, post, patch } from './client'
+import { get, post, patch, del } from './client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export type ChannelApprover = {
+  email: string
+  role: 'approver' | 'reviewer'
+}
+
+export type ChannelTrendSources = {
+  rss: boolean
+  google_trends: boolean
+  reddit: boolean
+  product_hunt: boolean
+  youtube: boolean
+  twitter: boolean
+}
 
 export type Channel = {
   id: string
@@ -13,8 +27,20 @@ export type Channel = {
   language: string
   target_audience: string | null
   products: string[]
+  competitors: string[]
+  tracked_keywords: string[]
   blocked_topics: string[]
-  trend_sources: Record<string, boolean>
+  brand_assets: {
+    approvers?: ChannelApprover[]
+    examples?: unknown[]
+    [key: string]: unknown
+  }
+  instagram_account_id: string | null
+  approval_mode: 'manual' | 'auto'
+  auto_publish_threshold: string
+  topic_cooldown_days: number
+  posting_schedule: string
+  trend_sources: Partial<ChannelTrendSources>
   status: 'active' | 'inactive'
   created_at: string
   updated_at: string
@@ -32,6 +58,29 @@ export type CreateChannelInput = {
   products?: string[]
   blocked_topics?: string[]
 }
+
+export type ChannelUpdateInput = Partial<{
+  name: string
+  brand_name: string
+  brand_description: string
+  industry: string
+  niche: string
+  tone: string
+  language: string
+  target_audience: string
+  products: string[]
+  competitors: string[]
+  tracked_keywords: string[]
+  blocked_topics: string[]
+  brand_assets: Record<string, unknown>
+  instagram_account_id: string
+  approval_mode: 'manual' | 'auto'
+  auto_publish_threshold: string
+  topic_cooldown_days: number
+  posting_schedule: string
+  trend_sources: Partial<ChannelTrendSources>
+  status: 'active' | 'inactive'
+}>
 
 export type EmotionalDNA = {
   core_emotion: string
@@ -101,8 +150,9 @@ export type PipelineResult = {
 export const trendsApi = {
   listChannels: () => get<Channel[]>('/channels'),
   createChannel: (data: CreateChannelInput) => post<Channel>('/channels', data),
-  updateChannel: (id: string, data: Partial<CreateChannelInput>) =>
+  updateChannel: (id: string, data: ChannelUpdateInput) =>
     patch<Channel>(`/channels/${id}`, data),
+  deleteChannel: (id: string) => del<void>(`/channels/${id}`),
   runPipeline: () => post<PipelineResult>('/trends/ingest/run'),
   getTopTrends: (channelId: string, minScore = 5, limit = 12) =>
     get<TrendWithScore[]>(`/trends/channels/${channelId}/top?min_score=${minScore}&limit=${limit}`),
