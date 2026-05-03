@@ -22,6 +22,8 @@ import {
   Skeleton,
   Snackbar,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -31,6 +33,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -39,7 +42,13 @@ import { GlassCard } from '../components/ui/GlassCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { trendsApi } from '../api/trends'
 import { qk } from '../api/queryClient'
-import type { Channel } from '../api/trends'
+import type { Channel, ChannelApprover, ChannelTrendSources } from '../api/trends'
+import { DEFAULT_SOURCES } from '../components/settings/constants'
+import { ApprovalPublishingCard } from '../components/settings/channel/ApprovalPublishingCard'
+import { TrendSourcesCard } from '../components/settings/channel/TrendSourcesCard'
+import { ApproversCard } from '../components/settings/channel/ApproversCard'
+import { KeywordsCard } from '../components/settings/channel/KeywordsCard'
+import { MonitoringSourcesCard } from '../components/settings/channel/MonitoringSourcesCard'
 
 // ─── Validation schema ────────────────────────────────────────────────────────
 
@@ -97,11 +106,11 @@ interface ChannelCardProps {
   onClick: () => void
   onEdit: () => void
   onDelete: () => void
+  onSettings: () => void
 }
 
-function ChannelCard({ channel, selected, onClick, onEdit, onDelete }: ChannelCardProps) {
+function ChannelCard({ channel, selected, onClick, onEdit, onDelete, onSettings }: ChannelCardProps) {
   const isActive = channel.status === 'active'
-  const monogram = (channel.brand_name?.trim()?.charAt(0) || '?').toUpperCase()
   const blockedCount = channel.blocked_topics?.length ?? 0
   const hasFooter = !!channel.tone || !!channel.target_audience || blockedCount > 0
 
@@ -111,6 +120,9 @@ function ChannelCard({ channel, selected, onClick, onEdit, onDelete }: ChannelCa
       sx={{
         p: 2.25,
         cursor: 'pointer',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
         borderColor: selected ? alpha('#22D3EE', 0.55) : undefined,
         boxShadow: selected
           ? `0 0 0 2px ${alpha('#22D3EE', 0.22)}, 0 8px 24px ${alpha('#0F172A', 0.08)}`
@@ -120,29 +132,7 @@ function ChannelCard({ channel, selected, onClick, onEdit, onDelete }: ChannelCa
         },
       }}
     >
-      <Stack direction="row" spacing={1.75} sx={{ alignItems: 'flex-start' }}>
-        {/* Monogram avatar */}
-        {/* <Box
-          sx={{
-            flexShrink: 0,
-            width: 44,
-            height: 44,
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: `linear-gradient(135deg, ${alpha('#22D3EE', 0.2)} 0%, ${alpha('#0EA5B7', 0.1)} 100%)`,
-            border: `1px solid ${alpha('#22D3EE', 0.25)}`,
-            color: '#0EA5B7',
-            fontWeight: 800,
-            fontSize: 18,
-            letterSpacing: 0.5,
-            userSelect: 'none',
-          }}
-        >
-          {monogram}
-        </Box> */}
-
+      <Stack direction="row" spacing={1.75} sx={{ alignItems: 'flex-start', flex: 1 }}>
         <Stack sx={{ flex: 1, minWidth: 0 }} spacing={1.25}>
           {/* Header row: eyebrow + brand name + status, with action icons on the right */}
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -205,28 +195,29 @@ function ChannelCard({ channel, selected, onClick, onEdit, onDelete }: ChannelCa
             </Stack>
 
             <Stack direction="row" spacing={0.5} sx={{ ml: 1, flexShrink: 0, mt: -0.25 }}>
-              <Tooltip title="Edit channel">
+              <Tooltip title="Edit profile">
                 <IconButton
                   size="small"
                   onClick={(e) => { e.stopPropagation(); onEdit() }}
-                  sx={{ 
-                    color: 'primary.main', 
-                    bgcolor: alpha('#22D3EE', 0.08),
-                    borderRadius: '4px',
-                    }}
+                  sx={{ color: 'primary.main', bgcolor: alpha('#22D3EE', 0.08), borderRadius: '4px' }}
                 >
                   <EditOutlinedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Channel settings">
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); onSettings() }}
+                  sx={{ color: '#A78BFA', bgcolor: alpha('#A78BFA', 0.08), borderRadius: '4px' }}
+                >
+                  <SettingsOutlinedIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Delete channel">
                 <IconButton
                   size="small"
                   onClick={(e) => { e.stopPropagation(); onDelete() }}
-                  sx={{ 
-                    color: 'error.main', 
-                    bgcolor: alpha('#F87171', 0.08) ,
-                    borderRadius: '4px',
-                     }}
+                  sx={{ color: 'error.main', bgcolor: alpha('#F87171', 0.08), borderRadius: '4px' }}
                 >
                   <DeleteOutlineIcon sx={{ fontSize: 14 }} />
                 </IconButton>
@@ -368,6 +359,21 @@ export function ChannelsPage() {
   const [snackMsg, setSnackMsg] = useState('')
   const [mutationError, setMutationError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [drawerTab, setDrawerTab] = useState(0)
+
+  // ── Channel config state ───────────────────────────────────────────────────
+  const [approvalMode, setApprovalMode] = useState<'manual' | 'auto'>('manual')
+  const [threshold, setThreshold] = useState(8.5)
+  const [schedule, setSchedule] = useState('3x/week')
+  const [cooldown, setCooldown] = useState(14)
+  const [instagramId, setInstagramId] = useState('')
+  const [trendSources, setTrendSources] = useState<ChannelTrendSources>({ ...DEFAULT_SOURCES })
+  const [approvers, setApprovers] = useState<ChannelApprover[]>([])
+  const [products, setProducts] = useState<string[]>([])
+  const [competitors, setCompetitors] = useState<string[]>([])
+  const [trackedKeywords, setTrackedKeywords] = useState<string[]>([])
+  const [trackedXAccounts, setTrackedXAccounts] = useState<string[]>([])
+  const [watchedWebsites, setWatchedWebsites] = useState<string[]>([])
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -396,6 +402,7 @@ export function ChannelsPage() {
     setMutationError(null)
     setBlockedTopics([])
     setTopicInput('')
+    setDrawerTab(0)
     reset(defaultValues)
   }
 
@@ -410,6 +417,7 @@ export function ChannelsPage() {
     setMutationError(null)
     setBlockedTopics(channel.blocked_topics ?? [])
     setTopicInput('')
+    setDrawerTab(0)
     reset({
       name: channel.name,
       brand_name: channel.brand_name,
@@ -420,6 +428,18 @@ export function ChannelsPage() {
       target_audience: channel.target_audience ?? '',
       language: channel.language,
     })
+    setApprovalMode(channel.approval_mode ?? 'manual')
+    setThreshold(parseFloat(channel.auto_publish_threshold ?? '8.5'))
+    setSchedule(channel.posting_schedule ?? '3x/week')
+    setCooldown(channel.topic_cooldown_days ?? 14)
+    setInstagramId(channel.instagram_account_id ?? '')
+    setTrendSources({ ...DEFAULT_SOURCES, ...(channel.trend_sources ?? {}) })
+    setApprovers(channel.brand_assets?.approvers ?? [])
+    setProducts(channel.products ?? [])
+    setCompetitors(channel.competitors ?? [])
+    setTrackedKeywords(channel.tracked_keywords ?? [])
+    setTrackedXAccounts(channel.brand_assets?.tracked_x_accounts ?? [])
+    setWatchedWebsites(channel.brand_assets?.watched_websites ?? [])
     setDialogOpen(true)
   }
 
@@ -489,7 +509,28 @@ export function ChannelsPage() {
   const onSubmit = (values: FormValues) => {
     setMutationError(null)
     if (mode === 'edit' && editChannel) {
-      updateChannel({ id: editChannel.id, data: { ...values, blocked_topics: blockedTopics } })
+      updateChannel({
+        id: editChannel.id,
+        data: {
+          ...values,
+          blocked_topics: blockedTopics,
+          approval_mode: approvalMode,
+          auto_publish_threshold: String(threshold),
+          posting_schedule: schedule,
+          topic_cooldown_days: cooldown,
+          instagram_account_id: instagramId || undefined,
+          trend_sources: trendSources,
+          brand_assets: {
+            ...(editChannel.brand_assets ?? {}),
+            approvers,
+            tracked_x_accounts: trackedXAccounts,
+            watched_websites: watchedWebsites,
+          },
+          products,
+          competitors,
+          tracked_keywords: trackedKeywords,
+        },
+      })
     } else {
       createChannel({ ...values, blocked_topics: blockedTopics })
     }
@@ -556,15 +597,16 @@ export function ChannelsPage() {
             </Stack>
           </GlassCard>
         ) : (
-          <Grid container spacing={1.5}>
+          <Grid container spacing={1.5} sx={{ alignItems: 'stretch' }}>
             {channels.map((ch) => (
-              <Grid key={ch.id} size={{ xs: 12, sm: 6, lg: 4 }}>
+              <Grid key={ch.id} size={{ xs: 12, sm: 6, lg: 4 }} sx={{ display: 'flex' }}>
                 <ChannelCard
                   channel={ch}
                   selected={mode === 'edit' && editChannel?.id === ch.id}
                   onClick={() => openEdit(ch)}
                   onEdit={() => openEdit(ch)}
                   onDelete={() => setDeleteTarget(ch)}
+                  onSettings={() => { openEdit(ch); setDrawerTab(1) }}
                 />
               </Grid>
             ))}
@@ -597,7 +639,8 @@ export function ChannelsPage() {
             alignItems: 'flex-start',
             justifyContent: 'space-between',
             px: 3,
-            py: 2,
+            pt: 2,
+            pb: 1.5,
             flexShrink: 0,
           }}
         >
@@ -607,7 +650,7 @@ export function ChannelsPage() {
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
               {mode === 'edit'
-                ? 'Update brand voice and positioning for this channel.'
+                ? 'Update brand voice, positioning, and pipeline config.'
                 : 'Define the brand voice and positioning for this growth lane.'}
             </Typography>
           </Box>
@@ -620,7 +663,17 @@ export function ChannelsPage() {
             <CloseRoundedIcon />
           </IconButton>
         </Box>
-        <Divider />
+        {mode === 'edit' && (
+          <Tabs
+            value={drawerTab}
+            onChange={(_, v) => setDrawerTab(v)}
+            sx={{ px: 3, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}
+          >
+            <Tab label="Profile" sx={{ fontWeight: 600, fontSize: 13 }} />
+            <Tab label="Settings" sx={{ fontWeight: 600, fontSize: 13 }} />
+          </Tabs>
+        )}
+        {mode === 'create' && <Divider />}
         <Box
           component="form"
           onSubmit={handleSubmit(onSubmit)}
@@ -633,6 +686,31 @@ export function ChannelsPage() {
           }}
         >
           <Box sx={{ px: 3, py: 3, flex: 1, overflowY: 'auto' }}>
+            {/* Settings tab — only in edit mode */}
+            {mode === 'edit' && drawerTab === 1 && (
+              <Stack spacing={2.5}>
+                <ApprovalPublishingCard
+                  approvalMode={approvalMode} setApprovalMode={setApprovalMode}
+                  threshold={threshold} setThreshold={setThreshold}
+                  schedule={schedule} setSchedule={setSchedule}
+                  cooldown={cooldown} setCooldown={setCooldown}
+                  instagramId={instagramId} setInstagramId={setInstagramId}
+                />
+                <TrendSourcesCard trendSources={trendSources} setTrendSources={setTrendSources} />
+                <KeywordsCard
+                  products={products} setProducts={setProducts}
+                  competitors={competitors} setCompetitors={setCompetitors}
+                  trackedKeywords={trackedKeywords} setTrackedKeywords={setTrackedKeywords}
+                />
+                <MonitoringSourcesCard
+                  trackedXAccounts={trackedXAccounts} setTrackedXAccounts={setTrackedXAccounts}
+                  watchedWebsites={watchedWebsites} setWatchedWebsites={setWatchedWebsites}
+                />
+                <ApproversCard approvers={approvers} setApprovers={setApprovers} />
+              </Stack>
+            )}
+            {/* Profile tab */}
+            {drawerTab === 0 && (
               <Stack spacing={2}>
                 {/* Channel name */}
 
@@ -823,16 +901,8 @@ export function ChannelsPage() {
 
                
 
-                {/* Blocked topics */}
-
-                {/* Error state */}
-                {mutationError && (
-                  <Alert severity="error" sx={{ borderRadius: '8px' }}>
-                    {mutationError}
-                  </Alert>
-                )}
-
               </Stack>
+            )}
           </Box>
 
           <Divider />
@@ -841,11 +911,18 @@ export function ChannelsPage() {
               px: 3,
               py: 2,
               display: 'flex',
-              justifyContent: 'flex-end',
+              justifyContent: 'space-between',
+              alignItems: 'center',
               gap: 1.5,
               flexShrink: 0,
             }}
           >
+            {mutationError && (
+              <Alert severity="error" sx={{ borderRadius: '8px', flex: 1, mr: 1 }}>
+                {mutationError}
+              </Alert>
+            )}
+            {!mutationError && <Box sx={{ flex: 1 }} />}
             <Button
               type="button"
               variant="outlined"
