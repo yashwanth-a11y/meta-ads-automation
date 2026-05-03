@@ -1,5 +1,5 @@
 import { eq, and, between, sql, desc } from "drizzle-orm";
-import { ctwaInsightsCache } from "../db/schema.js";
+import { ctwaCampaigns, ctwaInsightsCache } from "../db/schema.js";
 import { v4 as uuidv4 } from "uuid";
 
 export class CtwaInsightsRepository {
@@ -87,5 +87,48 @@ export class CtwaInsightsRepository {
       .orderBy(desc(ctwaInsightsCache.date))
       .limit(1);
     return result || { quality_ranking: "UNKNOWN", engagement_rate_ranking: "UNKNOWN" };
+  }
+
+  /** Daily aggregates across all CTWA campaigns for an organization (insights cache). */
+  async getOrganizationDailyAggregates(organizationId, startDate, endDate) {
+    const conditions = [
+      eq(ctwaCampaigns.organization_id, organizationId),
+      between(ctwaInsightsCache.date, startDate, endDate),
+    ];
+
+    return this.db
+      .select({
+        date: ctwaInsightsCache.date,
+        spend: sql`COALESCE(SUM(${ctwaInsightsCache.spend}::numeric), 0)`,
+        impressions: sql`COALESCE(SUM(${ctwaInsightsCache.impressions}), 0)`,
+        clicks: sql`COALESCE(SUM(${ctwaInsightsCache.clicks}), 0)`,
+        conversations: sql`COALESCE(SUM(${ctwaInsightsCache.messaging_conversations_started}), 0)`,
+      })
+      .from(ctwaInsightsCache)
+      .innerJoin(ctwaCampaigns, eq(ctwaInsightsCache.meta_campaign_id, ctwaCampaigns.meta_campaign_id))
+      .where(and(...conditions))
+      .groupBy(ctwaInsightsCache.date)
+      .orderBy(ctwaInsightsCache.date);
+  }
+
+  /** Top campaigns by spend in range (for bar breakdown). */
+  async getOrganizationSpendByCampaign(organizationId, startDate, endDate, limit = 8) {
+    const conditions = [
+      eq(ctwaCampaigns.organization_id, organizationId),
+      between(ctwaInsightsCache.date, startDate, endDate),
+    ];
+
+    return this.db
+      .select({
+        campaign_id: ctwaCampaigns.id,
+        name: ctwaCampaigns.name,
+        spend: sql`COALESCE(SUM(${ctwaInsightsCache.spend}::numeric), 0)`,
+      })
+      .from(ctwaInsightsCache)
+      .innerJoin(ctwaCampaigns, eq(ctwaInsightsCache.meta_campaign_id, ctwaCampaigns.meta_campaign_id))
+      .where(and(...conditions))
+      .groupBy(ctwaCampaigns.id, ctwaCampaigns.name)
+      .orderBy(desc(sql`COALESCE(SUM(${ctwaInsightsCache.spend}::numeric), 0)`))
+      .limit(limit);
   }
 }

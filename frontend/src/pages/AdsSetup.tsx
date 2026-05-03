@@ -3,12 +3,10 @@ import {
   Avatar,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Divider,
   FormControl,
   InputLabel,
-  ListItemAvatar,
   ListItemText,
   MenuItem,
   Select,
@@ -17,7 +15,6 @@ import {
 } from '@mui/material'
 import FacebookIcon from '@mui/icons-material/Facebook'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
-import WhatsAppIcon from '@mui/icons-material/WhatsApp'
 import LinkOffIcon from '@mui/icons-material/LinkOff'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -25,7 +22,6 @@ import { useNavigate } from 'react-router-dom'
 import { adsApi, ApiError, qk } from '../api'
 import type {
   AvailableAdAccount,
-  AvailablePage,
   ConnectAdAccountInput,
   OAuthCallbackResult,
 } from '../api/types'
@@ -50,7 +46,7 @@ export function AdsSetupPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [oauthData, setOauthData] = useState<OAuthCallbackResult | null>(null)
   const [selectedAccountId, setSelectedAccountId] = useState<string>('')
-  const [selectedPageId, setSelectedPageId] = useState<string>('')
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string>('')
 
   const { startOAuth } = useMetaOAuth()
 
@@ -76,11 +72,11 @@ export function AdsSetupPage() {
       const { code, state } = await startOAuth(url)
       const result = await adsApi.handleOAuthCallback(code, state)
       setOauthData(result)
-      // Auto-select first usable account/page
+      // Auto-select first usable account/business
       const firstUsable = (result.ad_accounts || []).find((a) => a.account_status === 1)
-      const firstPage = (result.pages || [])[0]
+      const firstBusiness = (result.businesses || [])[0]
       if (firstUsable) setSelectedAccountId(firstUsable.id || firstUsable.account_id)
-      if (firstPage) setSelectedPageId(firstPage.id)
+      if (firstBusiness) setSelectedBusinessId(firstBusiness.id)
       setStep('choosing')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Connection failed'
@@ -94,26 +90,26 @@ export function AdsSetupPage() {
     const account = (oauthData.ad_accounts || []).find(
       (a) => (a.id || a.account_id) === selectedAccountId,
     )
-    const page = (oauthData.pages || []).find((p) => p.id === selectedPageId)
+    const business = (oauthData.businesses || []).find((b) => b.id === selectedBusinessId)
     if (!account) {
       setErrorMsg('Please pick an ad account.')
       return
     }
-    if (!page) {
-      setErrorMsg('Please pick a Facebook Page.')
+    if (!business) {
+      setErrorMsg('Please pick a business account.')
       return
     }
     setStep('saving')
     connectMutation.mutate({
       ad_account_id: account.account_id || account.id.replace(/^act_/, ''),
       ad_account_name: account.name,
-      page_id: page.id,
-      page_name: page.name,
-      waba_id: page.whatsapp_business_account?.id || null,
+      page_id: business.id,
+      page_name: business.name,
+      waba_id: null,
       fb_user_id: oauthData.fb_user_id || null,
       // Backend OAuth callback returns this as `access_token`, not `user_access_token`.
       access_token: oauthData.access_token,
-      page_access_token: page.access_token || null,
+      page_access_token: null,
       expires_in: oauthData.expires_in,
       currency: account.currency,
       oauth_app_id: oauthData.oauth_app_id,
@@ -250,33 +246,17 @@ export function AdsSetupPage() {
             </FormControl>
 
             <FormControl fullWidth>
-              <InputLabel>Facebook Page</InputLabel>
+              <InputLabel>Business Account</InputLabel>
               <Select
-                label="Facebook Page"
-                value={selectedPageId}
-                onChange={(e) => setSelectedPageId(e.target.value as string)}
+                label="Business Account"
+                value={selectedBusinessId}
+                onChange={(e) => setSelectedBusinessId(e.target.value as string)}
               >
-                {(oauthData.pages || []).map((p: AvailablePage) => (
-                  <MenuItem key={p.id} value={p.id}>
-                    <ListItemAvatar sx={{ minWidth: 36 }}>
-                      <Avatar src={p.picture?.data?.url} sx={{ width: 28, height: 28 }} />
-                    </ListItemAvatar>
+                {(oauthData.businesses || []).map((b) => (
+                  <MenuItem key={b.id} value={b.id}>
                     <ListItemText
-                      primary={
-                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                          <span>{p.name}</span>
-                          {p.whatsapp_business_account?.id ? (
-                            <Chip
-                              size="small"
-                              icon={<WhatsAppIcon sx={{ fontSize: 14 }} />}
-                              label="WABA linked"
-                              color="success"
-                              variant="outlined"
-                            />
-                          ) : null}
-                        </Stack>
-                      }
-                      secondary={p.id}
+                      primary={b.name}
+                      secondary={`Status: ${b.verification_status || 'verified'}`}
                     />
                   </MenuItem>
                 ))}
@@ -292,7 +272,7 @@ export function AdsSetupPage() {
               <Button
                 variant="contained"
                 onClick={onSaveSelection}
-                disabled={!selectedAccountId || !selectedPageId || connectMutation.isPending}
+                disabled={!selectedAccountId || !selectedBusinessId || connectMutation.isPending}
               >
                 {connectMutation.isPending ? 'Saving…' : 'Connect this account'}
               </Button>

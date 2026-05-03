@@ -1,17 +1,24 @@
 import { notImplemented } from '../../lib/errors.js';
 
-// MS2 — GenUI analytics. Tool-calling over typed analytics functions
-// (list_campaigns, get_campaign_performance, top_creatives_by_metric,
-// lead_funnel_breakdown, anomaly_detect). LLM never sees raw SQL.
-// Responses pair text with chart components and suggested next prompts.
-// Action prompts surface as buttons going through normal approval flow.
+// MS2 — GenUI analytics. Dashboard pulls real CTWA insights + conversation attribution.
 export default async function routes(app) {
+  app.addHook('onRequest', app.authenticate);
+
+  const orgId = (req) => req.user.organization_id ?? req.user.id;
+
+  app.get('/dashboard', async (req) => {
+    const raw = req.query?.days;
+    const days = raw !== undefined ? parseInt(String(raw), 10) : 28;
+    return app.adsService.getDashboardAnalytics(orgId(req), {
+      days: Number.isFinite(days) && days > 0 && days <= 366 ? days : 28,
+    });
+  });
+
   // Conversational query endpoint
   app.post('/query', async () => {
     throw notImplemented('analytics.query');
   });
 
-  // Direct, typed analytics functions (also exposed for the LLM tools layer)
   app.get('/campaigns', async () => {
     throw notImplemented('analytics.campaigns');
   });
@@ -32,8 +39,6 @@ export default async function routes(app) {
     throw notImplemented('analytics.anomalies');
   });
 
-  // AI summaries (daily/weekly) — generated and stored by a worker;
-  // these endpoints serve them to the UI and email.
   app.get('/summaries/daily', async () => {
     throw notImplemented('analytics.summaries.daily');
   });
