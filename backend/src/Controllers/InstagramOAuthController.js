@@ -118,6 +118,41 @@ export class InstagramOAuthController {
     }
   }
 
+  async getMediaInsights(request, reply) {
+    try {
+      const { mediaType, mediaProductType } = request.query || {};
+      const out = await this.service.getMediaInsights(
+        request.user.organization_id,
+        request.params.accountId,
+        request.params.mediaId,
+        { mediaType, mediaProductType },
+      );
+      return { success: true, data: out };
+    } catch (err) {
+      // IG Graph API error → surface its message; mark as 400 so the client
+      // can show "Insights unavailable" without a 500-style retry banner.
+      const igError = err.response?.data?.error;
+      if (igError) {
+        this.logger.warn({
+          message: 'Instagram insights API rejected request',
+          mediaId: request.params.mediaId,
+          igError,
+        });
+        return reply.status(400).send({
+          success: false,
+          error: igError.message || 'Insights unavailable for this post',
+          code: igError.code ? `IG_${igError.code}` : 'IG_INSIGHTS_UNAVAILABLE',
+        });
+      }
+      const status = err.statusCode === 404 ? 404 : 500;
+      this.logger.error({ message: 'Error fetching Instagram media insights', err: err.message });
+      return reply.status(status).send({
+        success: false,
+        error: err.message || 'Failed to fetch insights',
+      });
+    }
+  }
+
   async linkChannel(request, reply) {
     try {
       const { channel_id } = request.body;

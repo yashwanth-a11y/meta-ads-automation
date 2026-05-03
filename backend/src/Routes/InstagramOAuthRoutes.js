@@ -53,6 +53,12 @@ export async function instagramOAuthRoutes(fastify) {
     controller.getMedia(req, reply),
   );
 
+  fastify.get(
+    '/accounts/:accountId/media/:mediaId/insights',
+    { preHandler: auth },
+    (req, reply) => controller.getMediaInsights(req, reply),
+  );
+
   fastify.post(
     '/accounts/:accountId/links',
     {

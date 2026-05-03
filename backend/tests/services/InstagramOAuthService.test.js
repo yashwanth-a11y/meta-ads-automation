@@ -30,6 +30,8 @@ function makeApi() {
     getProfile: vi.fn(),
     getPageId: vi.fn(),
     getMedia: vi.fn(),
+    getMediaMeta: vi.fn(),
+    getMediaInsights: vi.fn(),
   };
 }
 
@@ -247,5 +249,80 @@ describe('InstagramOAuthService — disconnect & refresh', () => {
         followers_count: 99,
       }),
     );
+  });
+});
+
+describe('InstagramOAuthService.getMediaInsights', () => {
+  let repo;
+  let api;
+  let svc;
+  beforeEach(() => {
+    repo = makeRepo();
+    api = makeApi();
+    svc = new InstagramOAuthService({ logger: stubLogger(), repository: repo, apiService: api });
+  });
+
+  it('skips the meta lookup when caller already knows the type', async () => {
+    repo.findById.mockResolvedValue({
+      id: 'IG1',
+      organization_id: 'org1',
+      access_token_encrypted: 'enc(TOK)',
+    });
+    api.getMediaInsights.mockResolvedValue({ reach: 500, likes: 12 });
+
+    const out = await svc.getMediaInsights('org1', 'IG1', 'M1', {
+      mediaType: 'IMAGE',
+      mediaProductType: 'FEED',
+    });
+
+    expect(api.getMediaMeta).not.toHaveBeenCalled();
+    expect(api.getMediaInsights).toHaveBeenCalledWith(
+      'M1',
+      'TOK',
+      expect.objectContaining({
+        metrics: expect.arrayContaining(['reach', 'likes', 'comments', 'shares']),
+      }),
+    );
+    // FEED IMAGE → no `views`
+    expect(api.getMediaInsights.mock.calls[0][2].metrics).not.toContain('views');
+    expect(out).toEqual({
+      media_id: 'M1',
+      media_type: 'IMAGE',
+      media_product_type: 'FEED',
+      metrics: expect.any(Array),
+      insights: { reach: 500, likes: 12 },
+    });
+  });
+
+  it('falls back to a meta lookup when the type hint is missing', async () => {
+    repo.findById.mockResolvedValue({
+      id: 'IG1',
+      organization_id: 'org1',
+      access_token_encrypted: 'enc(TOK)',
+    });
+    api.getMediaMeta.mockResolvedValue({
+      id: 'M1',
+      media_type: 'VIDEO',
+      media_product_type: 'REELS',
+    });
+    api.getMediaInsights.mockResolvedValue({ reach: 9000, views: 12000 });
+
+    const out = await svc.getMediaInsights('org1', 'IG1', 'M1');
+
+    expect(api.getMediaMeta).toHaveBeenCalledWith('M1', 'TOK');
+    // REELS → metrics include `views`
+    expect(api.getMediaInsights.mock.calls[0][2].metrics).toContain('views');
+    expect(out.media_product_type).toBe('REELS');
+    expect(out.insights.views).toBe(12000);
+  });
+
+  it('throws 404 when the account is missing or owned by another org', async () => {
+    repo.findById.mockResolvedValue(null);
+    await expect(svc.getMediaInsights('org1', 'IG1', 'M1')).rejects.toThrow(/not found/i);
+
+    repo.findById.mockResolvedValue({ id: 'IG1', organization_id: 'OTHER' });
+    await expect(svc.getMediaInsights('org1', 'IG1', 'M1')).rejects.toThrow(/not found/i);
+
+    expect(api.getMediaInsights).not.toHaveBeenCalled();
   });
 });

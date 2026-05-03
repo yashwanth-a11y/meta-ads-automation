@@ -60,8 +60,20 @@ export class InstagramApiService {
 
   async getMedia(igBusinessId, accessToken, { limit = 25, after } = {}) {
     const params = {
-      fields:
-        'id,caption,media_type,media_url,permalink,timestamp,thumbnail_url,media_product_type',
+      fields: [
+        'id',
+        'caption',
+        'media_type',
+        'media_url',
+        'permalink',
+        'timestamp',
+        'thumbnail_url',
+        'media_product_type',
+        'like_count',
+        'comments_count',
+        'is_comment_enabled',
+        'children{id,media_type,media_url,permalink,thumbnail_url}',
+      ].join(','),
       limit,
       access_token: accessToken,
     };
@@ -72,4 +84,57 @@ export class InstagramApiService {
     );
     return data;
   }
+
+  // Fetches just enough media metadata to pick the right insight metrics.
+  // Used when the caller doesn't already know the media's type.
+  async getMediaMeta(mediaId, accessToken) {
+    const { data } = await axios.get(`${this.graphBase}/${this.apiVersion}/${mediaId}`, {
+      params: {
+        fields: 'id,media_type,media_product_type,timestamp',
+        access_token: accessToken,
+      },
+      timeout: TIMEOUT_MS,
+    });
+    return data;
+  }
+
+  // IG Graph API rejects the entire insights call if any single requested
+  // metric is invalid for the media type, so callers MUST send a metric set
+  // that's valid for that specific media_type / media_product_type combo.
+  // Use `defaultInsightMetrics()` below.
+  async getMediaInsights(mediaId, accessToken, { metrics }) {
+    if (!Array.isArray(metrics) || metrics.length === 0) {
+      throw new Error('metrics array is required');
+    }
+    const { data } = await axios.get(
+      `${this.graphBase}/${this.apiVersion}/${mediaId}/insights`,
+      {
+        params: {
+          metric: metrics.join(','),
+          access_token: accessToken,
+        },
+        timeout: TIMEOUT_MS,
+      },
+    );
+    // Normalize { data: [{ name, values: [{ value }] }] } → { name: value }.
+    const out = {};
+    for (const row of data?.data ?? []) {
+      const v = row?.values?.[0]?.value;
+      out[row.name] = v ?? null;
+    }
+    return out;
+  }
+}
+
+// Picks the insight metric set Meta accepts for a given media kind.
+// Wrong metrics → 400 from IG, so be conservative.
+export function defaultInsightMetrics({ media_type, media_product_type } = {}) {
+  if (media_product_type === 'STORY') {
+    return ['reach', 'replies', 'total_interactions'];
+  }
+  if (media_product_type === 'REELS' || media_type === 'VIDEO') {
+    return ['reach', 'saved', 'total_interactions', 'likes', 'comments', 'shares', 'views'];
+  }
+  // FEED IMAGE / CAROUSEL_ALBUM
+  return ['reach', 'saved', 'total_interactions', 'likes', 'comments', 'shares'];
 }

@@ -3,6 +3,7 @@ import { URL, URLSearchParams } from 'url';
 import { encryptToken, decryptToken } from '../utils/encryption.js';
 import { config } from '../config/index.js';
 import { badRequest, forbidden, notFound } from '../lib/errors.js';
+import { defaultInsightMetrics } from './InstagramApiService.js';
 
 export class InstagramOAuthService {
   constructor({ logger, repository, apiService }) {
@@ -237,6 +238,36 @@ export class InstagramOAuthService {
     if (!account || account.organization_id !== organizationId) throw notFound('Account not found');
     const accessToken = decryptToken(account.access_token_encrypted, 'instagram');
     return this.apiService.getMedia(account.ig_business_id, accessToken, { limit, after });
+  }
+
+  // Returns insights for one media item belonging to this account.
+  // Caller may pass `mediaType`/`mediaProductType` (already known from the
+  // listing) to skip an extra Graph API meta lookup.
+  async getMediaInsights(organizationId, accountId, mediaId, hint = {}) {
+    const account = await this.repository.findById(accountId);
+    if (!account || account.organization_id !== organizationId) throw notFound('Account not found');
+    const accessToken = decryptToken(account.access_token_encrypted, 'instagram');
+
+    let mediaType = hint.mediaType;
+    let mediaProductType = hint.mediaProductType;
+    if (!mediaType || !mediaProductType) {
+      const meta = await this.apiService.getMediaMeta(mediaId, accessToken);
+      mediaType = mediaType || meta.media_type;
+      mediaProductType = mediaProductType || meta.media_product_type;
+    }
+
+    const metrics = defaultInsightMetrics({
+      media_type: mediaType,
+      media_product_type: mediaProductType,
+    });
+    const insights = await this.apiService.getMediaInsights(mediaId, accessToken, { metrics });
+    return {
+      media_id: mediaId,
+      media_type: mediaType,
+      media_product_type: mediaProductType,
+      metrics,
+      insights,
+    };
   }
 
   // --- Channel links ---

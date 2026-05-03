@@ -19,6 +19,14 @@ export type InstagramAccount = {
   updated_at: string
 }
 
+export type InstagramMediaChild = {
+  id: string
+  media_type: 'IMAGE' | 'VIDEO'
+  media_url?: string
+  permalink?: string
+  thumbnail_url?: string
+}
+
 export type InstagramMediaItem = {
   id: string
   caption?: string
@@ -28,6 +36,10 @@ export type InstagramMediaItem = {
   timestamp: string
   thumbnail_url?: string
   media_product_type?: 'AD' | 'FEED' | 'STORY' | 'REELS'
+  like_count?: number
+  comments_count?: number
+  is_comment_enabled?: boolean
+  children?: { data: InstagramMediaChild[] }
 }
 
 export type InstagramMediaResponse = {
@@ -37,6 +49,18 @@ export type InstagramMediaResponse = {
     next?: string
     previous?: string
   }
+}
+
+// Normalized to a flat name→value map server-side. Values are numeric
+// counts (or `null` when the metric is supported but no value was returned).
+export type InstagramInsightValues = Record<string, number | null>
+
+export type InstagramMediaInsightsResponse = {
+  media_id: string
+  media_type: InstagramMediaItem['media_type']
+  media_product_type?: InstagramMediaItem['media_product_type']
+  metrics: string[]
+  insights: InstagramInsightValues
 }
 
 export const instagramApi = {
@@ -67,6 +91,27 @@ export const instagramApi = {
     if (opts.after) qs.set('after', opts.after)
     const suffix = qs.toString() ? `?${qs}` : ''
     return get<InstagramMediaResponse>(`/instagram/accounts/${accountId}/media${suffix}`)
+  },
+  // Pass `mediaType`/`mediaProductType` if you already have them — the
+  // backend uses them to skip an extra Graph API meta lookup. The endpoint
+  // returns 400 when Meta refuses the metric set (older posts, account
+  // downgraded from Business, etc.); callers should treat that as
+  // "insights unavailable" rather than a hard failure.
+  getMediaInsights: (
+    accountId: string,
+    mediaId: string,
+    hint: {
+      mediaType?: InstagramMediaItem['media_type']
+      mediaProductType?: InstagramMediaItem['media_product_type']
+    } = {},
+  ) => {
+    const qs = new URLSearchParams()
+    if (hint.mediaType) qs.set('mediaType', hint.mediaType)
+    if (hint.mediaProductType) qs.set('mediaProductType', hint.mediaProductType)
+    const suffix = qs.toString() ? `?${qs}` : ''
+    return get<InstagramMediaInsightsResponse>(
+      `/instagram/accounts/${accountId}/media/${mediaId}/insights${suffix}`,
+    )
   },
   linkChannel: (accountId: string, channelId: string) =>
     post<undefined>(`/instagram/accounts/${accountId}/links`, { channel_id: channelId }),
