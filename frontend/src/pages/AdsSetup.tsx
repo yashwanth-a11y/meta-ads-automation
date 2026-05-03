@@ -185,7 +185,7 @@ export function AdsSetupPage() {
       )}
 
       {!isConnected && step === 'idle' && (
-        <GlassCard sx={{ p: 3, borderRadius: 3 }}>
+        <GlassCard sx={{ p: 3}}>
           <Typography variant="body1" sx={{ mb: 2 }}>
             Sign in with Facebook to give GrowthOS permission to manage your ads.
             We will request <code>ads_management</code>, <code>pages_manage_ads</code>,

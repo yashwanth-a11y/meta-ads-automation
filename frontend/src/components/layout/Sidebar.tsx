@@ -41,7 +41,7 @@ const navItems = [
   { to: paths.approvals, label: 'Approvals', icon: CheckCircleOutlined },
   { to: paths.crm, label: 'CRM', icon: PeopleOutlined },
   { to: paths.analytics, label: 'Analytics', icon: AnalyticsOutlined },
-  { to: paths.genui, label: 'AI Assistant', icon: AutoAwesome },
+  // { to: paths.genui, label: 'AI Assistant', icon: AutoAwesome },
 ]
 
 type SidebarProps = {

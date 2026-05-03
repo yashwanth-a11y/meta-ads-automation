@@ -118,7 +118,7 @@ export function AdsPage() {
   // No data at all (rare — usually means disabled feature flag)
   if (!setupQuery.data) {
     return (
-      <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
+      <Stack spacing={3} sx={{ mx: 'auto', width: '100%' }}>
         <PageHeader title="Ads" subtitle="Ads module is unavailable." />
         <Alert severity="warning">The ads feature is not enabled on the server.</Alert>
       </Stack>
@@ -127,11 +127,11 @@ export function AdsPage() {
 
   if (!setupQuery.data.connected) {
     return (
-      <Stack spacing={3} sx={{ maxWidth: 720, mx: 'auto', width: '100%' }}>
+      <Stack spacing={3} sx={{ mx: 'auto', width: '100%' }}>
         <PageHeader title="Ads" subtitle="Connect Meta to start launching campaigns from GrowthOS." />
-        <GlassCard sx={{ p: 4, borderRadius: 3, textAlign: 'center' }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>No Meta account connected</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        <GlassCard sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>No Meta account connected</Typography>
+          <Typography variant="subtitle1" color="text.secondary" sx={{ mb: 3 }}>
             Sign in with Facebook to choose an ad account and Page.
           </Typography>
           <Button variant="contained" onClick={() => navigate(paths.adsSetup)}>
