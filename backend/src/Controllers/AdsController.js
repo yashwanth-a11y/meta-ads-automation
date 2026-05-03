@@ -611,6 +611,19 @@ export class AdsController {
     return reply.send({ success: true, data: result });
   }
 
+  // === ALL ADS FOR A CAMPAIGN ===
+
+  async getMetaCampaignAds(request, reply) {
+    const { meta_campaign_id } = request.params;
+    const { date_preset } = request.query || {};
+    const result = await this.adsService.getMetaCampaignAds(
+      request.user.organization_id,
+      meta_campaign_id,
+      { date_preset }
+    );
+    return reply.send({ success: true, data: result });
+  }
+
   // === BUSINESS & FUNDING ===
 
   async getBusinesses(request, reply) {

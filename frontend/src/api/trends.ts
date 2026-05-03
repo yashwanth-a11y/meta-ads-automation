@@ -175,4 +175,6 @@ export const trendsApi = {
     post<{ labels: string[] }>(`/channels/${channelId}/generate-labels`, {}),
   updateChannelLabels: (channelId: string, labels: string[]) =>
     patch<Channel>(`/channels/${channelId}`, { custom_labels: labels }),
+  generateEventProfile: (channelId: string) =>
+    post<{ event_relevance_profile: Record<string, unknown> }>(`/channels/${channelId}/generate-event-profile`, {}),
 }

@@ -1,4 +1,5 @@
-import { get, post, del } from './client'
+import { get, post, del, http, unwrap } from './client'
+import type { ApiResponse } from './types'
 
 export type InstagramAccount = {
   id: string
@@ -63,6 +64,45 @@ export type InstagramMediaInsightsResponse = {
   insights: InstagramInsightValues
 }
 
+// ---------------------------------------------------------------------------
+// Composer / publishing
+// ---------------------------------------------------------------------------
+
+export type InstagramPostType = 'image' | 'video' | 'reels' | 'carousel' | 'story'
+
+export type InstagramUpload = {
+  url: string         // public URL Meta will fetch
+  storedPath: string  // pass back in cleanup_paths so the file is removed after publish
+  kind: 'image' | 'video'
+  mimeType: string
+  size: number
+}
+
+// Spec shape mirrors PublishingService.MediaSpec on the backend. Only the
+// fields the composer UI sets are listed; the backend tolerates extras.
+export type InstagramCarouselChild = {
+  kind: 'image' | 'video'
+  image_url?: string
+  video_url?: string
+  alt_text?: string
+}
+
+export type InstagramPublishSpec =
+  | { type: 'image'; image_url: string; caption?: string; hashtags?: string[]; alt_text?: string }
+  | { type: 'video'; video_url: string; caption?: string; hashtags?: string[]; cover_url?: string }
+  | { type: 'reels'; video_url: string; caption?: string; hashtags?: string[]; cover_url?: string; share_to_feed?: boolean }
+  | { type: 'carousel'; children: InstagramCarouselChild[]; caption?: string; hashtags?: string[] }
+  | { type: 'story'; image_url?: string; video_url?: string }
+
+export type InstagramPublishResult = {
+  media_id: string
+  container_id: string
+  type: InstagramPostType
+  ig_username: string | null
+  ig_business_id: string | null
+  published_at: string
+}
+
 export const instagramApi = {
   getAuthUrl: () => {
     const origin = window.location.origin
@@ -117,4 +157,45 @@ export const instagramApi = {
     post<undefined>(`/instagram/accounts/${accountId}/links`, { channel_id: channelId }),
   unlinkChannel: (accountId: string, channelId: string) =>
     del<undefined>(`/instagram/accounts/${accountId}/links/${channelId}`),
+  // Multipart upload — one file per call. The composer chains 1..N of these
+  // (a carousel posts up to 10 children) before calling publishMedia.
+  uploadMedia: (
+    accountId: string,
+    file: File,
+    onProgress?: (loaded: number, total: number) => void,
+  ): Promise<InstagramUpload> => {
+    const form = new FormData()
+    form.append('file', file, file.name)
+    return unwrap<InstagramUpload>(
+      http.post<ApiResponse<InstagramUpload>>(
+        `/instagram/accounts/${accountId}/upload`,
+        form,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          // Larger ceiling than the global default; videos can take time
+          // to push, especially over slower upstream links.
+          timeout: 5 * 60 * 1000,
+          onUploadProgress: (e) => {
+            if (onProgress && e.total) onProgress(e.loaded, e.total)
+          },
+        },
+      ),
+    )
+  },
+  publishMedia: (
+    accountId: string,
+    spec: InstagramPublishSpec,
+    cleanupPaths: string[] = [],
+  ) =>
+    unwrap<InstagramPublishResult>(
+      http.post<ApiResponse<InstagramPublishResult>>(
+        `/instagram/accounts/${accountId}/publish`,
+        { spec, cleanup_paths: cleanupPaths },
+        // Publish includes a 15s × up to 24 attempts (~6 min) container poll
+        // for video/reels — the request stays open until the IG container
+        // reaches FINISHED. Bump axios timeout above the worst-case poll
+        // budget so we don't time out before the backend does.
+        { timeout: 8 * 60 * 1000 },
+      ),
+    ),
 }

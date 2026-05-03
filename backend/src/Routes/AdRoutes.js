@@ -612,6 +612,30 @@ export async function adsRoutes(fastify, options) {
     schema: { description: "Get campaign detail with ad sets", tags: ["ads"] },
   }, (req, reply) => controller.getMetaCampaignDetail(req, reply));
 
+  fastify.get("/ads/meta-campaigns/:meta_campaign_id/ads", {
+    schema: {
+      description: "Get all ads for a campaign with embedded insights",
+      tags: ["ads"],
+      querystring: {
+        type: "object",
+        properties: {
+          date_preset: {
+            type: "string",
+            enum: [
+              "today", "yesterday",
+              "last_3d", "last_7d", "last_14d", "last_28d",
+              "last_30d", "last_90d",
+              "this_month", "last_month",
+              "this_quarter", "last_quarter",
+              "this_year", "last_year",
+              "maximum",
+            ],
+          },
+        },
+      },
+    },
+  }, (req, reply) => controller.getMetaCampaignAds(req, reply));
+
   // === AD SET DETAIL ===
 
   fastify.get("/ads/meta-adsets/:meta_adset_id/detail", {

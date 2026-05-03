@@ -26,4 +26,5 @@ export const paths = {
   settings: '/settings',
   instagram: '/instagram',
   instagramCallback: '/instagram-callback',
+  calendar: '/calendar',
 } as const

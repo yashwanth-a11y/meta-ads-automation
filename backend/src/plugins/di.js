@@ -8,6 +8,7 @@ import { CtwaInsightsRepository } from '../Repositories/CtwaInsightsRepository.j
 import { UserRepository } from '../Repositories/UserRepository.js';
 import { PasswordResetTokenRepository } from '../Repositories/PasswordResetTokenRepository.js';
 import { AdsService } from '../services/AdsService.js';
+import { AnalyticsService } from '../services/AnalyticsService.js';
 import { AuthService } from '../services/AuthService.js';
 import { AdsController } from '../Controllers/AdsController.js';
 import { CreativeService } from '../services/CreativeService.js';
@@ -15,6 +16,9 @@ import { InstagramAccountRepository } from '../Repositories/InstagramAccountRepo
 import { InstagramApiService } from '../services/InstagramApiService.js';
 import { InstagramOAuthService } from '../services/InstagramOAuthServices.js';
 import { InstagramOAuthController } from '../Controllers/InstagramOAuthController.js';
+import { InstagramUploadService } from '../services/InstagramUploadService.js';
+import { InstagramPublishService } from '../services/InstagramPublishService.js';
+import { publishingService } from '../services/PublishingService.js';
 
 // Build the DI graph and decorate the Fastify instance. Keep this file as
 // the *only* place that knows how the pieces are wired together — routes
@@ -56,6 +60,15 @@ async function plugin(app) {
   const adsController = new AdsController(adsService, app.log);
   const creativeService = new CreativeService({ logger: app.log });
 
+  // Live-fetch analytics service (no DB cache). Reuses the metaAdAccountRepo
+  // for token + account lookup, and the CTWA conversation repo to layer
+  // referral-source breakdowns alongside Meta-fetched metrics.
+  const analyticsService = new AnalyticsService({
+    metaAdAccountRepository,
+    ctwaConversationRepository,
+    logger: app.log,
+  });
+
   // Instagram Business Login pipeline (separate from Ads OAuth).
   const instagramAccountRepository = new InstagramAccountRepository(db);
   const instagramApiService = new InstagramApiService({ logger: app.log });
@@ -64,9 +77,22 @@ async function plugin(app) {
     repository: instagramAccountRepository,
     apiService: instagramApiService,
   });
+  // Direct-posting pipeline (composer → upload → publish). Reuses the
+  // existing PublishingService singleton for the actual Graph-API calls.
+  const instagramUploadService = new InstagramUploadService({ logger: app.log });
+  const instagramPublishService = new InstagramPublishService({
+    logger: app.log,
+    instagramAccountRepository,
+    publishingService,
+    uploadService: instagramUploadService,
+  });
   const instagramOAuthController = new InstagramOAuthController(
     instagramOAuthService,
     app.log,
+    {
+      publishService: instagramPublishService,
+      uploadService: instagramUploadService,
+    },
   );
 
   app.decorate('db', db);
@@ -74,9 +100,12 @@ async function plugin(app) {
   app.decorate('authService', authService);
   app.decorate('adsService', adsService);
   app.decorate('adsController', adsController);
+  app.decorate('analyticsService', analyticsService);
   app.decorate('creativeService', creativeService);
   app.decorate('instagramAccountRepository', instagramAccountRepository);
   app.decorate('instagramOAuthController', instagramOAuthController);
+  app.decorate('instagramUploadService', instagramUploadService);
+  app.decorate('instagramPublishService', instagramPublishService);
 }
 
 export default fp(plugin, { name: 'di', dependencies: ['auth'] });

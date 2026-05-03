@@ -8,6 +8,7 @@ import { OAuthCallback } from './pages/OAuthCallback'
 import { AnalyticsPage } from './pages/AnalyticsPage'
 import { AuthPage, AUTH_ROUTE, DASHBOARD_ROUTE, FORGOT_PASSWORD_ROUTE, ForgotPasswordPage, paths } from './auth'
 import { ChannelsPage } from './pages/ChannelsPage'
+import { ContentCalendarPage } from './pages/ContentCalendarPage'
 import { CreativesPage } from './pages/CreativesPage'
 import { CRMPage } from './pages/CRMPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -86,6 +87,7 @@ export default function App() {
         <Route path="trends" element={<TrendsPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="creatives" element={<CreativesPage />} />
+        <Route path="calendar" element={<ContentCalendarPage />} />
         <Route path="instagram" element={<InstagramPage />} />
         <Route path="ads" element={<AdsPage />} />
         <Route path="ads/setup" element={<AdsSetupPage />} />

@@ -21,6 +21,7 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
 import PauseIcon from '@mui/icons-material/Pause'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -30,6 +31,7 @@ import { paths } from '../auth/constants'
 import { PageHeader } from '../components/ui/PageHeader'
 import { StatusBadge } from '../components/ads/StatusBadge'
 import { GlassCard } from '../components/ui/GlassCard'
+import { AdInsightsDrawer } from '../components/ads/AdInsightsDrawer'
 
 function formatMoney(amount?: number | string | null, currency?: string | null) {
   if (amount === null || amount === undefined || amount === '') return '—'
@@ -70,6 +72,10 @@ function objectiveLabel(o?: string | null) {
 export function AdsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // Drawer state — opens when a campaign card is clicked. Pulled to the page
+  // level (not inside CampaignRow) so it sits over the whole layout and uses a
+  // single instance regardless of how many cards are rendered.
+  const [insightsCampaign, setInsightsCampaign] = useState<CampaignSummary | null>(null)
 
   const setupQuery = useQuery({
     queryKey: qk.setupStatus,
@@ -236,10 +242,18 @@ export function AdsPage() {
               onChanged={() => {
                 queryClient.invalidateQueries({ queryKey: qk.campaigns() })
               }}
+              onOpenInsights={() => setInsightsCampaign(c)}
             />
           ))}
         </Box>
       )}
+
+      <AdInsightsDrawer
+        open={!!insightsCampaign}
+        onClose={() => setInsightsCampaign(null)}
+        campaign={insightsCampaign}
+        fallbackCurrency={status?.currency || balance?.currency}
+      />
     </Stack>
   )
 }
@@ -248,10 +262,12 @@ function CampaignRow({
   campaign,
   currency,
   onChanged,
+  onOpenInsights,
 }: {
   campaign: CampaignSummary
   currency?: string | null
   onChanged: () => void
+  onOpenInsights: () => void
 }) {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -292,6 +308,13 @@ function CampaignRow({
     return parts.join(' · ')
   }, [campaign.objective, campaign.daily_budget, campaign.lifetime_budget, currency])
 
+  // Click on the card body opens the ad insights drawer; nested
+  // controls (kebab, pause/resume, "View ads") stop propagation so they keep
+  // their own behavior. Disabled when there's no Meta ID — the drawer would
+  // just show a "not synced" hint anyway, but keeping it click-blocked makes
+  // the affordance match reality.
+  const canOpenInsights = !!campaign.meta_campaign_id
+
   return (
     <>
       <GlassCard
@@ -299,6 +322,16 @@ function CampaignRow({
           bgcolor: (t) => alpha(t.palette.background.paper, 0.94),
           height: '100%',
           display: 'flex',
+          cursor: canOpenInsights ? 'pointer' : 'default',
+        }}
+        onClick={canOpenInsights ? onOpenInsights : undefined}
+        role={canOpenInsights ? 'button' : undefined}
+        tabIndex={canOpenInsights ? 0 : -1}
+        onKeyDown={(e) => {
+          if (canOpenInsights && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            onOpenInsights()
+          }
         }}
       >
         <Stack spacing={1} sx={{ p: 2.5, flex: 1, minWidth: 0 }}>
@@ -323,7 +356,10 @@ function CampaignRow({
             </Box>
             <IconButton
               size="small"
-              onClick={(e) => setAnchorEl(e.currentTarget)}
+              onClick={(e) => {
+                e.stopPropagation()
+                setAnchorEl(e.currentTarget)
+              }}
               sx={{ mt: -0.5, mr: -0.5 }}
             >
               <MoreVertIcon fontSize="small" />
@@ -351,18 +387,37 @@ function CampaignRow({
             ) : (
               <Box />
             )}
-            <Tooltip title={isActive ? 'Pause' : 'Resume'}>
-              <span>
-                <IconButton
-                  size="small"
-                  color={isActive ? 'warning' : 'success'}
-                  onClick={() => toggleMutation.mutate()}
-                  disabled={toggleMutation.isPending || !campaign.meta_campaign_id}
-                >
-                  {isActive ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
-                </IconButton>
-              </span>
-            </Tooltip>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              <Tooltip title={canOpenInsights ? 'View ad insights' : 'Sync campaign first to see ads'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onOpenInsights()
+                    }}
+                    disabled={!canOpenInsights}
+                  >
+                    <InsightsOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={isActive ? 'Pause' : 'Resume'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    color={isActive ? 'warning' : 'success'}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleMutation.mutate()
+                    }}
+                    disabled={toggleMutation.isPending || !campaign.meta_campaign_id}
+                  >
+                    {isActive ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
           </Stack>
 
           {actionError && (

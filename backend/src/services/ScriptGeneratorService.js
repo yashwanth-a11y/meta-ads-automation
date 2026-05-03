@@ -3,6 +3,7 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { creativeBundles } from '../db/schema.js';
 import { env } from '../config/env.js';
+import { generateImages } from './ImageGenerationService.js';
 
 // gpt-4o for script generation — better creative quality than mini
 const SCRIPT_MODEL = 'gpt-4o';
@@ -73,11 +74,14 @@ Return JSON with exactly these keys:
       organization_id: channel.organization_id,
       channel_id: channel.id,
       trend_candidate_id: trend.id ?? null,
+      content_type: 'reel',
       hook: bundle.hook,
       script: bundle.script,
       caption: bundle.caption,
       hashtags: bundle.hashtags ?? [],
       scene_prompts: [],
+      image_prompts: [],
+      image_urls: [],
       voiceover_text: bundle.voiceover_text,
       video_url: null,
       thumbnail_url: null,
@@ -85,6 +89,8 @@ Return JSON with exactly these keys:
       score_composite: null,
       score_breakdown: null,
       render_job_id: null,
+      scheduled_publish_at: null,
+      published_at: null,
       created_at: now,
       updated_at: now,
     };
@@ -189,6 +195,182 @@ Script: ${bundle.script}`,
       .where(eq(creativeBundles.id, bundle.id));
 
     return scenes;
+  }
+
+  /**
+   * Generate a single image post bundle (image_post content type).
+   * Produces: image_prompt, caption, hashtags, alt_text, then generates the image.
+   */
+  async generateImageBundle(channel, trend) {
+    const brandCtx = this._buildBrandContext(channel);
+    const trendCtx = this._buildTrendContext(trend);
+    const brandAssets = channel.brand_assets ?? {};
+
+    const bundle = await _openaiJSON(
+      SCRIPT_MODEL,
+      `You are an expert social media visual content creator for Instagram.
+Create a single-image post that is visually striking, brand-consistent, and trend-relevant.
+
+Brand assets available: ${brandAssets.logo_url ? 'logo provided' : 'no logo'}, colors: ${brandAssets.colors?.join(', ') || brandAssets.primary_color || 'not specified'}.
+
+Rules:
+- image_prompt: detailed AI image generation prompt (subject, composition, lighting, mood, colors). Do NOT include text/logos in the prompt — those are added separately.
+- caption: 150–220 chars, conversational, ends with a question or CTA
+- hashtags: 5 niche + 5 broad, no # symbol, as an array
+- alt_text: 1 sentence describing the image for accessibility
+
+Return JSON with exactly these keys:
+{
+  "image_prompt": string,
+  "hook": string,
+  "caption": string,
+  "hashtags": string[],
+  "alt_text": string,
+  "cta": string
+}`,
+      `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Use the trend visually for this brand'}`,
+    );
+
+    // Generate the actual image using the AI prompt
+    let imageUrls = [];
+    try {
+      imageUrls = await generateImages(
+        [bundle.image_prompt],
+        brandAssets,
+        { niche: channel.niche, tone: channel.tone, brand_name: channel.brand_name },
+        { size: '1024x1792', quality: 'hd' },
+      );
+    } catch (err) {
+      console.error('[ScriptGenerator] Image generation failed, saving bundle without image:', err.message);
+    }
+
+    const now = new Date();
+    const row = {
+      id: uuidv4(),
+      organization_id: channel.organization_id,
+      channel_id: channel.id,
+      trend_candidate_id: trend.id ?? null,
+      content_type: 'image_post',
+      hook: bundle.hook,
+      script: bundle.image_prompt,
+      caption: bundle.caption,
+      hashtags: bundle.hashtags ?? [],
+      scene_prompts: [],
+      image_prompts: [bundle.image_prompt],
+      image_urls: imageUrls,
+      voiceover_text: null,
+      video_url: null,
+      thumbnail_url: imageUrls[0] ?? null,
+      status: imageUrls.length ? 'ready' : 'draft',
+      score_composite: null,
+      score_breakdown: null,
+      render_job_id: null,
+      scheduled_publish_at: null,
+      published_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await db.insert(creativeBundles).values(row);
+    return { ...row, cta: bundle.cta };
+  }
+
+  /**
+   * Generate a carousel post bundle (3–8 slides, each with image + caption).
+   */
+  async generateCarouselBundle(channel, trend, slideCount = 5) {
+    const count = Math.min(8, Math.max(3, slideCount));
+    const brandCtx = this._buildBrandContext(channel);
+    const trendCtx = this._buildTrendContext(trend);
+    const brandAssets = channel.brand_assets ?? {};
+
+    const bundle = await _openaiJSON(
+      SCRIPT_MODEL,
+      `You are an expert Instagram carousel content creator.
+Create a ${count}-slide carousel that tells a story, educates, or inspires — each slide builds on the last.
+
+Rules:
+- Each slide has: image_prompt (detailed visual description), slide_caption (short text overlay idea, 5–10 words)
+- The overall_caption is for the Instagram post (150–220 chars, ends with CTA or question)
+- hook: the opening line shown in slide 1 (bold statement or question)
+- hashtags: 5 niche + 5 broad, no # symbol, as an array
+- Image prompts must be visually consistent (same style, lighting, color palette across all slides)
+- Do NOT include brand logos in image prompts — those are composited separately
+
+Return JSON with exactly these keys:
+{
+  "hook": string,
+  "slides": [{ "image_prompt": string, "slide_caption": string }],
+  "overall_caption": string,
+  "hashtags": string[],
+  "cta": string
+}`,
+      `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nSlide count: ${count}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Create an educational or inspiring carousel for this brand'}`,
+    );
+
+    const slides = (bundle.slides ?? []).slice(0, count);
+    const imagePrompts = slides.map((s) => s.image_prompt);
+
+    // Generate all carousel images
+    let imageUrls = [];
+    try {
+      imageUrls = await generateImages(
+        imagePrompts,
+        brandAssets,
+        { niche: channel.niche, tone: channel.tone, brand_name: channel.brand_name },
+        { size: '1024x1024', quality: 'standard' },
+      );
+    } catch (err) {
+      console.error('[ScriptGenerator] Carousel image generation failed:', err.message);
+    }
+
+    const now = new Date();
+    const row = {
+      id: uuidv4(),
+      organization_id: channel.organization_id,
+      channel_id: channel.id,
+      trend_candidate_id: trend.id ?? null,
+      content_type: 'carousel',
+      hook: bundle.hook,
+      script: slides.map((s, i) => `Slide ${i + 1}: ${s.slide_caption}`).join('\n'),
+      caption: bundle.overall_caption,
+      hashtags: bundle.hashtags ?? [],
+      scene_prompts: [],
+      image_prompts: imagePrompts,
+      image_urls: imageUrls,
+      voiceover_text: null,
+      video_url: null,
+      thumbnail_url: imageUrls[0] ?? null,
+      status: imageUrls.length ? 'ready' : 'draft',
+      score_composite: null,
+      score_breakdown: null,
+      render_job_id: null,
+      scheduled_publish_at: null,
+      published_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await db.insert(creativeBundles).values(row);
+    return { ...row, slides, cta: bundle.cta };
+  }
+
+  /**
+   * Pick content type for a channel run based on content_mix weights.
+   * Uses weighted random selection so mix targets are respected over time.
+   */
+  pickContentType(channel) {
+    const mix = channel.content_mix ?? { reel: 40, image_post: 40, carousel: 20 };
+    const types = Object.keys(mix).filter((k) => (mix[k] ?? 0) > 0);
+    if (!types.length) return 'reel';
+
+    const total = types.reduce((sum, t) => sum + (mix[t] ?? 0), 0);
+    let rand = Math.random() * total;
+    for (const type of types) {
+      rand -= mix[type] ?? 0;
+      if (rand <= 0) return type;
+    }
+    return types[types.length - 1];
   }
 
   _buildBrandContext(channel) {

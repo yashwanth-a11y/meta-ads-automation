@@ -1,6 +1,8 @@
 export class InstagramOAuthController {
-  constructor(instagramOAuthService, logger) {
+  constructor(instagramOAuthService, logger, { publishService, uploadService } = {}) {
     this.service = instagramOAuthService;
+    this.publishService = publishService;
+    this.uploadService = uploadService;
     this.logger = logger;
   }
 
@@ -181,6 +183,125 @@ export class InstagramOAuthController {
       return { success: true };
     } catch (err) {
       const status = err.statusCode || 500;
+      return reply.status(status).send({ success: false, error: err.message });
+    }
+  }
+
+  // Multipart upload — accepts a single file, persists it under the org's
+  // uploads dir, and returns the public URL the frontend will pass back into
+  // /publish. The frontend may upload up to 10 files (carousel) by calling
+  // this once per child.
+  async uploadMedia(request, reply) {
+    try {
+      if (!this.uploadService) throw new Error('Upload service not configured');
+      // Per-call multipart cap: 100 MB matches the IG video soft-cap the
+      // upload service enforces. Overrides the plugin's global limit so a
+      // future tightening for the ads endpoint doesn't break IG videos.
+      const data = await request.file({ limits: { fileSize: 100 * 1024 * 1024 } });
+      if (!data) {
+        return reply.status(400).send({ success: false, error: 'No file provided' });
+      }
+      const buffer = await data.toBuffer();
+      // @fastify/multipart sets `file.truncated` when the stream hit the
+      // size limit. The toBuffer() call still returns a partial buffer in
+      // that case, so we have to check explicitly — otherwise we'd persist
+      // a truncated file and IG would later fail to fetch it.
+      if (data.file?.truncated) {
+        return reply.status(413).send({
+          success: false,
+          error: 'File exceeds the 100 MB upload limit.',
+          code: 'FILE_TOO_LARGE',
+        });
+      }
+      const result = await this.uploadService.save({
+        organizationId: request.user.organization_id,
+        fileBuffer: buffer,
+        mimeType: data.mimetype,
+        originalName: data.filename,
+        requestHeaders: request.headers,
+      });
+      return { success: true, data: result };
+    } catch (err) {
+      const status = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+      this.logger.error({ message: 'Instagram media upload failed', err: err.message });
+      return reply.status(status).send({
+        success: false,
+        error: err.message || 'Upload failed',
+        code: err.code,
+      });
+    }
+  }
+
+  async publishMedia(request, reply) {
+    try {
+      if (!this.publishService) throw new Error('Publish service not configured');
+      const { spec, cleanup_paths: cleanupPaths } = request.body || {};
+      const result = await this.publishService.publishToAccount({
+        organizationId: request.user.organization_id,
+        accountId: request.params.accountId,
+        spec,
+        cleanupPaths: Array.isArray(cleanupPaths) ? cleanupPaths : [],
+      });
+      return { success: true, data: result };
+    } catch (err) {
+      // Surface IG-side errors (validation, container ERROR/EXPIRED, token
+      // problems) with the most actionable message Meta gave us. Meta's
+      // generic `message` (e.g. "Invalid parameter") is useless on its own;
+      // `error_user_msg` / `error_user_title` carry the real reason
+      // (unsupported codec, URL not reachable, video too long, etc.) and
+      // `error_subcode` lets us key off specific cases later.
+      const igError = err.response?.data?.error;
+      if (igError) {
+        this.logger.warn({ message: 'Instagram publish API rejected', igError });
+        const userMsg = igError.error_user_msg || igError.error_user_title;
+        const friendly = userMsg
+          ? `${igError.message || 'Instagram rejected the post'} — ${userMsg}`
+          : igError.message || 'Instagram rejected the post';
+        return reply.status(400).send({
+          success: false,
+          error: friendly,
+          code: igError.code ? `IG_${igError.code}` : 'IG_PUBLISH_FAILED',
+          subcode: igError.error_subcode ?? null,
+          fbtrace_id: igError.fbtrace_id ?? null,
+        });
+      }
+      const status = Number.isInteger(err.statusCode) ? err.statusCode : 500;
+      this.logger.error({
+        message: 'Instagram publish failed',
+        err: err.message,
+        accountId: request.params.accountId,
+      });
+      return reply.status(status).send({
+        success: false,
+        error: err.message || 'Publish failed',
+        code: err.code,
+      });
+    }
+  }
+
+  // Public, unauthenticated — Meta fetches uploaded files from this URL when
+  // creating the IG container. Mounted at the root, NOT under /api/v1.
+  async serveUploadedFile(request, reply) {
+    try {
+      if (!this.uploadService) throw new Error('Upload service not configured');
+      const { orgId, fileName } = request.params;
+      const { stream, absPath } = this.uploadService.streamServedFile(orgId, fileName);
+      const ext = absPath.toLowerCase().split('.').pop();
+      const contentType =
+        ext === 'jpg' || ext === 'jpeg'
+          ? 'image/jpeg'
+          : ext === 'png'
+          ? 'image/png'
+          : ext === 'mp4'
+          ? 'video/mp4'
+          : ext === 'mov'
+          ? 'video/quicktime'
+          : 'application/octet-stream';
+      reply.header('Content-Type', contentType);
+      reply.header('Cache-Control', 'public, max-age=86400');
+      return reply.send(stream);
+    } catch (err) {
+      const status = err.statusCode === 404 ? 404 : 500;
       return reply.status(status).send({ success: false, error: err.message });
     }
   }

@@ -73,4 +73,16 @@ export default async function routes(app) {
     const assets = { ...(ch.brand_assets ?? {}), approvers };
     return channelService.update(orgId(req), req.params.channelId, { brand_assets: assets });
   });
+
+  // Generate AI event relevance profile for calendar personalisation
+  app.post('/:channelId/generate-event-profile', async (req, reply) => {
+    const profile = await channelService.generateEventProfile(orgId(req), req.params.channelId);
+    return reply.send({ event_relevance_profile: profile });
+  });
+
+  // Get current event relevance profile
+  app.get('/:channelId/event-profile', async (req) => {
+    const ch = await channelService.get(orgId(req), req.params.channelId);
+    return { event_relevance_profile: ch.brand_assets?.event_relevance_profile ?? null };
+  });
 }

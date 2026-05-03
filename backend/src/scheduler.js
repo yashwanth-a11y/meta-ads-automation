@@ -10,10 +10,10 @@
  *   Ingest → Classify → Score → Generate bundles → Send approval emails
  */
 
-import { desc, eq, isNull, lt, and, inArray } from 'drizzle-orm';
+import { desc, eq, isNull, lt, lte, and, inArray } from 'drizzle-orm';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './db/index.js';
-import { pipelineRuns, channels, trendCandidates, trendScores } from './db/schema.js';
+import { pipelineRuns, channels, trendCandidates, trendScores, creativeBundles } from './db/schema.js';
 import { trendIngestionService } from './services/TrendIngestionService.js';
 import { contentIntelligenceService } from './services/ContentIntelligenceService.js';
 import { scriptGeneratorService } from './services/ScriptGeneratorService.js';
@@ -26,6 +26,9 @@ const MIN_SCORE = env.MIN_BRAND_FIT_SCORE;
 export function startScheduler(logger) {
   const log = logger ?? console;
 
+  // Sync holidays in background on startup (non-blocking)
+  _syncHolidaysIfNeeded(log);
+
   // Run immediately if overdue, then on interval
   _maybeRunNow(log);
   const timer = setInterval(() => _runPipeline(log), INTERVAL_MS);
@@ -33,6 +36,18 @@ export function startScheduler(logger) {
   timer.unref?.();
 
   log.info(`[Scheduler] Started — interval: every ${env.CRON_INTERVAL_HOURS}h`);
+}
+
+async function _syncHolidaysIfNeeded(log) {
+  try {
+    const { holidayFetchService } = await import('./services/HolidayFetchService.js');
+    const results = await holidayFetchService.ensurePopulated('IN');
+    if (results.length > 0) {
+      log.info({ results }, '[Scheduler] Holiday sync completed');
+    }
+  } catch (err) {
+    log.warn({ err }, '[Scheduler] Holiday sync skipped (non-fatal)');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -181,20 +196,40 @@ async function _runPipeline(log) {
         }
 
         if (channel.approval_mode === 'auto') {
-          // Auto mode: pick top trend, generate bundle, publish if above threshold
+          // Auto mode: pick top trend, pick content type from channel mix, generate bundle
           const trend = topTrends[0];
           try {
-            const bundle = await scriptGeneratorService.generateBundle(channel, trend);
+            const contentType = scriptGeneratorService.pickContentType(channel);
+            log.info({ runId, channel: channel.name, contentType }, '[Scheduler] Auto-mode content type selected');
+
+            let bundle;
+            if (contentType === 'image_post') {
+              bundle = await scriptGeneratorService.generateImageBundle(channel, trend);
+            } else if (contentType === 'carousel') {
+              bundle = await scriptGeneratorService.generateCarouselBundle(channel, trend);
+            } else {
+              bundle = await scriptGeneratorService.generateBundle(channel, trend);
+            }
+
             await scriptGeneratorService.scoreBundle(bundle, channel);
             stats.bundles_generated++;
 
             const qualityScore = Number(bundle.score_composite ?? 0);
             if (qualityScore >= Number(channel.auto_publish_threshold ?? 8.5)) {
-              log.info({ runId, bundleId: bundle.id, qualityScore }, '[Scheduler] Auto-publishing');
-              const { publishingService } = await import('./services/PublishingService.js');
-              await publishingService.publishBundle(channel, bundle).catch((err) => {
-                stats.errors.push(`Auto-publish ${bundle.id}: ${err.message}`);
-              });
+              // Schedule to next open slot if channel has a posting_schedule, else publish now
+              const scheduledAt = _getNextScheduledSlot(channel);
+              if (scheduledAt) {
+                await db.update(creativeBundles)
+                  .set({ status: 'approved', scheduled_publish_at: scheduledAt, updated_at: new Date() })
+                  .where(eq(creativeBundles.id, bundle.id));
+                log.info({ runId, bundleId: bundle.id, scheduledAt }, '[Scheduler] Bundle scheduled for later publish');
+              } else {
+                log.info({ runId, bundleId: bundle.id, qualityScore }, '[Scheduler] Auto-publishing now');
+                const { publishingService } = await import('./services/PublishingService.js');
+                await publishingService.publishBundle(channel, bundle).catch((err) => {
+                  stats.errors.push(`Auto-publish ${bundle.id}: ${err.message}`);
+                });
+              }
             } else {
               // Below threshold — send for manual review (content review stage)
               await approvalService.sendContentReviewEmail(channel, bundle, trend);
@@ -223,6 +258,45 @@ async function _runPipeline(log) {
         stats.errors.push(`channel ${channel.name}: ${err.message}`);
         log.error({ runId, err }, `[Scheduler] Error for channel ${channel.name}`);
       }
+    }
+
+    // ── 4b. Publish scheduled content (approved bundles with scheduled_publish_at <= now) ──
+    log.info({ runId }, '[Scheduler] Step 4b: Publishing scheduled content');
+    try {
+      const due = await db
+        .select()
+        .from(creativeBundles)
+        .where(
+          and(
+            eq(creativeBundles.status, 'approved'),
+            lte(creativeBundles.scheduled_publish_at, new Date()),
+          ),
+        );
+
+      if (due.length) {
+        const { publishingService } = await import('./services/PublishingService.js');
+        await Promise.allSettled(
+          due.map(async (bundle) => {
+            try {
+              const [ch] = await db.select().from(channels).where(eq(channels.id, bundle.channel_id));
+              if (!ch) return;
+              await publishingService.publishBundle(ch, bundle);
+              await db.update(creativeBundles)
+                .set({ published_at: new Date(), updated_at: new Date() })
+                .where(eq(creativeBundles.id, bundle.id));
+              log.info({ runId, bundleId: bundle.id }, '[Scheduler] Scheduled bundle published');
+            } catch (err) {
+              stats.errors.push(`scheduled-publish ${bundle.id}: ${err.message}`);
+              log.error({ runId, err }, `[Scheduler] Scheduled publish failed for bundle ${bundle.id}`);
+            }
+          }),
+        );
+      } else {
+        log.info({ runId }, '[Scheduler] No scheduled bundles due');
+      }
+    } catch (err) {
+      stats.errors.push(`scheduled-publish step: ${err.message}`);
+      log.warn({ runId, err }, '[Scheduler] Scheduled publish step failed — non-fatal');
     }
 
     // ── 5. Clean up stale unscored candidates (older than 7 days) ──────────
@@ -281,3 +355,37 @@ async function _runPipeline(log) {
 
 // Expose for manual trigger (debug/admin endpoint)
 export { _runPipeline as runPipeline };
+
+/**
+ * Calculate the next available publish slot based on channel.posting_schedule.
+ * Returns a Date for the next slot, or null to publish immediately.
+ * Slots are spread evenly through the day (9am, 12pm, 3pm, 6pm by default).
+ */
+function _getNextScheduledSlot(channel) {
+  const schedule = channel.posting_schedule;
+  if (!schedule || schedule === 'immediate') return null;
+
+  // Parse "Nx/week" or "daily" into posts-per-week count
+  let postsPerWeek = 0;
+  if (schedule === 'daily') postsPerWeek = 7;
+  else {
+    const m = /^(\d+)x/.exec(schedule);
+    postsPerWeek = m ? parseInt(m[1], 10) : 0;
+  }
+  if (!postsPerWeek) return null;
+
+  // Preferred posting hours (24h)
+  const SLOT_HOURS = [9, 12, 15, 18];
+
+  const now = new Date();
+  // Find next slot after now, stepping through the week
+  for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+    for (const hour of SLOT_HOURS) {
+      const candidate = new Date(now);
+      candidate.setDate(candidate.getDate() + dayOffset);
+      candidate.setHours(hour, 0, 0, 0);
+      if (candidate > now) return candidate;
+    }
+  }
+  return null;
+}

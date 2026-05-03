@@ -30,6 +30,21 @@ export const qk = {
   campaign: (id: string) => ['ads', 'campaign', id] as const,
   campaignInsights: (id: string, range?: { start_date?: string; end_date?: string }) =>
     ['ads', 'campaign', id, 'insights', range] as const,
+  metaCampaignAds: (metaCampaignId: string, datePreset?: string) =>
+    ['ads', 'meta-campaign', metaCampaignId, 'ads', datePreset ?? null] as const,
+  metaAdInsights: (
+    metaAdId: string,
+    range?: { date_preset?: string; start_date?: string; end_date?: string },
+  ) =>
+    [
+      'ads',
+      'meta-ad',
+      metaAdId,
+      'insights',
+      range?.date_preset ?? null,
+      range?.start_date ?? null,
+      range?.end_date ?? null,
+    ] as const,
   leadForms: ['ads', 'lead-forms'] as const,
   audiences: ['ads', 'audiences'] as const,
   businesses: ['ads', 'businesses'] as const,
@@ -41,7 +56,18 @@ export const qk = {
   approvals: ['approvals'] as const,
   topTrends: (channelId: string, minScore?: number) =>
     ['trends', 'top', channelId, minScore] as const,
-  analyticsDashboard: (days?: number) => ['analytics', 'dashboard', days] as const,
+  analyticsDashboard: (range?: { date_preset?: string; days?: number }) =>
+    ['analytics', 'dashboard', range?.date_preset ?? null, range?.days ?? null] as const,
+  analyticsTopAds: (range?: { date_preset?: string; days?: number; limit?: number }) =>
+    [
+      'analytics',
+      'top-ads',
+      range?.date_preset ?? null,
+      range?.days ?? null,
+      range?.limit ?? null,
+    ] as const,
+  analyticsCampaigns: (range?: { date_preset?: string; days?: number }) =>
+    ['analytics', 'campaigns', range?.date_preset ?? null, range?.days ?? null] as const,
   crmStages: ['crm', 'stages'] as const,
   crmLeads: (filters?: Record<string, unknown>) => ['crm', 'leads', filters] as const,
   crmLead: (id: string) => ['crm', 'lead', id] as const,

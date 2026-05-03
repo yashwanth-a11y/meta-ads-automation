@@ -13,7 +13,14 @@ import { decryptToken } from '../utils/encryption.js';
 
 // Instagram Content Publishing API — two-step: create container → publish
 // Docs: https://developers.facebook.com/docs/instagram-api/guides/content-publishing
-const IG_API_BASE = `${env.META_API_BASE_URL}/${env.META_API_VERSION}`;
+//
+// Two valid Graph API hosts depending on how the token was minted:
+//   - Page access token from Facebook Login → graph.facebook.com
+//   - User access token from Instagram Business Login → graph.instagram.com
+// We default to the Facebook host (existing creative-bundle path uses page
+// tokens) and let callers override `_apiBase` per-publish for IG-direct
+// tokens — see InstagramPublishService.publishToAccount.
+const DEFAULT_API_BASE = `${env.META_API_BASE_URL}/${env.META_API_VERSION}`;
 const POLL_INTERVAL_MS = 15_000; // 15s between container status polls
 const POLL_MAX_ATTEMPTS = 24;    // 24 × 15s = 6 minutes max
 
@@ -116,6 +123,13 @@ function validateOptionalCoverFields(spec) {
 }
 
 export class PublishingService {
+  constructor() {
+    // Mutable so per-publish callers (InstagramPublishService) can swap the
+    // host to graph.instagram.com when posting with an IG-direct token. Same
+    // pattern as the existing _getPageToken patch in publishBundle.
+    this._apiBase = DEFAULT_API_BASE;
+  }
+
   // -------------------------------------------------------------------------
   // Publish media (new unified API for all types: image, video, reels, carousel, story)
   // -------------------------------------------------------------------------
@@ -158,9 +172,64 @@ export class PublishingService {
   // Publish an approved creative bundle to Instagram (Reels). Thin wrapper
   // around publishMedia that owns the creative_bundles status lifecycle.
   // -------------------------------------------------------------------------
+  /**
+   * Build an Instagram MediaSpec from a creative bundle based on content_type.
+   */
+  _buildMediaSpec(bundle) {
+    const type = bundle.content_type || 'reel';
+
+    if (type === 'image_post') {
+      const imageUrl = Array.isArray(bundle.image_urls) && bundle.image_urls[0]
+        ? bundle.image_urls[0]
+        : bundle.thumbnail_url;
+      if (!imageUrl) return null;
+      return {
+        type: 'image',
+        image_url: imageUrl,
+        caption: bundle.caption,
+        hashtags: bundle.hashtags ?? [],
+        alt_text: bundle.hook || undefined,
+      };
+    }
+
+    if (type === 'carousel') {
+      const imageUrls = Array.isArray(bundle.image_urls) ? bundle.image_urls : [];
+      if (imageUrls.length < 2) return null;
+      return {
+        type: 'carousel',
+        children: imageUrls.map((url) => ({ kind: 'image', image_url: url })),
+        caption: bundle.caption,
+        hashtags: bundle.hashtags ?? [],
+      };
+    }
+
+    if (type === 'story') {
+      const imageUrl = Array.isArray(bundle.image_urls) && bundle.image_urls[0]
+        ? bundle.image_urls[0]
+        : null;
+      const videoUrl = bundle.video_url || null;
+      if (!imageUrl && !videoUrl) return null;
+      return imageUrl
+        ? { type: 'story', image_url: imageUrl }
+        : { type: 'story', video_url: videoUrl };
+    }
+
+    // Default: reel
+    if (!bundle.video_url) return null;
+    return {
+      type: 'reels',
+      video_url: bundle.video_url,
+      caption: bundle.caption,
+      hashtags: bundle.hashtags ?? [],
+      cover_url: bundle.thumbnail_url ?? undefined,
+    };
+  }
+
   async publishBundle(channel, bundle) {
-    if (!bundle.video_url) {
-      return { published: false, reason: 'Bundle has no video_url' };
+    const spec = this._buildMediaSpec(bundle);
+    if (!spec) {
+      const type = bundle.content_type || 'reel';
+      return { published: false, reason: `Bundle has no media URL for content_type=${type}` };
     }
 
     // Discover IG accounts linked to this channel (many-to-many path).
@@ -190,13 +259,7 @@ export class PublishingService {
         .where(eq(creativeBundles.id, bundle.id));
 
       try {
-        const { mediaId } = await this.publishMedia(channel, {
-          type: 'reels',
-          video_url: bundle.video_url,
-          caption: bundle.caption,
-          hashtags: bundle.hashtags ?? [],
-          cover_url: bundle.thumbnail_url ?? undefined,
-        });
+        const { mediaId } = await this.publishMedia(channel, spec);
 
         await db
           .update(creativeBundles)
@@ -247,13 +310,7 @@ export class PublishingService {
       const originalGetPageToken = this._getPageToken;
       this._getPageToken = async () => token;
       try {
-        const out = await this.publishMedia(channelStub, {
-          type: 'reels',
-          video_url: bundle.video_url,
-          caption: bundle.caption,
-          hashtags: bundle.hashtags ?? [],
-          cover_url: bundle.thumbnail_url ?? undefined,
-        });
+        const out = await this.publishMedia(channelStub, spec);
         results.push({
           instagram_account_id: acct.id,
           ig_username: acct.ig_username,
@@ -349,7 +406,7 @@ export class PublishingService {
       image_url: spec.image_url,
       access_token: token,
     };
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -366,7 +423,7 @@ export class PublishingService {
     };
     if (spec.cover_url) params.cover_url = spec.cover_url;
     if (spec.thumb_offset_ms !== undefined) params.thumb_offset = spec.thumb_offset_ms;
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -385,7 +442,7 @@ export class PublishingService {
     if (spec.cover_url) params.cover_url = spec.cover_url;
     if (spec.thumb_offset_ms !== undefined) params.thumb_offset = spec.thumb_offset_ms;
     if (spec.audio_name) params.audio_name = spec.audio_name;
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -410,7 +467,7 @@ export class PublishingService {
       children: childIds.join(','),
       access_token: token,
     };
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG carousel parent creation failed: ${JSON.stringify(data)}`);
@@ -433,7 +490,7 @@ export class PublishingService {
         params.user_tags = JSON.stringify(child.user_tags);
       }
     }
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG carousel child creation failed: ${JSON.stringify(data)}`);
@@ -451,7 +508,7 @@ export class PublishingService {
     if (Array.isArray(spec.user_tags) && spec.user_tags.length) {
       params.user_tags = JSON.stringify(spec.user_tags);
     }
-    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+    const { data } = await axios.post(`${this._apiBase}/${igUserId}/media`, null, {
       params, timeout: 30_000,
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
@@ -464,7 +521,7 @@ export class PublishingService {
       await this._sleep(POLL_INTERVAL_MS);
 
       const { data } = await axios.get(
-        `${IG_API_BASE}/${containerId}`,
+        `${this._apiBase}/${containerId}`,
         {
           params: { fields: 'status_code,status', access_token: token },
           timeout: 10_000,
@@ -486,7 +543,7 @@ export class PublishingService {
 
   async _publishContainer({ igUserId, token, containerId }) {
     const { data } = await axios.post(
-      `${IG_API_BASE}/${igUserId}/media_publish`,
+      `${this._apiBase}/${igUserId}/media_publish`,
       null,
       {
         params: { creation_id: containerId, access_token: token },

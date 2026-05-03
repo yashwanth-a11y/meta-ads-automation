@@ -361,7 +361,9 @@ export const channels = pgTable(
     tracked_keywords: jsonb('tracked_keywords').default([]),
     blocked_topics: jsonb('blocked_topics').default([]),
     brand_assets: jsonb('brand_assets').default({}),
-    // { logo_url, colors[], font, intro_video_url, outro_video_url }
+    // { logo_url, colors[], font, intro_video_url, outro_video_url, primary_color, secondary_color, brand_style }
+    // Content mix per channel: target % per type (must sum to 100)
+    content_mix: jsonb('content_mix').default({ reel: 40, image_post: 40, carousel: 20 }),
     instagram_account_id: varchar('instagram_account_id', { length: 64 }),
     approval_mode: varchar('approval_mode', { length: 32 }).default('manual').notNull(),
     auto_publish_threshold: numeric('auto_publish_threshold', { precision: 4, scale: 2 }).default('8.5'),
@@ -452,20 +454,30 @@ export const creativeBundles = pgTable(
     organization_id: orgId(),
     channel_id: varchar('channel_id', { length: 36 }).notNull(),
     trend_candidate_id: varchar('trend_candidate_id', { length: 36 }),
+    // reel | image_post | carousel | story
+    content_type: varchar('content_type', { length: 32 }).default('reel').notNull(),
     hook: text('hook'),
     script: text('script'),
     caption: text('caption'),
     hashtags: jsonb('hashtags').default([]),
     scene_prompts: jsonb('scene_prompts').default([]),
+    // image_prompts: per-slide prompts for image/carousel generation
+    image_prompts: jsonb('image_prompts').default([]),
+    // image_urls: generated image URLs (single or carousel slides)
+    image_urls: jsonb('image_urls').default([]),
     voiceover_text: text('voiceover_text'),
     video_url: text('video_url'),
     thumbnail_url: text('thumbnail_url'),
     status: varchar('status', { length: 32 }).default('draft').notNull(),
-    // draft | rendering | ready | approved | rejected | published
+    // draft | generating_images | rendering | ready | approved | rejected | publishing | published
     score_composite: numeric('score_composite', { precision: 4, scale: 2 }),
     score_breakdown: jsonb('score_breakdown'),
     // { trend_relevance, viral_hook, clarity, audience_fit, platform_fit, brand_safety, rationale }
     render_job_id: varchar('render_job_id', { length: 128 }),
+    // Scheduled publish time — null means publish immediately on approval
+    scheduled_publish_at: timestamp('scheduled_publish_at', { withTimezone: true, mode: 'date' }),
+    // Actual publish timestamp
+    published_at: timestamp('published_at', { withTimezone: true, mode: 'date' }),
     // Per-account fan-out result for IG cross-posting:
     // [{ instagram_account_id, ig_username, ig_business_id, media_id, error, published_at }]
     published_targets: jsonb('published_targets').default([]),
@@ -666,5 +678,77 @@ export const pipelineRuns = pgTable(
   (t) => ({
     status_idx: index('pipeline_runs_status_idx').on(t.status),
     started_idx: index('pipeline_runs_started_idx').on(t.started_at),
+  }),
+);
+
+// --- Special days (global festival + event database, seeded + updatable) ---
+// Covers Indian festivals, international days, shopping events.
+// Dates are pre-calculated per year (avoids hardcoding AND avoids API dependency).
+// Seeded via npm run db:seed — can be updated when lunar calendar shifts.
+
+export const specialDays = pgTable(
+  'special_days',
+  {
+    id: id(),
+    key: varchar('key', { length: 128 }).notNull(),
+    // e.g. diwali_2026, navratri_2026
+    name: varchar('name', { length: 255 }).notNull(),
+    emoji: varchar('emoji', { length: 16 }),
+    category: varchar('category', { length: 32 }).notNull(),
+    // festival | national | international | shopping | wedding | sports | tech
+    date: date('date').notNull(),
+    end_date: date('end_date'),
+    // Hex color for calendar display
+    color: varchar('color', { length: 16 }).default('#F59E0B'),
+    region: varchar('region', { length: 64 }).default('IN'),
+    // Relevance tags for scoring against brand profiles
+    tags: jsonb('tags').default([]),
+    // Seed content ideas for AI prompting
+    content_ideas: jsonb('content_ideas').default([]),
+    // Which industry categories this is relevant to (for event_relevance_profile matching)
+    industry_categories: jsonb('industry_categories').default([]),
+    // Source: 'seed' | 'date-holidays' | 'custom'
+    source: varchar('source', { length: 32 }).default('seed'),
+    is_active: boolean('is_active').default(true).notNull(),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    key_uq: uniqueIndex('special_days_key_uq').on(t.key),
+    date_idx: index('special_days_date_idx').on(t.date),
+    category_idx: index('special_days_category_idx').on(t.category),
+    region_idx: index('special_days_region_idx').on(t.region),
+  }),
+);
+
+// --- Custom events (per-org, user-managed) ---
+// Brands add their own events: sale launches, product drops, anniversaries, etc.
+// Can be one-time or recurring (yearly).
+
+export const customEvents = pgTable(
+  'custom_events',
+  {
+    id: id(),
+    organization_id: orgId(),
+    // null = applies to all channels in org; set = channel-specific
+    channel_id: varchar('channel_id', { length: 36 }),
+    name: varchar('name', { length: 255 }).notNull(),
+    emoji: varchar('emoji', { length: 16 }).default('📅'),
+    description: text('description'),
+    date: date('date').notNull(),
+    end_date: date('end_date'),
+    color: varchar('color', { length: 16 }).default('#6366F1'),
+    category: varchar('category', { length: 32 }).default('custom'),
+    // If true, recurs every year on the same date
+    is_recurring: boolean('is_recurring').default(false).notNull(),
+    content_ideas: jsonb('content_ideas').default([]),
+    is_active: boolean('is_active').default(true).notNull(),
+    created_at: ts('created_at'),
+    updated_at: ts('updated_at'),
+  },
+  (t) => ({
+    org_idx: index('custom_events_org_idx').on(t.organization_id),
+    org_date_idx: index('custom_events_org_date_idx').on(t.organization_id, t.date),
+    channel_idx: index('custom_events_channel_idx').on(t.channel_id),
   }),
 );

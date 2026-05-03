@@ -15,6 +15,10 @@ import type {
   InterestSuggestion,
   LeadForm,
   LocationSuggestion,
+  MetaAdDetailResponse,
+  MetaCampaignAdsResponse,
+  MetaCampaignDetailResponse,
+  MetaInsightsEnvelope,
   OAuthCallbackResult,
   OAuthUrlResponse,
   SetupStatus,
@@ -22,6 +26,27 @@ import type {
   ValidateCampaignResult,
   ApiResponse,
 } from './types'
+
+// Meta Marketing API date presets accepted on insights endpoints.
+export const META_DATE_PRESETS = [
+  'today',
+  'yesterday',
+  'last_3d',
+  'last_7d',
+  'last_14d',
+  'last_28d',
+  'last_30d',
+  'last_90d',
+  'this_month',
+  'last_month',
+  'this_quarter',
+  'last_quarter',
+  'this_year',
+  'last_year',
+  'maximum',
+] as const
+
+export type MetaDatePreset = (typeof META_DATE_PRESETS)[number]
 
 // === SETUP / OAUTH ===
 
@@ -167,6 +192,34 @@ export const adsApi = {
   getFundingDetails: () => get<unknown>('/ads/funding'),
   getCampaignInsights: (id: string, range?: { start_date?: string; end_date?: string }) =>
     get<unknown>(`/ads/campaigns/${id}/insights`, { params: range }),
+
+  // --- Meta-side drill-down (live from Marketing API) ---
+
+  // Campaign + adsets (used as a fallback when caller wants targeting +
+  // budget metadata along with the ads list).
+  getMetaCampaignDetail: (metaCampaignId: string) =>
+    get<MetaCampaignDetailResponse>(`/ads/meta-campaigns/${metaCampaignId}/detail`),
+
+  // All ads for a campaign in one Meta call, with embedded insights for the
+  // requested date_preset. Falls back to last_28d when omitted.
+  getMetaCampaignAds: (metaCampaignId: string, params?: { date_preset?: MetaDatePreset }) =>
+    get<MetaCampaignAdsResponse>(`/ads/meta-campaigns/${metaCampaignId}/ads`, {
+      params: params?.date_preset ? { date_preset: params.date_preset } : undefined,
+    }),
+
+  getMetaAdDetail: (metaAdId: string) =>
+    get<MetaAdDetailResponse>(`/ads/meta-ads/${metaAdId}`),
+
+  // Daily time-series insights for a single ad (one row per day). Pass either
+  // a date_preset OR (start_date + end_date). Returns Meta's row array directly
+  // (the controller flattens `{data: [...]}` to `[...]`).
+  getMetaAdInsights: (
+    metaAdId: string,
+    params?: { date_preset?: MetaDatePreset; start_date?: string; end_date?: string },
+  ) =>
+    get<MetaInsightsEnvelope['data']>(`/ads/meta-ads/${metaAdId}/insights`, {
+      params,
+    }),
 }
 
 export default adsApi
