@@ -324,3 +324,49 @@ describe('PublishingService.publishMedia — image', () => {
     expect(publishOpts.params).toMatchObject({ creation_id: 'CON_1', access_token: 'TOK' });
   });
 });
+
+describe('PublishingService.publishMedia — video (feed)', () => {
+  let svc;
+  const channel = { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER' };
+  beforeEach(() => {
+    svc = new PublishingService();
+    vi.spyOn(svc, '_getPageToken').mockResolvedValue('TOK');
+    vi.spyOn(svc, '_sleep').mockResolvedValue();
+  });
+
+  it('sends media_type=VIDEO and respects cover_url', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    const out = await svc.publishMedia(channel, {
+      type: 'video',
+      video_url: 'https://x/v.mp4',
+      cover_url: 'https://x/c.jpg',
+    });
+    expect(out.mediaId).toBe('MED');
+
+    const params = axios.post.mock.calls[0][2].params;
+    expect(params).toMatchObject({
+      media_type: 'VIDEO',
+      video_url: 'https://x/v.mp4',
+      cover_url: 'https://x/c.jpg',
+      access_token: 'TOK',
+    });
+    expect(params.share_to_feed).toBeUndefined();
+    expect(params.audio_name).toBeUndefined();
+  });
+
+  it('uses thumb_offset when cover_url not provided', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    await svc.publishMedia(channel, {
+      type: 'video', video_url: 'https://x/v.mp4', thumb_offset_ms: 1500,
+    });
+    expect(axios.post.mock.calls[0][2].params.thumb_offset).toBe(1500);
+  });
+});

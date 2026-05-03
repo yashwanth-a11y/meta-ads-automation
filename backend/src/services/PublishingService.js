@@ -128,7 +128,10 @@ export class PublishingService {
       case 'image':
         containerId = await this._createImageContainer({ spec, igUserId, token });
         break;
-      // other branches added in Tasks 9-12
+      case 'video':
+        containerId = await this._createVideoContainer({ spec, igUserId, token });
+        break;
+      // other branches added in Tasks 10-12
       default:
         throw badRequest(`publishMedia does not yet handle type=${spec.type}`);
     }
@@ -262,6 +265,23 @@ export class PublishingService {
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
     console.log(`[Publishing] Image container created: ${data.id}`);
+    return data.id;
+  }
+
+  async _createVideoContainer({ spec, igUserId, token }) {
+    const params = {
+      ...this._buildCommonParams(spec),
+      media_type: 'VIDEO',
+      video_url: spec.video_url,
+      access_token: token,
+    };
+    if (spec.cover_url) params.cover_url = spec.cover_url;
+    if (spec.thumb_offset_ms !== undefined) params.thumb_offset = spec.thumb_offset_ms;
+    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+      params, timeout: 30_000,
+    });
+    if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
+    console.log(`[Publishing] Video container created: ${data.id}`);
     return data.id;
   }
 
