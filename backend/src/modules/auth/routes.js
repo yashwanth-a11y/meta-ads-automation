@@ -152,6 +152,29 @@ export default async function routes(app) {
     data: { user: request.user ?? null },
   }));
 
+  app.put(
+    '/me',
+    {
+      preHandler: app.requireAuth,
+      schema: {
+        description: 'Update the authenticated user profile.',
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            first_name: { type: 'string', minLength: 1, maxLength: 100 },
+            last_name: { type: 'string', minLength: 1, maxLength: 100 },
+            phone: { type: 'string', minLength: 6, maxLength: 20 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await app.authService.updateProfile(request.user.id, request.body);
+      return reply.send({ success: true, data: { user: result } });
+    },
+  );
+
   // --- Dev-only: mint a JWT bound to a test user. Useful for hitting
   // protected routes from curl/Postman without going through signup.
   app.post(

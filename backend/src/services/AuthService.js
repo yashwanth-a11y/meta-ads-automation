@@ -201,6 +201,55 @@ export class AuthService {
     return { user: strip(user), token };
   }
 
+  async updateProfile(userId, payload) {
+    const clean = {
+      first_name: typeof payload.first_name === 'string' ? payload.first_name.trim() : undefined,
+      last_name: typeof payload.last_name === 'string' ? payload.last_name.trim() : undefined,
+      phone: typeof payload.phone === 'string' ? payload.phone.trim() : undefined,
+    };
+
+    if (userId === 'usr_dev_local') {
+      // Mock update for local dev token immediately to prevent any DB errors
+      return {
+        id: userId,
+        first_name: clean.first_name || 'Dev',
+        last_name: clean.last_name || 'User',
+        email: 'dev@growthos.local',
+        phone: clean.phone || '+15555555555',
+      };
+    }
+
+    if (clean.phone && !PHONE_RE.test(clean.phone)) {
+      throw new AppError(
+        'Phone must be in E.164 format (e.g., +14155552671)',
+        { statusCode: 400, code: 'INVALID_PHONE' },
+      );
+    }
+
+    if (clean.phone) {
+      const existing = await this.userRepo.findByPhone(clean.phone);
+      if (existing && existing.id !== userId) {
+        throw new AppError('An account with this phone number already exists', {
+          statusCode: 409,
+          code: 'PHONE_TAKEN',
+        });
+      }
+    }
+
+    const updates = {};
+    if (clean.first_name) updates.first_name = clean.first_name;
+    if (clean.last_name) updates.last_name = clean.last_name;
+    if (clean.phone) updates.phone = clean.phone;
+    updates.updated_at = new Date();
+
+    if (Object.keys(updates).length > 1) { // more than just updated_at
+      await this.db.update(users).set(updates).where(eq(users.id, userId));
+    }
+
+    const user = await this.userRepo.findById(userId);
+    return strip(user);
+  }
+
   // --- Password reset ---
 
   _hashResetToken(raw) {

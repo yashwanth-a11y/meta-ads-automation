@@ -35,6 +35,11 @@ export function startScheduler(logger) {
   // Don't keep process alive just for the timer
   timer.unref?.();
 
+  // WhatsApp 24h window expiration warnings (run every hour)
+  const waTimer = setInterval(() => _checkWhatsAppExpirations(log), 60 * 60 * 1000);
+  waTimer.unref?.();
+  _checkWhatsAppExpirations(log);
+
   log.info(`[Scheduler] Started — interval: every ${env.CRON_INTERVAL_HOURS}h`);
 }
 
@@ -388,4 +393,36 @@ function _getNextScheduledSlot(channel) {
     }
   }
   return null;
+}
+
+async function _checkWhatsAppExpirations(log) {
+  try {
+    const { whatsappService } = await import('./services/whatsapp/WhatsAppService.js');
+    if (!whatsappService.isConfigured) return;
+
+    const { lt, gt, and, isNotNull } = await import('drizzle-orm');
+    const { users } = await import('./db/schema.js');
+
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const twentyThreeHoursAgo = new Date(Date.now() - 23 * 60 * 60 * 1000);
+
+    const expiringUsers = await db.select()
+      .from(users)
+      .where(
+        and(
+          isNotNull(users.last_whatsapp_interaction_at),
+          gt(users.last_whatsapp_interaction_at, twentyFourHoursAgo),
+          lt(users.last_whatsapp_interaction_at, twentyThreeHoursAgo)
+        )
+      );
+
+    for (const user of expiringUsers) {
+      if (user.phone) {
+        log.info(`[Scheduler] Sending 23h WhatsApp expiration warning to ${user.phone}`);
+        await whatsappService.sendMessage(user.phone, "⚠️ Your 24-hour chat window with GenUI is about to expire in 1 hour. Please reply to this message to keep the session active so you can continue receiving instant approval notifications.");
+      }
+    }
+  } catch (err) {
+    log.error({ err }, '[Scheduler] WhatsApp expiration check failed');
+  }
 }

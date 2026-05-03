@@ -37,6 +37,7 @@ export const users = pgTable(
     phone: varchar('phone', { length: 20 }).notNull(),
     password_hash: text('password_hash').notNull(),
     last_login_at: timestamp('last_login_at', { withTimezone: true, mode: 'date' }),
+    last_whatsapp_interaction_at: timestamp('last_whatsapp_interaction_at', { withTimezone: true, mode: 'date' }),
     created_at: ts('created_at'),
     updated_at: ts('updated_at'),
   },
@@ -501,7 +502,7 @@ export const approvals = pgTable(
     organization_id: orgId(),
     // null at topic_selection stage (no bundle yet)
     creative_bundle_id: varchar('creative_bundle_id', { length: 36 }),
-    approver_email: varchar('approver_email', { length: 255 }).notNull(),
+    approver_email: varchar('approver_email', { length: 255 }),
     token_hash: varchar('token_hash', { length: 64 }).notNull(),
     // topic_selection | content_review | video_review
     stage: varchar('stage', { length: 32 }).default('content_review').notNull(),
