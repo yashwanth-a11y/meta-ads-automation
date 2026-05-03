@@ -76,6 +76,7 @@ export type InstagramUpload = {
   kind: 'image' | 'video'
   mimeType: string
   size: number
+  backend: 's3' | 'local'  // diagnostic — confirms which storage path served the upload
 }
 
 // Spec shape mirrors PublishingService.MediaSpec on the backend. Only the

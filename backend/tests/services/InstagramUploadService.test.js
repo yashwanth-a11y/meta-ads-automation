@@ -2,6 +2,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import path from 'path';
 import { promises as fs } from 'fs';
 import os from 'os';
+
+// Stub the presigner so we can verify wiring without the AWS SDK trying to
+// reach into a real S3 client's middleware stack.
+vi.mock('@aws-sdk/s3-request-presigner', () => ({
+  getSignedUrl: vi.fn(async (_client, cmd) =>
+    `https://test-bucket.s3.us-east-1.amazonaws.com/${cmd.input.Key}?signed=1`,
+  ),
+}));
+
 import { InstagramUploadService } from '../../src/services/InstagramUploadService.js';
 
 const stubLogger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() });
@@ -21,6 +30,8 @@ function svc({ publicBaseUrl } = {}) {
     logger: stubLogger(),
     uploadsRoot: tmpRoot,
     publicBaseUrl: publicBaseUrl ?? '',
+    // Force local backend for these tests — S3 path has its own block below.
+    s3Bucket: '',
   });
 }
 
@@ -146,6 +157,71 @@ describe('InstagramUploadService.streamServedFile', () => {
   it('rejects missing files with 404', () => {
     const u = svc({ publicBaseUrl: 'https://api.example.com' });
     expect(() => u.streamServedFile('org1', 'does-not-exist.jpg')).toThrow(/not found/i);
+  });
+});
+
+describe('InstagramUploadService — S3 backend', () => {
+  function s3Svc(s3Client) {
+    return new InstagramUploadService({
+      logger: stubLogger(),
+      uploadsRoot: tmpRoot,
+      publicBaseUrl: '',
+      s3Bucket: 'test-bucket',
+      s3Region: 'us-east-1',
+      s3Client,
+    });
+  }
+
+  function fakeS3() {
+    return {
+      send: vi.fn(async (cmd) => {
+        const ctor = cmd.constructor.name;
+        if (ctor === 'GetObjectCommand') return {};
+        if (ctor === 'PutObjectCommand') return { ETag: '"abc"' };
+        if (ctor === 'DeleteObjectCommand') return {};
+        return {};
+      }),
+      // Required by getSignedUrl — middleware stack lookups happen on the
+      // client. Instead of stubbing those, mock the entire presigner:
+      config: { region: () => Promise.resolve('us-east-1') },
+    };
+  }
+
+  it('uploads to S3 and returns a presigned URL', async () => {
+    const s3 = fakeS3();
+    const u = s3Svc(s3);
+    const out = await u.save({
+      organizationId: 'org1',
+      fileBuffer: Buffer.from('payload'),
+      mimeType: 'video/mp4',
+      originalName: 'r.mp4',
+      requestHeaders: {},
+    });
+    expect(out.kind).toBe('video');
+    expect(out.storedPath).toMatch(/^instagram-uploads\/org1\/[0-9a-f]{32}\.mp4$/);
+    expect(out.url).toMatch(/^https:\/\/test-bucket\.s3\.us-east-1\.amazonaws\.com\/instagram-uploads\/org1\/.+\?signed=1$/);
+    const put = s3.send.mock.calls.find(
+      (c) => c[0].constructor.name === 'PutObjectCommand',
+    );
+    expect(put[0].input.Bucket).toBe('test-bucket');
+    expect(put[0].input.ContentType).toBe('video/mp4');
+  });
+
+  it('deletes the S3 object on cleanup', async () => {
+    const s3 = fakeS3();
+    const u = s3Svc(s3);
+    await u.delete('instagram-uploads/org1/abc.mp4');
+    const del = s3.send.mock.calls.find(
+      (c) => c[0].constructor.name === 'DeleteObjectCommand',
+    );
+    expect(del).toBeDefined();
+    expect(del[0].input.Bucket).toBe('test-bucket');
+    expect(del[0].input.Key).toBe('instagram-uploads/org1/abc.mp4');
+  });
+
+  it('rejects local file serving when in S3 mode', () => {
+    const u = s3Svc(fakeS3());
+    expect(() => u.streamServedFile('org1', 'a.jpg')).toThrow(/disabled in S3/i);
   });
 });
 

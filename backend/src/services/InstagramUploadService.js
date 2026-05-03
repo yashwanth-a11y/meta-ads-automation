@@ -2,32 +2,44 @@ import { promises as fs, createReadStream, existsSync } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { badRequest, notFound } from '../lib/errors.js';
 import { env } from '../config/env.js';
 
 // Instagram's Content Publishing API requires `image_url` / `video_url` to be
-// a public URL that Meta's servers can GET. Files uploaded here are written
-// to local disk under <repo>/uploads and served by a public, unauthenticated
-// route (registered in InstagramOAuthRoutes). After a successful publish the
-// caller should call `delete(storedPath)` to free the disk slot — IG has
-// already pulled the bytes by then.
+// a public URL Meta's servers can GET. We support two storage backends:
 //
-// In production behind a real domain, set BACKEND_PUBLIC_URL.
-// In local dev behind ngrok, the request's x-forwarded-host header already
-// carries the public hostname; this service uses it as the fallback.
+//   - 's3' (preferred for prod and dev): file lands in S3, we hand Meta a
+//     presigned GET URL valid for 1 hour. Meta fetches directly from S3.
+//     No ngrok in the loop, full Range-request support, stable downloads.
+//
+//   - 'local' (fallback when S3 isn't configured): file lands on disk under
+//     <backend>/uploads, served by an unauthenticated public route. Requires
+//     a publicly reachable backend (BACKEND_PUBLIC_URL or x-forwarded-host
+//     from ngrok). Less reliable for Meta's fetcher, especially for video.
+//
+// Backend is chosen automatically: S3 when USE_S3=true AND AWS_S3_BUCKET set,
+// else local. After publish the caller deletes the asset (works on both).
 
-// IG Content Publishing only accepts JPEG for images. PNG sometimes works for
-// uploads to ad accounts but fails at /media with subcode 2207003 ("Invalid
-// image file"). Rejecting here gives a clearer error than the IG round-trip.
 const ALLOWED_IMAGE = new Set(['image/jpeg']);
 const ALLOWED_VIDEO = new Set(['video/mp4', 'video/quicktime']);
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;       // IG image guidance
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;     // IG single-video soft cap
 
+// 1 hour. Meta usually fetches the URL within seconds of /media being called;
+// this gives plenty of margin for slow fetches and the container poll loop
+// without the URL going stale during a still-processing publish.
+const S3_PRESIGN_TTL_SECONDS = 60 * 60;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-// uploads dir lives at backend repo root: <backend>/uploads
 const UPLOADS_ROOT = path.resolve(__dirname, '..', '..', 'uploads');
 
 function extFor(mimeType) {
@@ -46,32 +58,39 @@ function classifyMime(mimeType) {
 }
 
 export class InstagramUploadService {
-  constructor({ logger, uploadsRoot = UPLOADS_ROOT, publicBaseUrl = env.BACKEND_PUBLIC_URL || '' } = {}) {
+  constructor({
+    logger,
+    uploadsRoot = UPLOADS_ROOT,
+    publicBaseUrl = env.BACKEND_PUBLIC_URL || '',
+    // Allow tests/DI to inject. Production reads from env.
+    s3Bucket = env.USE_S3 ? env.AWS_S3_BUCKET || '' : '',
+    s3Region = env.AWS_REGION || 'us-east-1',
+    s3Client = null,
+  } = {}) {
     this.logger = logger;
     this.uploadsRoot = uploadsRoot;
     this.publicBaseUrl = publicBaseUrl;
+    this.s3Bucket = s3Bucket;
+    this.s3Region = s3Region;
+    this.backend = s3Bucket ? 's3' : 'local';
+    if (this.backend === 's3') {
+      this.s3 = s3Client || new S3Client({
+        region: s3Region,
+        // SDK auto-resolves credentials from env (AWS_ACCESS_KEY_ID,
+        // AWS_SECRET_ACCESS_KEY) or instance/IAM role.
+      });
+      this.logger?.info?.({
+        message: '[InstagramUpload] Using S3 backend',
+        bucket: s3Bucket,
+        region: s3Region,
+      });
+    }
   }
 
-  // Resolve the public base URL the file will be reachable at. Meta requires
-  // an https URL that resolves from the public internet — local-only hosts
-  // (localhost, 127.*, *.local) will be rejected at publish time by IG so we
-  // surface that clearly here rather than letting the publish loop time out.
-  _resolvePublicBase({ forwardedHost, forwardedProto, host } = {}) {
-    if (this.publicBaseUrl) return this.publicBaseUrl.replace(/\/$/, '');
-    if (forwardedHost) {
-      const proto = forwardedProto || 'https';
-      return `${proto}://${forwardedHost}`;
-    }
-    if (host && !/^(localhost|127\.|0\.0\.0\.0)/.test(host)) {
-      return `https://${host}`;
-    }
-    throw badRequest(
-      'No public backend URL is configured. Set BACKEND_PUBLIC_URL or run behind a public host (ngrok in dev) so Instagram can fetch the uploaded media.',
-    );
-  }
+  // -------------------------------------------------------------------------
+  // Public API (same shape across backends)
+  // -------------------------------------------------------------------------
 
-  // Persist a buffer to disk and return both the public URL (handed to IG)
-  // and a stored-path token the caller uses to delete the file later.
   async save({ organizationId, fileBuffer, mimeType, originalName, requestHeaders = {} }) {
     if (!organizationId) throw badRequest('organizationId is required');
     if (!fileBuffer || !fileBuffer.length) throw badRequest('Empty file');
@@ -95,25 +114,59 @@ export class InstagramUploadService {
     const ext = extFor(mimeType) || path.extname(originalName || '') || '';
     const id = crypto.randomBytes(16).toString('hex');
     const fileName = `${id}${ext}`;
-    const orgDir = path.join(this.uploadsRoot, organizationId);
-    await fs.mkdir(orgDir, { recursive: true });
-    const absPath = path.join(orgDir, fileName);
-    await fs.writeFile(absPath, fileBuffer);
 
-    const base = this._resolvePublicBase({
-      forwardedHost: requestHeaders['x-forwarded-host'],
-      forwardedProto: requestHeaders['x-forwarded-proto'],
-      host: requestHeaders.host,
+    if (this.backend === 's3') {
+      return this._saveToS3({ organizationId, fileBuffer, mimeType, fileName, kind });
+    }
+    return this._saveToLocal({
+      organizationId,
+      fileBuffer,
+      mimeType,
+      fileName,
+      kind,
+      requestHeaders,
     });
-    const url = `${base}/public/uploads/${encodeURIComponent(organizationId)}/${encodeURIComponent(fileName)}`;
-    const storedPath = `${organizationId}/${fileName}`;
-    this.logger?.info?.({ message: '[InstagramUpload] Stored', storedPath, kind, size: fileBuffer.length });
-    return { url, storedPath, kind, mimeType, size: fileBuffer.length };
   }
 
-  // Resolve an HTTP-served path back to an absolute disk path. Rejects any
-  // attempt to escape the uploads root via "..".
+  async delete(storedPath) {
+    if (!storedPath || typeof storedPath !== 'string') return;
+    if (storedPath.includes('..')) return;
+    if (this.backend === 's3') {
+      try {
+        await this.s3.send(new DeleteObjectCommand({
+          Bucket: this.s3Bucket,
+          Key: storedPath,
+        }));
+        this.logger?.info?.({ message: '[InstagramUpload] S3 deleted', key: storedPath });
+      } catch (err) {
+        this.logger?.warn?.({
+          message: '[InstagramUpload] S3 delete failed',
+          key: storedPath,
+          err: err.message,
+        });
+      }
+      return;
+    }
+    const abs = path.join(this.uploadsRoot, storedPath);
+    try {
+      await fs.unlink(abs);
+      this.logger?.info?.({ message: '[InstagramUpload] Local deleted', storedPath });
+    } catch (err) {
+      if (err?.code !== 'ENOENT') {
+        this.logger?.warn?.({
+          message: '[InstagramUpload] Local delete failed',
+          storedPath,
+          err: err.message,
+        });
+      }
+    }
+  }
+
+  // Local-only — used by the public /public/uploads/:org/:file route. The
+  // S3 backend doesn't go through this path because Meta fetches from the
+  // presigned URL directly.
   resolveServedFile(orgId, fileName) {
+    if (this.backend === 's3') throw notFound('Local file serving disabled in S3 mode');
     if (!orgId || !fileName) throw notFound('File not found');
     const orgDir = path.join(this.uploadsRoot, orgId);
     const abs = path.resolve(orgDir, fileName);
@@ -127,18 +180,78 @@ export class InstagramUploadService {
     return { stream: createReadStream(abs), absPath: abs };
   }
 
-  // Fire-and-forget delete; safe to call multiple times.
-  async delete(storedPath) {
-    if (!storedPath || typeof storedPath !== 'string') return;
-    if (storedPath.includes('..')) return;
-    const abs = path.join(this.uploadsRoot, storedPath);
-    try {
-      await fs.unlink(abs);
-      this.logger?.info?.({ message: '[InstagramUpload] Deleted', storedPath });
-    } catch (err) {
-      if (err?.code !== 'ENOENT') {
-        this.logger?.warn?.({ message: '[InstagramUpload] Delete failed', storedPath, err: err.message });
-      }
+  // -------------------------------------------------------------------------
+  // Internal: backend implementations
+  // -------------------------------------------------------------------------
+
+  async _saveToS3({ organizationId, fileBuffer, mimeType, fileName, kind }) {
+    const key = `instagram-uploads/${organizationId}/${fileName}`;
+    await this.s3.send(new PutObjectCommand({
+      Bucket: this.s3Bucket,
+      Key: key,
+      Body: fileBuffer,
+      ContentType: mimeType,
+      // CacheControl helps Meta if it does conditional GETs during the
+      // container poll loop; not strictly required.
+      CacheControl: 'public, max-age=3600',
+    }));
+    const url = await getSignedUrl(
+      this.s3,
+      new GetObjectCommand({ Bucket: this.s3Bucket, Key: key }),
+      { expiresIn: S3_PRESIGN_TTL_SECONDS },
+    );
+    this.logger?.info?.({
+      message: '[InstagramUpload] S3 uploaded',
+      key,
+      kind,
+      size: fileBuffer.length,
+    });
+    return { url, storedPath: key, kind, mimeType, size: fileBuffer.length, backend: 's3' };
+  }
+
+  async _saveToLocal({
+    organizationId,
+    fileBuffer,
+    mimeType,
+    fileName,
+    kind,
+    requestHeaders,
+  }) {
+    const orgDir = path.join(this.uploadsRoot, organizationId);
+    await fs.mkdir(orgDir, { recursive: true });
+    const absPath = path.join(orgDir, fileName);
+    await fs.writeFile(absPath, fileBuffer);
+
+    const base = this._resolvePublicBase({
+      forwardedHost: requestHeaders['x-forwarded-host'],
+      forwardedProto: requestHeaders['x-forwarded-proto'],
+      host: requestHeaders.host,
+    });
+    const url = `${base}/public/uploads/${encodeURIComponent(organizationId)}/${encodeURIComponent(fileName)}`;
+    const storedPath = `${organizationId}/${fileName}`;
+    this.logger?.info?.({
+      message: '[InstagramUpload] Local stored',
+      storedPath,
+      kind,
+      size: fileBuffer.length,
+    });
+    return { url, storedPath, kind, mimeType, size: fileBuffer.length, backend: 'local' };
+  }
+
+  // Local-only: derive an https URL Meta can reach when we don't have an
+  // explicit BACKEND_PUBLIC_URL. ngrok's x-forwarded-host is the typical
+  // dev path. localhost-only hosts are rejected since IG can't reach them.
+  _resolvePublicBase({ forwardedHost, forwardedProto, host } = {}) {
+    if (this.publicBaseUrl) return this.publicBaseUrl.replace(/\/$/, '');
+    if (forwardedHost) {
+      const proto = forwardedProto || 'https';
+      return `${proto}://${forwardedHost}`;
     }
+    if (host && !/^(localhost|127\.|0\.0\.0\.0)/.test(host)) {
+      return `https://${host}`;
+    }
+    throw badRequest(
+      'No public backend URL is configured. Set BACKEND_PUBLIC_URL, enable USE_S3, or run behind a public host (ngrok in dev) so Instagram can fetch the uploaded media.',
+    );
   }
 }
