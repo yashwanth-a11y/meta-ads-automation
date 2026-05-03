@@ -2,71 +2,22 @@ import { v4 as uuidv4 } from 'uuid';
 import { eq, and } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { creativeBundles } from '../db/schema.js';
-import { env } from '../config/env.js';
 import { generateImages } from './ImageGenerationService.js';
-
-// gpt-4o for script generation — better creative quality than mini
-const SCRIPT_MODEL = 'gpt-4o';
-// gpt-4o-mini for scoring — fast and cheap
-const SCORE_MODEL = 'gpt-4o-mini';
-
-async function _openaiJSON(model, systemPrompt, userPrompt) {
-  if (!env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY not set');
-  }
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`OpenAI error ${res.status}: ${body}`);
-  }
-  const data = await res.json();
-  return JSON.parse(data.choices[0].message.content);
-}
+import { generateJSON } from './agent/llmClient.js';
+import { PROMPTS } from './agent/prompts.js';
 
 export class ScriptGeneratorService {
   async generateBundle(channel, trend) {
     const brandCtx = this._buildBrandContext(channel);
     const trendCtx = this._buildTrendContext(trend);
 
-    const bundle = await _openaiJSON(
-      SCRIPT_MODEL,
-      `You are an expert viral content creator for Instagram Reels and short-form video ads.
-Create content that is platform-native, emotionally resonant, and brand-safe.
-
-Rules:
-- Hook captures attention in 3 seconds — use curiosity, contrast, or a bold statement
-- Script is 15–45 seconds when read aloud at natural pace (50–120 words)
-- Voiceover uses [pause] for 0.5s pauses and [emphasis] around stressed words
-- Caption ≤2200 chars, conversational, ends with a question or CTA
-- Hashtags: 5 niche + 5 broad, no # symbol, as an array
-- Never quote source content verbatim — transform it
-- Feel native to Instagram, not like an ad
-
-Return JSON with exactly these keys:
-{
-  "hook": string,
-  "script": string,
-  "voiceover_text": string,
-  "caption": string,
-  "hashtags": string[],
-  "cta": string
-}`,
-      `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Use the trend naturally for this brand'}`,
-    );
+    const bundle = await generateJSON({
+      model: 'mini',
+      system: PROMPTS.GENERATE_REEL_BUNDLE,
+      user: `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Use the trend naturally for this brand'}`,
+      temperature: 0.8,
+      label: 'gen_reel',
+    });
 
     const now = new Date();
     const row = {
@@ -102,26 +53,16 @@ Return JSON with exactly these keys:
   async scoreBundle(bundle, channel) {
     let scores;
     try {
-      scores = await _openaiJSON(
-        SCORE_MODEL,
-        `You are a content quality scorer. Score the creative bundle 0–10 per dimension.
-Return JSON with exactly these keys:
-{
-  "trend_relevance": number,
-  "viral_hook": number,
-  "clarity": number,
-  "audience_fit": number,
-  "platform_fit": number,
-  "brand_safety": number,
-  "composite": number,
-  "rationale": string
-}`,
-        `Brand: ${channel.brand_name} | Industry: ${channel.industry ?? 'general'} | Audience: ${channel.target_audience ?? 'general'}
+      scores = await generateJSON({
+        model: 'mini',
+        system: PROMPTS.SCORE_BUNDLE,
+        user: `Brand: ${channel.brand_name} | Industry: ${channel.industry ?? 'general'} | Audience: ${channel.target_audience ?? 'general'}
 
 Hook: ${bundle.hook}
 Script: ${bundle.script}
 Caption: ${bundle.caption}`,
-      );
+        label: 'score_bundle',
+      });
     } catch (err) {
       console.error('[ScriptGenerator] scoreBundle failed:', err.message);
       return null;
@@ -143,17 +84,17 @@ Caption: ${bundle.caption}`,
 
     if (!existing) throw new Error(`Bundle ${bundleId} not found`);
 
-    const bundle = await _openaiJSON(
-      SCRIPT_MODEL,
-      `You are an expert viral content creator regenerating a rejected creative.
-Apply the rejection feedback and significantly improve the content.
-Return JSON with exactly these keys: hook, script, voiceover_text, caption, hashtags (array), cta`,
-      `Original hook: ${existing.hook}
+    const bundle = await generateJSON({
+      model: 'mini',
+      system: PROMPTS.REGENERATE_BUNDLE,
+      user: `Original hook: ${existing.hook}
 Original script: ${existing.script}
 Original caption: ${existing.caption}
 
 Rejection reason: ${rejectionReason ?? 'No specific reason — make it more engaging and platform-native'}`,
-    );
+      temperature: 0.8,
+      label: 'regen_bundle',
+    });
 
     const now = new Date();
     await db
@@ -176,18 +117,14 @@ Rejection reason: ${rejectionReason ?? 'No specific reason — make it more enga
 
   // Called only after content is approved — right before video render
   async generateScenePrompts(bundle, channel) {
-    const prompts = await _openaiJSON(
-      SCRIPT_MODEL,
-      `You are a video director. Given an approved script, generate 5 cinematic scene prompts for AI video generation.
-Each prompt must be:
-- Specific and visual (describe camera angle, lighting, subject, action)
-- Optimised for AI video generators (Kling / Runway / Sora style)
-- Ordered to match the script's narrative flow
-Return JSON: { "scene_prompts": string[5] }`,
-      `Brand: ${channel.brand_name} | Tone: ${channel.tone ?? 'professional'}
+    const prompts = await generateJSON({
+      model: 'mini',
+      system: PROMPTS.GENERATE_SCENE_PROMPTS,
+      user: `Brand: ${channel.brand_name} | Tone: ${channel.tone ?? 'professional'}
 Hook: ${bundle.hook}
 Script: ${bundle.script}`,
-    );
+      label: 'scene_prompts',
+    });
 
     const scenes = prompts.scene_prompts ?? [];
     await db.update(creativeBundles)
@@ -206,30 +143,13 @@ Script: ${bundle.script}`,
     const trendCtx = this._buildTrendContext(trend);
     const brandAssets = channel.brand_assets ?? {};
 
-    const bundle = await _openaiJSON(
-      SCRIPT_MODEL,
-      `You are an expert social media visual content creator for Instagram.
-Create a single-image post that is visually striking, brand-consistent, and trend-relevant.
-
-Brand assets available: ${brandAssets.logo_url ? 'logo provided' : 'no logo'}, colors: ${brandAssets.colors?.join(', ') || brandAssets.primary_color || 'not specified'}.
-
-Rules:
-- image_prompt: detailed AI image generation prompt (subject, composition, lighting, mood, colors). Do NOT include text/logos in the prompt — those are added separately.
-- caption: 150–220 chars, conversational, ends with a question or CTA
-- hashtags: 5 niche + 5 broad, no # symbol, as an array
-- alt_text: 1 sentence describing the image for accessibility
-
-Return JSON with exactly these keys:
-{
-  "image_prompt": string,
-  "hook": string,
-  "caption": string,
-  "hashtags": string[],
-  "alt_text": string,
-  "cta": string
-}`,
-      `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Use the trend visually for this brand'}`,
-    );
+    const bundle = await generateJSON({
+      model: 'mini',
+      system: PROMPTS.GENERATE_IMAGE_BUNDLE,
+      user: `Brand:\n${brandCtx}\n\nBrand assets: ${brandAssets.logo_url ? 'logo provided' : 'no logo'}, colors: ${brandAssets.colors?.join(', ') || brandAssets.primary_color || 'not specified'}\n\nTrend:\n${trendCtx}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Use the trend visually for this brand'}`,
+      temperature: 0.8,
+      label: 'gen_image_bundle',
+    });
 
     // Generate the actual image using the AI prompt
     let imageUrls = [];
@@ -284,29 +204,13 @@ Return JSON with exactly these keys:
     const trendCtx = this._buildTrendContext(trend);
     const brandAssets = channel.brand_assets ?? {};
 
-    const bundle = await _openaiJSON(
-      SCRIPT_MODEL,
-      `You are an expert Instagram carousel content creator.
-Create a ${count}-slide carousel that tells a story, educates, or inspires — each slide builds on the last.
-
-Rules:
-- Each slide has: image_prompt (detailed visual description), slide_caption (short text overlay idea, 5–10 words)
-- The overall_caption is for the Instagram post (150–220 chars, ends with CTA or question)
-- hook: the opening line shown in slide 1 (bold statement or question)
-- hashtags: 5 niche + 5 broad, no # symbol, as an array
-- Image prompts must be visually consistent (same style, lighting, color palette across all slides)
-- Do NOT include brand logos in image prompts — those are composited separately
-
-Return JSON with exactly these keys:
-{
-  "hook": string,
-  "slides": [{ "image_prompt": string, "slide_caption": string }],
-  "overall_caption": string,
-  "hashtags": string[],
-  "cta": string
-}`,
-      `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nSlide count: ${count}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Create an educational or inspiring carousel for this brand'}`,
-    );
+    const bundle = await generateJSON({
+      model: 'mini',
+      system: PROMPTS.GENERATE_CAROUSEL_BUNDLE,
+      user: `Brand:\n${brandCtx}\n\nTrend:\n${trendCtx}\n\nSlide count: ${count}\n\nAdaptation idea: ${trend.brand_fit?.adaptation_idea ?? 'Create an educational or inspiring carousel for this brand'}`,
+      temperature: 0.8,
+      label: 'gen_carousel',
+    });
 
     const slides = (bundle.slides ?? []).slice(0, count);
     const imagePrompts = slides.map((s) => s.image_prompt);

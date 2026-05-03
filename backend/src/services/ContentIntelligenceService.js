@@ -3,36 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/index.js';
 import { trendCandidates, trendScores, channels, topicCooldowns } from '../db/schema.js';
 import { env } from '../config/env.js';
-
-// gpt-4o-mini: cheap, fast, solid JSON output — same model used for campaign generation
-const MODEL = 'gpt-4o-mini';
-
-async function _openaiJSON(systemPrompt, userPrompt) {
-  if (!env.OPENAI_API_KEY) {
-    throw new Error('OPENAI_API_KEY not set');
-  }
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`OpenAI error ${res.status}: ${body}`);
-  }
-  const data = await res.json();
-  return JSON.parse(data.choices[0].message.content);
-}
+import { generateJSON } from './agent/llmClient.js';
+import { PROMPTS } from './agent/prompts.js';
 
 export class ContentIntelligenceService {
   // Step 1: Classify unprocessed candidates (batch, runs after ingestion)
@@ -65,26 +37,12 @@ export class ContentIntelligenceService {
 
     let result;
     try {
-      result = await _openaiJSON(
-        `You are a content intelligence analyst. Classify each trend candidate and extract its emotional DNA.
-Return a JSON object with a single key "items" containing an array, one entry per candidate, in order.
-
-Each entry must have:
-- index: number (1-based)
-- classification: "topic" | "format_template" | "brand_news" | "noise"
-  topic = news/launches/events worth discussing
-  format_template = viral visual/audio format others can copy (memes, video styles)
-  brand_news = company/product specific news
-  noise = sports results, politics, celebrity gossip unrelated to business/culture
-- lifecycle_stage: "seed" | "sprout" | "peak" | "saturated"
-- emotional_dna: {
-    core_emotion: string (e.g. "curiosity", "nostalgia", "solitude", "triumph"),
-    visual_signature: string (dominant visual style in one phrase),
-    themes: string[] (2-4 themes),
-    brand_fit_notes: string (which brand types could naturally use this)
-  }`,
-        `Classify these ${candidates.length} items:\n\n${items}`,
-      );
+      result = await generateJSON({
+        model: 'haiku',
+        system: PROMPTS.CLASSIFY_TRENDS,
+        user: `Classify these ${candidates.length} items:\n\n${items}`,
+        label: 'classify',
+      });
     } catch (err) {
       console.error('[ContentIntelligence] classify batch failed:', err.message);
       return;
@@ -168,21 +126,12 @@ Each entry must have:
 
     let result;
     try {
-      result = await _openaiJSON(
-        `You are a brand content strategist scoring trend-brand fit.
-Return a JSON object with a single key "items" containing an array, one per trend, in order.
-
-Score each on 0-10:
-- emotional_alignment: does the trend emotion match brand values?
-- audience_fit: would this brand's audience engage with it?
-- adaptation_ease: how naturally can the brand use this?
-- risk_score: 0 = risky/off-brand, 10 = completely safe
-- composite_score: weighted avg (alignment 30%, audience 30%, ease 25%, risk 15%)
-- adaptation_idea: one sentence on HOW the brand could use this trend
-
-If the trend touches any blocked topic, set all scores to 0.`,
-        `Brand context:\n${brandContext}\n\nScore these ${candidates.length} trends:\n\n${items}`,
-      );
+      result = await generateJSON({
+        model: 'haiku',
+        system: PROMPTS.SCORE_TREND_BRAND_FIT,
+        user: `Brand context:\n${brandContext}\n\nScore these ${candidates.length} trends:\n\n${items}`,
+        label: 'score_trends',
+      });
     } catch (err) {
       console.error('[ContentIntelligence] score batch failed:', err.message);
       return;
