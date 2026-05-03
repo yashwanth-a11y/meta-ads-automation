@@ -38,7 +38,7 @@ export class ContentIntelligenceService {
     let result;
     try {
       result = await generateJSON({
-        model: 'haiku',
+        model: 'mini',
         system: PROMPTS.CLASSIFY_TRENDS,
         user: `Classify these ${candidates.length} items:\n\n${items}`,
         label: 'classify',
@@ -127,7 +127,7 @@ export class ContentIntelligenceService {
     let result;
     try {
       result = await generateJSON({
-        model: 'haiku',
+        model: 'mini',
         system: PROMPTS.SCORE_TREND_BRAND_FIT,
         user: `Brand context:\n${brandContext}\n\nScore these ${candidates.length} trends:\n\n${items}`,
         label: 'score_trends',
