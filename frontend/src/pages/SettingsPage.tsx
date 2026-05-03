@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Box, Stack, Tab, Tabs } from '@mui/material'
 import { PageHeader } from '../components/ui/PageHeader'
 import { GeneralSection } from '../components/settings/GeneralSection'
-import { ChannelConfigSection } from '../components/settings/ChannelConfigSection'
 import { NotificationsSection } from '../components/settings/NotificationsSection'
 import { IntegrationsSection } from '../components/settings/IntegrationsSection'
 
@@ -13,7 +12,7 @@ export function SettingsPage() {
     <Stack spacing={3}>
       <PageHeader
         title="Settings"
-        subtitle="Workspace preferences, channel pipeline configuration, and integrations."
+        subtitle="Workspace preferences, notifications, and integrations."
       />
 
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -25,17 +24,15 @@ export function SettingsPage() {
           }}
         >
           <Tab label="General" id="settings-tab-0" />
-          <Tab label="Channel Config" id="settings-tab-1" />
-          <Tab label="Notifications" id="settings-tab-2" />
-          <Tab label="Integrations" id="settings-tab-3" />
+          <Tab label="Notifications" id="settings-tab-1" />
+          <Tab label="Integrations" id="settings-tab-2" />
         </Tabs>
       </Box>
 
       <Box sx={{ maxWidth: 820 }}>
         {tab === 0 && <GeneralSection />}
-        {tab === 1 && <ChannelConfigSection />}
-        {tab === 2 && <NotificationsSection />}
-        {tab === 3 && <IntegrationsSection />}
+        {tab === 1 && <NotificationsSection />}
+        {tab === 2 && <IntegrationsSection />}
       </Box>
     </Stack>
   )

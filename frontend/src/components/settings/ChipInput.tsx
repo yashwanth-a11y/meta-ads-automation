@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
-import { Box, Button, Chip, Stack, TextField } from '@mui/material'
+import { Box, Button, Chip, CircularProgress, Stack, TextField } from '@mui/material'
 import { alpha } from '@mui/material/styles'
 
 interface ChipInputProps {
@@ -7,15 +7,31 @@ interface ChipInputProps {
   helperText?: string
   values: string[]
   onChange: (next: string[]) => void
+  validate?: (val: string) => string | null
+  asyncValidate?: (val: string) => Promise<string | null>
+  transform?: (val: string) => string
 }
 
-export function ChipInput({ label, helperText, values, onChange }: ChipInputProps) {
+export function ChipInput({ label, helperText, values, onChange, validate, asyncValidate, transform }: ChipInputProps) {
   const [input, setInput] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
 
-  const add = () => {
-    const val = input.trim()
-    if (val && !values.includes(val)) onChange([...values, val])
+  const add = async () => {
+    const raw = input.trim()
+    if (!raw) return
+    const val = transform ? transform(raw) : raw
+    const syncErr = validate ? validate(val) : null
+    if (syncErr) { setError(syncErr); return }
+    if (asyncValidate) {
+      setChecking(true)
+      const asyncErr = await asyncValidate(val).catch(() => 'Verification failed — check your connection')
+      setChecking(false)
+      if (asyncErr) { setError(asyncErr); return }
+    }
+    if (!values.includes(val)) onChange([...values, val])
     setInput('')
+    setError(null)
   }
 
   const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -28,12 +44,16 @@ export function ChipInput({ label, helperText, values, onChange }: ChipInputProp
         label={label}
         placeholder="Type and press Enter to add"
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={(e) => { setInput(e.target.value); if (error) setError(null) }}
         onKeyDown={handleKey}
         autoComplete="off"
-        helperText={helperText ?? ' '}
+        error={!!error}
+        disabled={checking}
+        helperText={error ?? helperText ?? ' '}
         InputProps={{
-          endAdornment: input.trim() ? (
+          endAdornment: checking ? (
+            <CircularProgress size={16} sx={{ mr: 1 }} />
+          ) : input.trim() ? (
             <Button size="small" onClick={add} sx={{ minWidth: 0, px: 1, fontSize: 12 }}>Add</Button>
           ) : undefined,
         }}

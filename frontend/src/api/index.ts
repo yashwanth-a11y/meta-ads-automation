@@ -2,6 +2,8 @@ export { http, get, post, patch, del, unwrap, ApiError, getAuthToken, setAuthTok
 export { adsApi } from './ads'
 export { trendsApi } from './trends'
 export type { Channel, ChannelApprover, ChannelTrendSources, ChannelUpdateInput, TrendWithScore, CreativeBundle, PipelineResult, CreateChannelInput, QualityScores } from './trends'
+export { analyticsApi } from './analytics'
+export type { AnalyticsDashboard } from './analytics'
 export { approvalsApi } from './approvals'
 export type { Approval, ApprovalStage, ApprovalBundle } from './approvals'
 export { queryClient, qk } from './queryClient'
