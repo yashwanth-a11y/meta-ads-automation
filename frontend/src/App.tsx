@@ -6,7 +6,7 @@ import { AdsSetupPage } from './pages/AdsSetup'
 import { AdsCreatePage } from './pages/AdsCreate'
 import { OAuthCallback } from './pages/OAuthCallback'
 import { AnalyticsPage } from './pages/AnalyticsPage'
-import { AuthPage, AUTH_ROUTE, DASHBOARD_ROUTE, paths } from './auth'
+import { AuthPage, AUTH_ROUTE, DASHBOARD_ROUTE, FORGOT_PASSWORD_ROUTE, ForgotPasswordPage, paths } from './auth'
 import { ChannelsPage } from './pages/ChannelsPage'
 import { CreativesPage } from './pages/CreativesPage'
 import { CRMPage } from './pages/CRMPage'
@@ -43,6 +43,14 @@ export default function App() {
         element={
           <PublicOnlyRoute>
             <AuthPage />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
+        path={FORGOT_PASSWORD_ROUTE}
+        element={
+          <PublicOnlyRoute>
+            <ForgotPasswordPage />
           </PublicOnlyRoute>
         }
       />

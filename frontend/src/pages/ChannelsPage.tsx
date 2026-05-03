@@ -5,9 +5,14 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  Divider,
   FormControl,
   FormHelperText,
   Grid,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -18,6 +23,8 @@ import {
   Typography,
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
+import AddRoundedIcon from '@mui/icons-material/AddRounded'
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -182,6 +189,7 @@ export function ChannelsPage() {
   const [snackOpen, setSnackOpen] = useState(false)
   const [snackMsg, setSnackMsg] = useState('')
   const [mutationError, setMutationError] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -223,11 +231,21 @@ export function ChannelsPage() {
       reset()
       setBlockedTopics([])
       setTopicInput('')
+      setDialogOpen(false)
     },
     onError: (err: Error) => {
       setMutationError(err.message || 'Failed to create channel. Please try again.')
     },
   })
+
+  const handleCloseDialog = () => {
+    if (isPending) return
+    setDialogOpen(false)
+    setMutationError(null)
+    reset()
+    setBlockedTopics([])
+    setTopicInput('')
+  }
 
   const onSubmit = (values: FormValues) => {
     setMutationError(null)
@@ -261,52 +279,108 @@ export function ChannelsPage() {
       <PageHeader
         title="Channels"
         subtitle="Organize brand voices, languages, and positioning for each growth lane."
+        action={
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => setDialogOpen(true)}
+            sx={{ minWidth: 180, height: 44 }}
+          >
+            Create channel
+          </Button>
+        }
       />
 
-      <Grid container spacing={2.5} sx={{ alignItems: 'flex-start' }}>
-        {/* ── Left: channel list ── */}
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <Stack spacing={1.5}>
-            {isLoading ? (
-              <>
-                <ChannelSkeleton />
-                <ChannelSkeleton />
-                <ChannelSkeleton />
-              </>
-            ) : channels.length === 0 ? (
-              <GlassCard sx={{ p: 3 }}>
-                <Typography
-                  variant="body1"
-                  color="text.secondary"
-                  sx={{ textAlign: 'center', lineHeight: 1.6 }}
-                >
-                  No channels yet. Create your first one &rarr;
-                </Typography>
-              </GlassCard>
-            ) : (
-              channels.map((ch) => (
+      <Stack spacing={1.5}>
+        {isLoading ? (
+          <>
+            <ChannelSkeleton />
+            <ChannelSkeleton />
+            <ChannelSkeleton />
+          </>
+        ) : channels.length === 0 ? (
+          <GlassCard sx={{ p: 4 }}>
+            <Stack spacing={2} sx={{ alignItems: 'center', textAlign: 'center' }}>
+              <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                No channels yet. Create your first one to get started.
+              </Typography>
+              {/* <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddRoundedIcon />}
+                onClick={() => setDialogOpen(true)}
+              >
+                Create channel
+              </Button> */}
+            </Stack>
+          </GlassCard>
+        ) : (
+          <Grid container spacing={1.5}>
+            {channels.map((ch) => (
+              <Grid key={ch.id} size={{ xs: 12, sm: 6, lg: 4 }}>
                 <ChannelCard
-                  key={ch.id}
                   channel={ch}
                   selected={selectedId === ch.id}
                   onClick={() => setSelectedId(ch.id === selectedId ? null : ch.id)}
                 />
-              ))
-            )}
-          </Stack>
-        </Grid>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </Stack>
 
-        {/* ── Right: create form ── */}
-        <Grid size={{ xs: 12, lg: 7 }}>
-          <GlassCard glow sx={{ p: 3 }}>
-            <Typography variant="h2" sx={{ mb: 2.5, color: 'text.primary' }}>
+      {/* ── Create channel dialog ── */}
+      <Dialog
+        open={dialogOpen}
+        onClose={handleCloseDialog}
+        maxWidth="md"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: '16px',
+              border: '1px solid #dddddd57',
+              boxShadow: `0 24px 60px ${alpha('#0F172A', 0.18)}`,
+            },
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            pr: 1.5,
+            py: 2,
+          }}
+        >
+          <Box>
+            <Typography variant="body2" sx={{ color: 'text.primary' }}>
               New channel
             </Typography>
-
-            <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
+              Define the brand voice and positioning for this growth lane.
+            </Typography>
+          </Box>
+          <IconButton
+            aria-label="Close"
+            onClick={handleCloseDialog}
+            disabled={isPending}
+            sx={{ color: 'text.secondary' }}
+          >
+            <CloseRoundedIcon />
+          </IconButton>
+        </DialogTitle>
+        <Divider />
+        <DialogContent sx={{ pt: 3 }}>
+          <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
               <Stack spacing={2}>
                 {/* Channel name */}
-                <Controller
+
+                <Grid container spacing={1.5}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                     <Controller
                   name="name"
                   control={control}
                   render={({ field }) => (
@@ -320,8 +394,9 @@ export function ChannelsPage() {
                     />
                   )}
                 />
-
-                {/* Brand name */}
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                     {/* Brand name */}
                 <Controller
                   name="brand_name"
                   control={control}
@@ -336,8 +411,9 @@ export function ChannelsPage() {
                     />
                   )}
                 />
-
-                {/* Brand description */}
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    {/* Brand description */}
                 <Controller
                   name="brand_description"
                   control={control}
@@ -354,9 +430,7 @@ export function ChannelsPage() {
                     />
                   )}
                 />
-
-                {/* Industry + Niche side by side */}
-                <Grid container spacing={1.5}>
+                  </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Controller
                       name="industry"
@@ -389,104 +463,109 @@ export function ChannelsPage() {
                       )}
                     />
                   </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                  <Controller
+                    name="tone"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Tone"
+                        placeholder="innovative, confident, helpful"
+                        autoComplete="off"
+                        error={!!errors.tone}
+                        helperText={errors.tone?.message ?? ' '}
+                      />
+                    )}
+                  />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                  <Controller
+                    name="target_audience"
+                    control={control}
+                    render={({ field }) => (
+                      <TextField
+                        {...field}
+                        label="Target audience"
+                        placeholder="e.g. Women 25–40, fitness-focused, mid-income"
+                        autoComplete="off"
+                        error={!!errors.target_audience}
+                        helperText={errors.target_audience?.message ?? ' '}
+                      />
+                    )}
+                  />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                  <Controller
+                    name="language"
+                    control={control}
+                    render={({ field }) => (
+                      <FormControl fullWidth error={!!errors.language}>
+                        <InputLabel id="language-label">Language</InputLabel>
+                        <Select {...field} labelId="language-label" label="Language">
+                          <MenuItem value="en">English</MenuItem>
+                          <MenuItem value="es">Spanish</MenuItem>
+                          <MenuItem value="de">German</MenuItem>
+                          <MenuItem value="fr">French</MenuItem>
+                          <MenuItem value="ar">Arabic</MenuItem>
+                          <MenuItem value="hi">Hindi</MenuItem>
+                        </Select>
+                        <FormHelperText>
+                          {errors.language?.message ?? 'Used for AI copy and compliance templates.'}
+                        </FormHelperText>
+                      </FormControl>
+                    )}
+                  />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                      <Box>
+                        <TextField
+                          label="Blocked topics"
+                          placeholder="Type a topic and press Enter to add"
+                          value={topicInput}
+                          onChange={(e) => setTopicInput(e.target.value)}
+                          onKeyDown={handleTopicKeyDown}
+                          autoComplete="off"
+                          helperText="Topics the AI should never reference in generated content."
+                        />
+                        {blockedTopics.length > 0 && (
+                          <Stack
+                            direction="row"
+                            spacing={0.75}
+                            sx={{ flexWrap: 'wrap', gap: '6px !important', mt: 1.25 }}
+                          >
+                            {blockedTopics.map((topic) => (
+                              <Chip
+                                key={topic}
+                                label={topic}
+                                size="small"
+                                onDelete={() => removeTopic(topic)}
+                                sx={{
+                                  height: 24,
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  borderRadius: '8px',
+                                  bgcolor: alpha('#F87171', 0.1),
+                                  color: '#DC2626',
+                                  border: `1px solid ${alpha('#F87171', 0.28)}`,
+                                  '& .MuiChip-deleteIcon': {
+                                    fontSize: 14,
+                                    color: alpha('#DC2626', 0.6),
+                                    '&:hover': { color: '#DC2626' },
+                                  },
+                                }}
+                              />
+                            ))}
+                          </Stack>
+                        )}
+                      </Box>
+
+                  </Grid>
                 </Grid>
 
-                {/* Tone */}
-                <Controller
-                  name="tone"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Tone"
-                      placeholder="innovative, confident, helpful"
-                      autoComplete="off"
-                      error={!!errors.tone}
-                      helperText={errors.tone?.message ?? ' '}
-                    />
-                  )}
-                />
-
-                {/* Target audience */}
-                <Controller
-                  name="target_audience"
-                  control={control}
-                  render={({ field }) => (
-                    <TextField
-                      {...field}
-                      label="Target audience"
-                      placeholder="e.g. Women 25–40, fitness-focused, mid-income"
-                      autoComplete="off"
-                      error={!!errors.target_audience}
-                      helperText={errors.target_audience?.message ?? ' '}
-                    />
-                  )}
-                />
-
-                {/* Language */}
-                <Controller
-                  name="language"
-                  control={control}
-                  render={({ field }) => (
-                    <FormControl fullWidth error={!!errors.language}>
-                      <InputLabel id="language-label">Language</InputLabel>
-                      <Select {...field} labelId="language-label" label="Language">
-                        <MenuItem value="en">English</MenuItem>
-                        <MenuItem value="es">Spanish</MenuItem>
-                        <MenuItem value="de">German</MenuItem>
-                        <MenuItem value="fr">French</MenuItem>
-                        <MenuItem value="ar">Arabic</MenuItem>
-                        <MenuItem value="hi">Hindi</MenuItem>
-                      </Select>
-                      <FormHelperText>
-                        {errors.language?.message ?? 'Used for AI copy and compliance templates.'}
-                      </FormHelperText>
-                    </FormControl>
-                  )}
-                />
+               
 
                 {/* Blocked topics */}
-                <Box>
-                  <TextField
-                    label="Blocked topics"
-                    placeholder="Type a topic and press Enter to add"
-                    value={topicInput}
-                    onChange={(e) => setTopicInput(e.target.value)}
-                    onKeyDown={handleTopicKeyDown}
-                    autoComplete="off"
-                    helperText="Topics the AI should never reference in generated content."
-                  />
-                  {blockedTopics.length > 0 && (
-                    <Stack
-                      direction="row"
-                      spacing={0.75}
-                      sx={{ flexWrap: 'wrap', gap: '6px !important', mt: 1.25 }}
-                    >
-                      {blockedTopics.map((topic) => (
-                        <Chip
-                          key={topic}
-                          label={topic}
-                          size="small"
-                          onDelete={() => removeTopic(topic)}
-                          sx={{
-                            height: 24,
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            borderRadius: '8px',
-                            bgcolor: alpha('#F87171', 0.1),
-                            color: '#DC2626',
-                            border: `1px solid ${alpha('#F87171', 0.28)}`,
-                            '& .MuiChip-deleteIcon': {
-                              fontSize: 14,
-                              color: alpha('#DC2626', 0.6),
-                              '&:hover': { color: '#DC2626' },
-                            },
-                          }}
-                        />
-                      ))}
-                    </Stack>
-                  )}
-                </Box>
 
                 {/* Error state */}
                 {mutationError && (
@@ -496,7 +575,21 @@ export function ChannelsPage() {
                 )}
 
                 {/* Submit */}
-                <Box sx={{ pt: 0.5 }}>
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  sx={{ pt: 0.5, justifyContent: 'flex-end' }}
+                >
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    color="inherit"
+                    onClick={handleCloseDialog}
+                    disabled={isPending}
+                    sx={{ height: 44 }}
+                  >
+                    Cancel
+                  </Button>
                   <Button
                     type="submit"
                     variant="contained"
@@ -511,12 +604,11 @@ export function ChannelsPage() {
                   >
                     {isPending ? 'Creating…' : 'Create channel'}
                   </Button>
-                </Box>
+                </Stack>
               </Stack>
             </Box>
-          </GlassCard>
-        </Grid>
-      </Grid>
+          </DialogContent>
+        </Dialog>
 
       {/* Success snackbar */}
       <Snackbar
