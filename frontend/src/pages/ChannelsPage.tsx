@@ -20,6 +20,7 @@ import {
   Snackbar,
   Stack,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { alpha } from '@mui/material/styles'
@@ -50,6 +51,17 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+const defaultValues: FormValues = {
+  name: '',
+  brand_name: '',
+  brand_description: '',
+  industry: '',
+  niche: '',
+  tone: '',
+  target_audience: '',
+  language: 'en',
+}
+
 // ─── Channel list skeleton ────────────────────────────────────────────────────
 
 function ChannelSkeleton() {
@@ -78,9 +90,11 @@ interface ChannelCardProps {
   channel: Channel
   selected: boolean
   onClick: () => void
+  onEdit: () => void
+  onDelete: () => void
 }
 
-function ChannelCard({ channel, selected, onClick }: ChannelCardProps) {
+function ChannelCard({ channel, selected, onClick, onEdit, onDelete }: ChannelCardProps) {
   return (
     <GlassCard
       onClick={onClick}
@@ -96,28 +110,51 @@ function ChannelCard({ channel, selected, onClick }: ChannelCardProps) {
         },
       }}
     >
-      {/* Row 1: brand name + status */}
+      {/* Row 1: brand name + status + actions */}
       <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-        <Typography
-          variant="subtitle1"
-          sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3 }}
-        >
-          {channel.brand_name}
-        </Typography>
-        <Chip
-          label={channel.status}
-          size="small"
-          sx={{
-            height: 20,
-            fontSize: '10px',
-            fontWeight: 700,
-            borderRadius: '6px',
-            bgcolor:
-              channel.status === 'active' ? alpha('#34D399', 0.14) : alpha('#94A3B8', 0.14),
-            color: channel.status === 'active' ? '#059669' : '#64748B',
-            border: `1px solid ${channel.status === 'active' ? alpha('#34D399', 0.35) : alpha('#94A3B8', 0.25)}`,
-          }}
-        />
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+          <Typography
+            variant="subtitle1"
+            sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
+            {channel.brand_name}
+          </Typography>
+          <Chip
+            label={channel.status}
+            size="small"
+            sx={{
+              height: 20,
+              fontSize: '10px',
+              fontWeight: 700,
+              borderRadius: '6px',
+              flexShrink: 0,
+              bgcolor:
+                channel.status === 'active' ? alpha('#34D399', 0.14) : alpha('#94A3B8', 0.14),
+              color: channel.status === 'active' ? '#059669' : '#64748B',
+              border: `1px solid ${channel.status === 'active' ? alpha('#34D399', 0.35) : alpha('#94A3B8', 0.25)}`,
+            }}
+          />
+        </Stack>
+        <Stack direction="row" spacing={0.25} sx={{ ml: 1, flexShrink: 0 }}>
+          <Tooltip title="Edit channel">
+            <IconButton
+              size="small"
+              onClick={(e) => { e.stopPropagation(); onEdit() }}
+              sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main', bgcolor: alpha('#22D3EE', 0.08) } }}
+            >
+              <EditOutlinedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Delete channel">
+            <IconButton
+              size="small"
+              onClick={(e) => { e.stopPropagation(); onDelete() }}
+              sx={{ color: 'text.disabled', '&:hover': { color: 'error.main', bgcolor: alpha('#F87171', 0.08) } }}
+            >
+              <DeleteOutlineIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+        </Stack>
       </Stack>
 
       {/* Row 2: channel name */}
@@ -183,9 +220,11 @@ function ChannelCard({ channel, selected, onClick }: ChannelCardProps) {
 
 export function ChannelsPage() {
   const client = useQueryClient()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [mode, setMode] = useState<'create' | 'edit'>('create')
+  const [editChannel, setEditChannel] = useState<Channel | null>(null)
   const [blockedTopics, setBlockedTopics] = useState<string[]>([])
   const [topicInput, setTopicInput] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Channel | null>(null)
   const [snackOpen, setSnackOpen] = useState(false)
   const [snackMsg, setSnackMsg] = useState('')
   const [mutationError, setMutationError] = useState<string | null>(null)
@@ -207,28 +246,48 @@ export function ChannelsPage() {
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: '',
-      brand_name: '',
-      brand_description: '',
-      industry: '',
-      niche: '',
-      tone: '',
-      target_audience: '',
-      language: 'en',
-    },
+    defaultValues,
   })
 
-  // ── Mutation ───────────────────────────────────────────────────────────────
+  // ── Mode helpers ───────────────────────────────────────────────────────────
 
-  const { mutate: createChannel, isPending } = useMutation({
+  const openCreate = () => {
+    setMode('create')
+    setEditChannel(null)
+    setMutationError(null)
+    setBlockedTopics([])
+    setTopicInput('')
+    reset(defaultValues)
+  }
+
+  const openEdit = (channel: Channel) => {
+    setMode('edit')
+    setEditChannel(channel)
+    setMutationError(null)
+    setBlockedTopics(channel.blocked_topics ?? [])
+    setTopicInput('')
+    reset({
+      name: channel.name,
+      brand_name: channel.brand_name,
+      brand_description: channel.brand_description ?? '',
+      industry: channel.industry ?? '',
+      niche: channel.niche ?? '',
+      tone: channel.tone ?? '',
+      target_audience: channel.target_audience ?? '',
+      language: channel.language,
+    })
+  }
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
+
+  const { mutate: createChannel, isPending: isCreating } = useMutation({
     mutationFn: trendsApi.createChannel,
     onSuccess: (created) => {
       client.invalidateQueries({ queryKey: qk.channels })
-      setSnackMsg(`Channel "${created.brand_name}" created successfully.`)
+      setSnackMsg(`Channel "${created.brand_name}" created.`)
       setSnackOpen(true)
       setMutationError(null)
-      reset()
+      reset(defaultValues)
       setBlockedTopics([])
       setTopicInput('')
       setDialogOpen(false)
@@ -249,10 +308,11 @@ export function ChannelsPage() {
 
   const onSubmit = (values: FormValues) => {
     setMutationError(null)
-    createChannel({
-      ...values,
-      blocked_topics: blockedTopics,
-    })
+    if (mode === 'edit' && editChannel) {
+      updateChannel({ id: editChannel.id, data: { ...values, blocked_topics: blockedTopics } })
+    } else {
+      createChannel({ ...values, blocked_topics: blockedTopics })
+    }
   }
 
   // ── Blocked topics ─────────────────────────────────────────────────────────
@@ -321,8 +381,10 @@ export function ChannelsPage() {
               <Grid key={ch.id} size={{ xs: 12, sm: 6, lg: 4 }}>
                 <ChannelCard
                   channel={ch}
-                  selected={selectedId === ch.id}
-                  onClick={() => setSelectedId(ch.id === selectedId ? null : ch.id)}
+                  selected={mode === 'edit' && editChannel?.id === ch.id}
+                  onClick={() => openEdit(ch)}
+                  onEdit={() => openEdit(ch)}
+                  onDelete={() => setDeleteTarget(ch)}
                 />
               </Grid>
             ))}
@@ -595,14 +657,16 @@ export function ChannelsPage() {
                     variant="contained"
                     color="primary"
                     disabled={isPending}
-                    sx={{ minWidth: 180, height: 44 }}
+                    sx={{ minWidth: 160, height: 44 }}
                     startIcon={
                       isPending ? (
                         <CircularProgress size={16} sx={{ color: 'inherit' }} />
                       ) : undefined
                     }
                   >
-                    {isPending ? 'Creating…' : 'Create channel'}
+                    {mode === 'edit'
+                      ? isPending ? 'Saving…' : 'Save changes'
+                      : isPending ? 'Creating…' : 'Create channel'}
                   </Button>
                 </Stack>
               </Stack>

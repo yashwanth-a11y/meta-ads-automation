@@ -14,6 +14,7 @@ import {
 import { alpha } from '@mui/material/styles'
 import {
   AnalyticsOutlined,
+  AutoAwesome,
   CampaignOutlined,
   DashboardOutlined,
   HubOutlined,
@@ -38,6 +39,7 @@ const navItems = [
   { to: paths.ads, label: 'Ads', icon: CampaignOutlined },
   { to: paths.crm, label: 'CRM', icon: PeopleOutlined },
   { to: paths.analytics, label: 'Analytics', icon: AnalyticsOutlined },
+  { to: paths.genui, label: 'AI Assistant', icon: AutoAwesome },
 ]
 
 type SidebarProps = {

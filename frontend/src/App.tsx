@@ -14,6 +14,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrendsPage } from './pages/TrendsPage'
 import { ApprovalsPage } from './pages/ApprovalsPage'
+import GenUIPage from './pages/GenUIPage'
 
 function isAuthenticated() {
   const localToken = localStorage.getItem('auth_token')
@@ -79,6 +80,7 @@ export default function App() {
         <Route path="ads/create" element={<AdsCreatePage />} />
         <Route path="crm" element={<CRMPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="genui" element={<GenUIPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route

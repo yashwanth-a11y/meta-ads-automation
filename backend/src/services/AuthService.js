@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { AppError } from '../lib/errors.js';
+import { sendEmail, buildPasswordResetEmail } from '../lib/email.js';
 import { env } from '../config/env.js';
 import { eq } from 'drizzle-orm';
 import { users } from '../db/schema.js';
@@ -254,22 +255,40 @@ export class AuthService {
     });
 
     const link = this._resetLink(rawToken);
+    const { subject, html, text } = buildPasswordResetEmail({
+      resetLink: link,
+      expiresAt,
+    });
 
-    // TODO: send email here once an email provider is wired. For now we log
-    // the link so dev can complete the flow, and surface it in the response
-    // in non-production only.
-    this.logger?.info(
-      { user_id: user.id, email: user.email, link },
-      'auth.forgotPassword reset link generated (NOT EMAILED — email provider not wired yet)',
-    );
+    let emailSkipped = false;
+    try {
+      const result = await sendEmail({ to: user.email, subject, html, text });
+      emailSkipped = Boolean(result?.skipped);
+      this.logger?.info(
+        { user_id: user.id, email: user.email, skipped: emailSkipped },
+        emailSkipped
+          ? 'auth.forgotPassword reset link generated (email skipped — BREVO_API_KEY missing)'
+          : 'auth.forgotPassword reset link emailed',
+      );
+    } catch (err) {
+      // Don't leak send failures to the caller — keep the generic response so
+      // we can't be used to probe email infra. Log loudly so ops can notice.
+      this.logger?.error(
+        { err, user_id: user.id, email: user.email },
+        'auth.forgotPassword failed to send reset email',
+      );
+      emailSkipped = true;
+    }
 
-    if (env.NODE_ENV === 'production') {
+    if (env.NODE_ENV === 'production' || !emailSkipped) {
       return { ...RESET_GENERIC_RESPONSE };
     }
+    // Non-prod fallback: when no email actually went out, surface the link so
+    // dev can still complete the flow without an inbox.
     return {
       ...RESET_GENERIC_RESPONSE,
       dev_only: {
-        warning: 'Email is not configured. This block is hidden in production.',
+        warning: 'Email was not sent (provider not configured or send failed). Hidden in production.',
         reset_token: rawToken,
         reset_link: link,
         expires_at: expiresAt.toISOString(),
