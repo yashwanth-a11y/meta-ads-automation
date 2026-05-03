@@ -106,6 +106,24 @@ export default async function routes(app) {
     return approvalService.resend(req.params.approvalId, orgId(req));
   });
 
+  // Dashboard: take action directly (approve / reject / regenerate) without email token
+  app.post('/:approvalId/action', { preHandler: app.requireAuth }, async (req, reply) => {
+    const { action, feedback } = req.body ?? {};
+    if (!action) throw app.httpErrors.badRequest('action is required');
+    const result = await approvalService.takeActionById(req.params.approvalId, orgId(req), action, { feedback });
+    if (!result.ok) throw app.httpErrors.badRequest(result.message);
+    return reply.code(200).send(result);
+  });
+
+  // Dashboard: select a trend topic directly without email token
+  app.post('/:approvalId/select-topic', { preHandler: app.requireAuth }, async (req, reply) => {
+    const { trend_id } = req.body ?? {};
+    if (!trend_id) throw app.httpErrors.badRequest('trend_id is required');
+    const result = await approvalService.selectTopicById(req.params.approvalId, orgId(req), trend_id);
+    if (!result.ok) throw app.httpErrors.badRequest(result.message);
+    return reply.code(200).send(result);
+  });
+
   // Manual: send topic selection email for a channel
   app.post('/send-topics/:channelId', { preHandler: app.requireAuth }, async (req, reply) => {
     const { channelService } = await import('../../services/ChannelService.js');

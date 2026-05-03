@@ -36,10 +36,9 @@ export type Approval = {
 
 export const approvalsApi = {
   list: () => get<Approval[]>('/approvals'),
-  resend: (id: string) => post<{ resent: boolean }>(`/approvals/${id}/resend`),
   triggerPipeline: () => post<{ message: string }>('/approvals/pipeline/trigger'),
-  sendTopics: (channelId: string) =>
-    post<{ sent: boolean; approvalId: string; trends_count: number }>(
-      `/approvals/send-topics/${channelId}`,
-    ),
+  takeAction: (id: string, action: 'approve' | 'reject' | 'regenerate', feedback?: string) =>
+    post<{ ok: boolean; message: string }>(`/approvals/${id}/action`, { action, feedback }),
+  selectTopic: (id: string, trendId: string) =>
+    post<{ ok: boolean; message: string }>(`/approvals/${id}/select-topic`, { trend_id: trendId }),
 }

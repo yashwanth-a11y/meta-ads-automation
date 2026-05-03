@@ -456,6 +456,101 @@ export class ApprovalService {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Dashboard: take action by approval ID (no email token needed)
+  // ───────────────────────────────────────────────────────────────────────────
+  async takeActionById(approvalId, organizationId, action, { feedback } = {}) {
+    const { and } = await import('drizzle-orm');
+    const [approval] = await db.select().from(approvals)
+      .where(and(eq(approvals.id, approvalId), eq(approvals.organization_id, organizationId)));
+
+    if (!approval) return { ok: false, message: 'Approval not found.' };
+    if (approval.action) return { ok: false, message: 'This approval has already been actioned.' };
+    if (approval.stage === 'topic_selection') return { ok: false, message: 'Use select-topic for this stage.' };
+
+    await db.update(approvals).set({
+      action,
+      action_taken_at: new Date(),
+      rejection_reason: feedback ?? null,
+      metadata: { ...(approval.metadata ?? {}), user_feedback: feedback ?? null },
+    }).where(eq(approvals.id, approval.id));
+
+    const [bundle] = await db.select().from(creativeBundles)
+      .where(eq(creativeBundles.id, approval.creative_bundle_id));
+    if (!bundle) return { ok: false, message: 'Content bundle not found.' };
+
+    const [channel] = await db.select().from(channels).where(eq(channels.id, bundle.channel_id));
+    if (!channel) return { ok: false, message: 'Channel not found.' };
+
+    if (approval.stage === 'content_review') {
+      if (action === 'approve') {
+        await db.update(creativeBundles).set({ status: 'rendering', updated_at: new Date() }).where(eq(creativeBundles.id, bundle.id));
+        this._renderAndSendVideoReview(channel, bundle).catch((err) =>
+          console.error(`[Approvals] Render failed for bundle ${bundle.id}:`, err.message),
+        );
+        return { ok: true, message: 'Content approved — video generation started.' };
+      }
+      if (action === 'regenerate') {
+        const { scriptGeneratorService } = await import('./ScriptGeneratorService.js');
+        const regenerated = await scriptGeneratorService.regenerateBundle(bundle.id, channel.organization_id, feedback ?? 'Make it more engaging and platform-native');
+        await scriptGeneratorService.scoreBundle(regenerated, channel);
+        return { ok: true, message: 'New version generated.' };
+      }
+      if (action === 'reject') {
+        await db.update(creativeBundles).set({ status: 'rejected', updated_at: new Date() }).where(eq(creativeBundles.id, bundle.id));
+        return { ok: true, message: 'Content rejected.' };
+      }
+    }
+
+    if (approval.stage === 'video_review') {
+      if (action === 'approve') {
+        const { publishingService } = await import('./PublishingService.js');
+        const result = await publishingService.publish(channel, bundle);
+        return { ok: true, message: 'Published to Instagram.', result };
+      }
+      if (action === 'regenerate') {
+        await db.update(creativeBundles).set({ status: 'rendering', updated_at: new Date() }).where(eq(creativeBundles.id, bundle.id));
+        this._renderAndSendVideoReview(channel, bundle).catch((err) =>
+          console.error(`[Approvals] Re-render failed for bundle ${bundle.id}:`, err.message),
+        );
+        return { ok: true, message: 'Video re-render started.' };
+      }
+      if (action === 'reject') {
+        await db.update(creativeBundles).set({ status: 'rejected', updated_at: new Date() }).where(eq(creativeBundles.id, bundle.id));
+        return { ok: true, message: 'Video rejected.' };
+      }
+    }
+
+    return { ok: false, message: `Unknown action: ${action}` };
+  }
+
+  // Dashboard: select a topic by approval ID (no email token needed)
+  async selectTopicById(approvalId, organizationId, trendCandidateId) {
+    const { and } = await import('drizzle-orm');
+    const [approval] = await db.select().from(approvals)
+      .where(and(eq(approvals.id, approvalId), eq(approvals.organization_id, organizationId)));
+
+    if (!approval) return { ok: false, message: 'Approval not found.' };
+    if (approval.action) return { ok: false, message: 'A topic has already been selected.' };
+    if (approval.stage !== 'topic_selection') return { ok: false, message: 'Unexpected stage.' };
+
+    await db.update(approvals).set({
+      action: 'select_topic',
+      action_taken_at: new Date(),
+      metadata: { ...(approval.metadata ?? {}), selected_trend_id: trendCandidateId },
+    }).where(eq(approvals.id, approval.id));
+
+    const channelId = approval.metadata?.channel_id;
+    const [channel] = await db.select().from(channels).where(eq(channels.id, channelId));
+    if (!channel) return { ok: false, message: 'Channel not found.' };
+
+    this._generateAndSendContentReview(channel, trendCandidateId).catch((err) =>
+      console.error('[Approvals] generateAndSendContentReview failed:', err.message),
+    );
+
+    return { ok: true, message: 'Topic selected — content generation started.' };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Internal helpers
   // ───────────────────────────────────────────────────────────────────────────
   async _getOrgEmail(organizationId) {
