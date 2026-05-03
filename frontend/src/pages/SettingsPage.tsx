@@ -5,6 +5,7 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined'
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined'
 import HubOutlinedIcon from '@mui/icons-material/HubOutlined'
+import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import { GlassCard } from '../components/ui/GlassCard'
 import { GeneralSection } from '../components/settings/GeneralSection'
 import { ProfileSection } from '../components/settings/ProfileSection'
@@ -15,7 +16,7 @@ const ACCENT = '#22D3EE'
 const ACCENT_DARK = '#0EA5B7'
 
 type SettingsTab = {
-  id: 'general' | 'notifications' | 'integrations'
+  id: 'profile' | 'general' | 'notifications' | 'integrations'
   label: string
   description: string
   Icon: React.ElementType
@@ -23,6 +24,13 @@ type SettingsTab = {
 }
 
 const TABS: SettingsTab[] = [
+  {
+    id: 'profile',
+    label: 'Profile',
+    description: 'Personal details and contact information.',
+    Icon: PersonOutlinedIcon,
+    Render: ProfileSection,
+  },
   {
     id: 'general',
     label: 'General',
