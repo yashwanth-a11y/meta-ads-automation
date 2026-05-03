@@ -186,7 +186,8 @@ export default async function routes(app) {
     '/:creativeId/render',
     {
       schema: {
-        description: 'Start async script→video (Models Lab, HeyGen, Replicate, or Kling). Optional body.script updates copy first.',
+        description:
+          'Start async script→video (HeyGen v3 Video Agent or v2 avatar+voice first, then Models Lab, Replicate, or Kling). Optional body.script updates copy first.',
         tags: ['creatives'],
         params: {
           type: 'object',

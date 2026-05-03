@@ -340,7 +340,7 @@ export function CreativesPage() {
     <Stack spacing={3}>
       <PageHeader
         title="Creatives"
-        subtitle="Describe an idea — the script streams in from OpenAI as it is written. Edit, optionally enhance, then generate video. Video backends: Models Lab, HeyGen (avatar + voice), Replicate, or Kling — see backend .env for keys."
+        subtitle="Describe an idea — the script streams in from OpenAI as it is written. Edit, optionally enhance, then generate video. Backends (order): HeyGen first, then Models Lab (optional CREATIVES_USE_MODELS_LAB=false), Replicate, or Kling — see backend .env."
       />
 
       {error ? (

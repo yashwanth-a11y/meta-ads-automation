@@ -31,15 +31,15 @@ try {
   await app.listen({ port: env.PORT, host: env.HOST });
 
   const video = [];
-  if (resolveModelsLabConfig()) video.push('ModelsLab');
   if (resolveHeyGenConfig()) video.push('HeyGen');
+  if (resolveModelsLabConfig()) video.push('ModelsLab');
   if (resolveReplicateConfig()) video.push('Replicate');
   if (resolveKlingConfig()) video.push('Kling');
   app.log.info(
     {
       creativesVideoBackends: video,
       creativesVideoPriority:
-        'ModelsLab if MODELS_LAB_API_KEY; else HeyGen if API key + avatar + voice; else Replicate; else Kling.',
+        'HeyGen if HEYGEN_API_KEY + (HEYGEN_USE_VIDEO_AGENT or avatar+voice); else ModelsLab if MODELS_LAB_API_KEY and CREATIVES_USE_MODELS_LAB not false; else Replicate; else Kling.',
     },
     'Creatives script→video: configured providers',
   );
