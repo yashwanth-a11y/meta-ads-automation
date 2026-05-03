@@ -42,4 +42,9 @@ export const qk = {
   topTrends: (channelId: string, minScore?: number) =>
     ['trends', 'top', channelId, minScore] as const,
   analyticsDashboard: (days?: number) => ['analytics', 'dashboard', days] as const,
+  crmStages: ['crm', 'stages'] as const,
+  crmLeads: (filters?: Record<string, unknown>) => ['crm', 'leads', filters] as const,
+  crmLead: (id: string) => ['crm', 'lead', id] as const,
+  crmActivities: (leadId: string) => ['crm', 'activities', leadId] as const,
+  crmSourceStats: ['crm', 'source-stats'] as const,
 }
