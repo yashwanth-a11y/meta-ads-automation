@@ -62,4 +62,34 @@ describe('PublishingService._buildCaption', () => {
   it('returns empty string if no caption and no hashtags', () => {
     expect(svc._buildCaption({})).toBe('');
   });
+
+  it('throws AppError with statusCode 400 and details on caption overflow', () => {
+    let thrown;
+    try { svc._buildCaption({ caption: 'x'.repeat(2201) }); }
+    catch (e) { thrown = e; }
+    expect(thrown).toBeDefined();
+    expect(thrown.statusCode).toBe(400);
+    expect(thrown.code).toBe('BAD_REQUEST');
+    expect(thrown.details).toEqual({ length: 2201 });
+  });
+
+  it('rejects combined caption + hashtags longer than 2200', () => {
+    expect(() =>
+      svc._buildCaption({ caption: 'x'.repeat(2195), hashtags: ['hashtag'] })
+    ).toThrowError(/combined exceed 2200/);
+  });
+
+  it('caption-only with no hashtags has no trailing newline', () => {
+    expect(svc._buildCaption({ caption: 'hello' })).toBe('hello');
+  });
+
+  it('hashtags-only with no caption has no leading newline', () => {
+    // Note: current behavior produces "\n\n#a #b". This test documents that
+    // behavior — if we later decide to trim leading whitespace, update this test.
+    expect(svc._buildCaption({ hashtags: ['a', 'b'] })).toBe('\n\n#a #b');
+  });
+
+  it('single hashtag', () => {
+    expect(svc._buildCaption({ caption: 'hi', hashtags: ['only'] })).toBe('hi\n\n#only');
+  });
 });

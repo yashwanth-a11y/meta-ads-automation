@@ -199,24 +199,22 @@ export class PublishingService {
     const tags = Array.isArray(hashtags) ? hashtags : [];
 
     if (cap.length > 2200) {
-      throw badRequest('Caption exceeds 2200 characters', {
-        details: { length: cap.length },
-      });
+      throw badRequest('Caption exceeds 2200 characters', { length: cap.length });
     }
     if (tags.length > 30) {
-      throw badRequest('Caption has more than 30 hashtags', {
-        details: { count: tags.length },
-      });
+      throw badRequest('Caption has more than 30 hashtags', { count: tags.length });
     }
     const mentionMatches = cap.match(/@[A-Za-z0-9._]+/g) ?? [];
     if (mentionMatches.length > 20) {
-      throw badRequest('Caption has more than 20 @-mentions', {
-        details: { count: mentionMatches.length },
-      });
+      throw badRequest('Caption has more than 20 @-mentions', { count: mentionMatches.length });
     }
     if (!cap && tags.length === 0) return '';
     const tagBlock = tags.length ? `\n\n${tags.map((h) => `#${h}`).join(' ')}` : '';
-    return `${cap}${tagBlock}`.slice(0, 2200);
+    const out = `${cap}${tagBlock}`;
+    if (out.length > 2200) {
+      throw badRequest('Caption + hashtags combined exceed 2200 characters', { length: out.length });
+    }
+    return out;
   }
 
   _sleep(ms) {
