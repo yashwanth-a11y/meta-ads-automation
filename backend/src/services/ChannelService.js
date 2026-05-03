@@ -3,29 +3,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/index.js';
 import { channels } from '../db/schema.js';
 import { notFound } from '../lib/errors.js';
-import { env } from '../config/env.js';
-
-const MODEL = 'gpt-4o-mini';
-
-async function _openaiJSON(systemPrompt, userPrompt) {
-  if (!env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set');
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.OPENAI_API_KEY}` },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.4,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    }),
-  });
-  if (!res.ok) throw new Error(`OpenAI error ${res.status}`);
-  const data = await res.json();
-  return JSON.parse(data.choices[0].message.content);
-}
+import { generateJSON } from './agent/llmClient.js';
+import { PROMPTS } from './agent/prompts.js';
 
 export class ChannelService {
   async list(organizationId) {
@@ -131,10 +110,12 @@ export class ChannelService {
       (channel.products?.length) && `Products: ${channel.products.join(', ')}`,
     ].filter(Boolean).join('\n');
 
-    const result = await _openaiJSON(
-      `You are a brand strategist. Given a brand profile, return 8–12 short, specific labels (1–3 words each) that best describe the brand's positioning, content style, audience traits, and content themes. These labels will be used to tag and filter this brand's content pipeline. Return JSON: { "labels": string[] }`,
-      profile,
-    );
+    const result = await generateJSON({
+      model: 'mini',
+      system: PROMPTS.GENERATE_BRAND_LABELS,
+      user: profile,
+      label: 'brand_labels',
+    });
 
     const labels = Array.isArray(result.labels) ? result.labels.slice(0, 12) : [];
     await this.update(organizationId, channelId, { custom_labels: labels });
@@ -157,36 +138,12 @@ export class ChannelService {
       (channel.tracked_keywords?.length) && `Keywords: ${channel.tracked_keywords.join(', ')}`,
     ].filter(Boolean).join('\n');
 
-    const systemPrompt = `You are a social media content strategist for Indian brands.
-Given a brand profile, return an event relevance profile that scores (0-10) how relevant different event types and industry categories are for this brand's content calendar.
-
-Event categories: festival, national, international, shopping, wedding, tech, sports
-Industry categories: fashion, ethnic_wear, jewellery, gifts, beauty, home_decor, food, electronics, mobile, tech, lifestyle, sustainable, handloom, kids, education, automotive, finance, health, travel, sports
-
-Rules:
-- A saree brand scores: festival:9, wedding:9, ethnic_wear:10, fashion:9, jewellery:7
-- A tech/mobile brand scores: tech:9, electronics:8, mobile:8, festival:4, shopping:7
-- A food brand scores: festival:8, food:10, gifts:6
-- Be specific to the brand. Score 0 for totally irrelevant categories.
-
-Return JSON: {
-  "festival": number,
-  "national": number,
-  "international": number,
-  "shopping": number,
-  "wedding": number,
-  "tech": number,
-  "sports": number,
-  "categories": {
-    "fashion": number, "ethnic_wear": number, "jewellery": number, "gifts": number,
-    "beauty": number, "home_decor": number, "food": number, "electronics": number,
-    "mobile": number, "tech": number, "lifestyle": number, "sustainable": number,
-    "handloom": number, "kids": number, "education": number, "automotive": number,
-    "finance": number, "health": number, "travel": number, "sports": number
-  }
-}`;
-
-    const result = await _openaiJSON(systemPrompt, profile);
+    const result = await generateJSON({
+      model: 'mini',
+      system: PROMPTS.GENERATE_EVENT_PROFILE,
+      user: profile,
+      label: 'event_profile',
+    });
 
     const eventProfile = {
       festival: result.festival ?? 5,
