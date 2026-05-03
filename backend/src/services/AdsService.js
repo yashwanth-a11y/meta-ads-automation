@@ -214,10 +214,11 @@ export class AdsService {
 
     const metaApi = new MetaAdsApiService(longLivedData.access_token, this.logger);
 
-    // Get available ad accounts and pages
-    const [adAccountsResp, pagesResp] = await Promise.all([
+    // Get available ad accounts, pages, and businesses
+    const [adAccountsResp, pagesResp, businessesResp] = await Promise.all([
       metaApi.getAdAccounts(),
       metaApi.getPages(),
+      metaApi.getBusinesses(),
     ]);
 
     return {
@@ -226,6 +227,7 @@ export class AdsService {
       oauth_app_id: appId,
       ad_accounts: adAccountsResp.data || [],
       pages: pagesResp.data || [],
+      businesses: businessesResp.data || [],
     };
   }
 

@@ -46,7 +46,7 @@ export function AdsSetupPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [oauthData, setOauthData] = useState<OAuthCallbackResult | null>(null)
   const [selectedAccountId, setSelectedAccountId] = useState<string>('')
-  const [selectedBusinessId, setSelectedBusinessId] = useState<string>('')
+  const [selectedPageId, setSelectedPageId] = useState<string>('')
 
   const { startOAuth } = useMetaOAuth()
 
@@ -72,11 +72,11 @@ export function AdsSetupPage() {
       const { code, state } = await startOAuth(url)
       const result = await adsApi.handleOAuthCallback(code, state)
       setOauthData(result)
-      // Auto-select first usable account/business
+      // Auto-select first usable account/page
       const firstUsable = (result.ad_accounts || []).find((a) => a.account_status === 1)
-      const firstBusiness = (result.businesses || [])[0]
+      const firstPage = (result.pages || [])[0]
       if (firstUsable) setSelectedAccountId(firstUsable.id || firstUsable.account_id)
-      if (firstBusiness) setSelectedBusinessId(firstBusiness.id)
+      if (firstPage) setSelectedPageId(firstPage.id)
       setStep('choosing')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Connection failed'
@@ -90,26 +90,26 @@ export function AdsSetupPage() {
     const account = (oauthData.ad_accounts || []).find(
       (a) => (a.id || a.account_id) === selectedAccountId,
     )
-    const business = (oauthData.businesses || []).find((b) => b.id === selectedBusinessId)
+    const page = (oauthData.pages || []).find((p) => p.id === selectedPageId)
     if (!account) {
       setErrorMsg('Please pick an ad account.')
       return
     }
-    if (!business) {
-      setErrorMsg('Please pick a business account.')
+    if (!page) {
+      setErrorMsg('Please pick a Facebook Page.')
       return
     }
     setStep('saving')
     connectMutation.mutate({
       ad_account_id: account.account_id || account.id.replace(/^act_/, ''),
       ad_account_name: account.name,
-      page_id: business.id,
-      page_name: business.name,
-      waba_id: null,
+      page_id: page.id,
+      page_name: page.name,
+      waba_id: page.whatsapp_business_account?.id || null,
       fb_user_id: oauthData.fb_user_id || null,
       // Backend OAuth callback returns this as `access_token`, not `user_access_token`.
       access_token: oauthData.access_token,
-      page_access_token: null,
+      page_access_token: page.access_token || null,
       expires_in: oauthData.expires_in,
       currency: account.currency,
       oauth_app_id: oauthData.oauth_app_id,
@@ -246,17 +246,17 @@ export function AdsSetupPage() {
             </FormControl>
 
             <FormControl fullWidth>
-              <InputLabel>Business Account</InputLabel>
+              <InputLabel>Facebook Page</InputLabel>
               <Select
-                label="Business Account"
-                value={selectedBusinessId}
-                onChange={(e) => setSelectedBusinessId(e.target.value as string)}
+                label="Facebook Page"
+                value={selectedPageId}
+                onChange={(e) => setSelectedPageId(e.target.value as string)}
               >
-                {(oauthData.businesses || []).map((b) => (
-                  <MenuItem key={b.id} value={b.id}>
+                {(oauthData.pages || []).map((p) => (
+                  <MenuItem key={p.id} value={p.id}>
                     <ListItemText
-                      primary={b.name}
-                      secondary={`Status: ${b.verification_status || 'verified'}`}
+                      primary={p.name}
+                      secondary={p.id}
                     />
                   </MenuItem>
                 ))}
@@ -272,7 +272,7 @@ export function AdsSetupPage() {
               <Button
                 variant="contained"
                 onClick={onSaveSelection}
-                disabled={!selectedAccountId || !selectedBusinessId || connectMutation.isPending}
+                disabled={!selectedAccountId || !selectedPageId || connectMutation.isPending}
               >
                 {connectMutation.isPending ? 'Saving…' : 'Connect this account'}
               </Button>
