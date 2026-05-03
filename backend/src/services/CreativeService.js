@@ -28,6 +28,13 @@ import {
   heyGenGenerateAvatarVideoFromScript,
   resolveHeyGenConfig,
 } from './heygenClient.js';
+
+/** Creatives script→video: false = never use Models Lab in this ladder (HeyGen / Replicate / Kling only). */
+function creativesModelsLabEnabledForScriptVideo() {
+  const v = process.env.CREATIVES_USE_MODELS_LAB?.trim().toLowerCase();
+  if (v === 'false' || v === '0' || v === 'no' || v === 'off') return false;
+  return true;
+}
 import {
   createReplicateClient,
   formatReplicateRenderError,
@@ -345,30 +352,14 @@ export class CreativeService {
     }
   }
 
-  /** Script → Models Lab, HeyGen (avatar+TTS), Replicate, or Kling. */
+  /** Script → HeyGen (v3 Video Agent or v2 avatar+TTS), then Models Lab (unless CREATIVES_USE_MODELS_LAB=false), Replicate, or Kling. */
   async _runRenderPipeline(map, creativeId, jobId, row) {
-    const modelsLabCfg = resolveModelsLabConfig();
     const heyGenCfg = resolveHeyGenConfig();
+    const modelsLabCfg = creativesModelsLabEnabledForScriptVideo() ? resolveModelsLabConfig() : null;
     const replicateCfg = resolveReplicateConfig();
     const klingCfg = resolveKlingConfig();
 
-    // Priority: Models Lab → HeyGen → Replicate → Kling
-    if (modelsLabCfg) {
-      try {
-        await this._runModelsLabRender(map, creativeId, jobId, modelsLabCfg, row);
-      } catch (err) {
-        const detail = formatModelsLabRenderError(err);
-        this._touchRender(map, creativeId, jobId, {
-          status: 'failed',
-          progress: 0,
-          videoUrl: null,
-          error: detail,
-        });
-        this.log?.error?.({ err, creativeId, jobId }, 'Models Lab render failed');
-      }
-      return;
-    }
-
+    // Priority: HeyGen → Models Lab → Replicate → Kling
     if (heyGenCfg) {
       try {
         await this._runHeyGenRender(map, creativeId, jobId, heyGenCfg, row);
@@ -381,6 +372,22 @@ export class CreativeService {
           error: detail,
         });
         this.log?.error?.({ err, creativeId, jobId }, 'HeyGen render failed');
+      }
+      return;
+    }
+
+    if (modelsLabCfg) {
+      try {
+        await this._runModelsLabRender(map, creativeId, jobId, modelsLabCfg, row);
+      } catch (err) {
+        const detail = formatModelsLabRenderError(err);
+        this._touchRender(map, creativeId, jobId, {
+          status: 'failed',
+          progress: 0,
+          videoUrl: null,
+          error: detail,
+        });
+        this.log?.error?.({ err, creativeId, jobId }, 'Models Lab render failed');
       }
       return;
     }
@@ -407,7 +414,7 @@ export class CreativeService {
         progress: 0,
         videoUrl: null,
         error:
-          'Video generation requires MODELS_LAB_API_KEY, HeyGen (HEYGEN_API_KEY + HEYGEN_AVATAR_ID + HEYGEN_VOICE_ID), REPLICATE_API_KEY, or KLING keys in the backend environment.',
+          'Video generation requires HeyGen (HEYGEN_API_KEY + HEYGEN_USE_VIDEO_AGENT=true, or HEYGEN_AVATAR_ID + HEYGEN_VOICE_ID), or MODELS_LAB_API_KEY (unless CREATIVES_USE_MODELS_LAB=false), or REPLICATE_API_KEY, or KLING keys in the backend environment.',
       });
       return;
     }
@@ -462,6 +469,8 @@ export class CreativeService {
     const caption = typeof row.caption === 'string' ? row.caption : '';
 
     this._touchRender(map, creativeId, jobId, { status: 'processing', progress: 6 });
+
+    this.log?.info?.({ creativeId, jobId, heyGenMode: cfg.mode }, 'HeyGen script→video render started');
 
     const url = await heyGenGenerateAvatarVideoFromScript(
       { script, hook, caption },
