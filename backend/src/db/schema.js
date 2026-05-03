@@ -470,6 +470,40 @@ export const topicCooldowns = pgTable(
   }),
 );
 
+// --- GenUI conversation history ---
+// Stores AI assistant chat sessions per org. Each conversation has a title
+// derived from the first user message and an ordered list of messages.
+
+export const genuiConversations = pgTable(
+  'genui_conversations',
+  {
+    id: id(),
+    organization_id: orgId(),
+    title: varchar('title', { length: 120 }).notNull().default('New conversation'),
+    created_at: ts('created_at'),
+    updated_at: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => ({
+    org_idx: index('genui_conversations_org_idx').on(t.organization_id),
+    org_updated_idx: index('genui_conversations_org_updated_idx').on(t.organization_id, t.updated_at),
+  }),
+);
+
+export const genuiMessages = pgTable(
+  'genui_messages',
+  {
+    id: id(),
+    conversation_id: varchar('conversation_id', { length: 36 }).notNull(),
+    role: varchar('role', { length: 16 }).notNull(), // 'user' | 'assistant'
+    parts: jsonb('parts').notNull().default([]),
+    created_at: ts('created_at'),
+  },
+  (t) => ({
+    conversation_idx: index('genui_messages_conversation_idx').on(t.conversation_id),
+    conversation_created_idx: index('genui_messages_conv_created_idx').on(t.conversation_id, t.created_at),
+  }),
+);
+
 // --- Pipeline runs (DB-backed scheduler state; restart-safe run history) ---
 // Each automated ingestion→classify→score→generate→email cycle creates one row.
 // On startup the scheduler checks the latest completed_at to decide whether to

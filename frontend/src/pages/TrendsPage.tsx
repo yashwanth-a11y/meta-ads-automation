@@ -8,10 +8,7 @@ import {
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
+  Drawer,
   FormControl,
   Grid,
   IconButton,
@@ -102,49 +99,71 @@ function QScoreChip({ label, value, large = false }: { label: string; value: num
   )
 }
 
-// ─── Bundle dialog ────────────────────────────────────────────────────────────
+// ─── Bundle drawer ────────────────────────────────────────────────────────────
 
-interface BundleDialogProps {
+interface BundleDrawerProps {
   bundle: CreativeBundle | null
   open: boolean
   onClose: () => void
 }
 
-function BundleDialog({ bundle, open, onClose }: BundleDialogProps) {
-  if (!bundle) return null
-
-  const qs: QualityScores | null = bundle.quality_scores ?? null
+function BundleDrawer({ bundle, open, onClose }: BundleDrawerProps) {
+  const qs: QualityScores | null = bundle?.quality_scores ?? null
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth scroll="paper">
-      <DialogTitle
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          pb: 1.5,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-          fontWeight: 700,
-          fontSize: '1rem',
-          color: 'text.primary',
-        }}
-      >
-        Creative Bundle
-        <IconButton
-          onClick={onClose}
-          size="small"
-          aria-label="Close bundle dialog"
-          sx={{
-            color: 'text.secondary',
-            '&:hover': { bgcolor: alpha('#0F172A', 0.05) },
-          }}
-        >
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DialogTitle>
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      slotProps={{
+        paper: {
+          sx: {
+            width: { xs: '100%', sm: 600, md: 750 },
+            maxWidth: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius:"0"
+          },
+        },
+      }}
+    >
+      {bundle && (
+        <>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              px: 3,
+              py: 2,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              flexShrink: 0,
+            }}
+          >
+            <Typography
+              sx={{
+                fontWeight: 700,
+                fontSize: '1rem',
+                color: 'text.primary',
+              }}
+            >
+              Creative Bundle
+            </Typography>
+            <IconButton
+              onClick={onClose}
+              size="small"
+              aria-label="Close bundle drawer"
+              sx={{
+                color: 'text.secondary',
+                '&:hover': { bgcolor: alpha('#0F172A', 0.05) },
+              }}
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
 
-      <DialogContent sx={{ pt: 2.5, pb: 1 }}>
+          <Box sx={{ px: 3, py: 2.5, flex: 1, overflowY: 'auto' }}>
         <Stack spacing={3}>
           {/* Hook */}
           <Box
@@ -331,14 +350,26 @@ function BundleDialog({ bundle, open, onClose }: BundleDialogProps) {
             </Accordion>
           )}
         </Stack>
-      </DialogContent>
+          </Box>
 
-      <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider' }}>
-        <Button onClick={onClose} variant="outlined" sx={{ minWidth: 100 }}>
-          Close
-        </Button>
-      </DialogActions>
-    </Dialog>
+          <Box
+            sx={{
+              px: 3,
+              py: 2,
+              borderTop: '1px solid',
+              borderColor: 'divider',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              flexShrink: 0,
+            }}
+          >
+            <Button onClick={onClose} variant="outlined" sx={{ minWidth: 100 }}>
+              Close
+            </Button>
+          </Box>
+        </>
+      )}
+    </Drawer>
   )
 }
 
@@ -522,12 +553,12 @@ function TrendCard({ trend, channelId, onBundleReady }: TrendCardProps) {
 
       {/* Generate button */}
       <Button
-        variant="contained"
+        variant="outlined"
         color="primary"
         fullWidth
         disabled={isPending}
         onClick={() => generate()}
-        sx={{ mt: 'auto', height: 40 }}
+        // sx={{ mt: 'auto', height: 40 }}
         startIcon={
           isPending ? (
             <CircularProgress size={14} sx={{ color: 'inherit' }} />
@@ -700,7 +731,7 @@ export function TrendsPage() {
       )}
 
       {/* Bundle dialog */}
-      <BundleDialog
+      <BundleDrawer
         bundle={activeBundle}
         open={bundleOpen}
         onClose={() => setBundleOpen(false)}

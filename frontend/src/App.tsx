@@ -6,7 +6,7 @@ import { AdsSetupPage } from './pages/AdsSetup'
 import { AdsCreatePage } from './pages/AdsCreate'
 import { OAuthCallback } from './pages/OAuthCallback'
 import { AnalyticsPage } from './pages/AnalyticsPage'
-import { AuthPage, AUTH_ROUTE, DASHBOARD_ROUTE, paths } from './auth'
+import { AuthPage, AUTH_ROUTE, DASHBOARD_ROUTE, FORGOT_PASSWORD_ROUTE, ForgotPasswordPage, paths } from './auth'
 import { ChannelsPage } from './pages/ChannelsPage'
 import { CreativesPage } from './pages/CreativesPage'
 import { CRMPage } from './pages/CRMPage'
@@ -14,6 +14,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { TrendsPage } from './pages/TrendsPage'
 import { ApprovalsPage } from './pages/ApprovalsPage'
+import GenUIPage from './pages/GenUIPage'
 
 function isAuthenticated() {
   const localToken = localStorage.getItem('auth_token')
@@ -47,6 +48,14 @@ export default function App() {
         }
       />
       <Route
+        path={FORGOT_PASSWORD_ROUTE}
+        element={
+          <PublicOnlyRoute>
+            <ForgotPasswordPage />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route
         path="/"
         element={<Navigate to={isAuthenticated() ? paths.dashboard : paths.auth} replace />}
       />
@@ -71,6 +80,7 @@ export default function App() {
         <Route path="ads/create" element={<AdsCreatePage />} />
         <Route path="crm" element={<CRMPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="genui" element={<GenUIPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
       <Route

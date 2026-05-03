@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from '../db/index.js';
 import { approvals, creativeBundles, channels, users } from '../db/schema.js';
 import { env } from '../config/env.js';
+import { sendEmail } from '../lib/email.js';
 import {
   createKlingClient,
   buildKlingPrompt,
@@ -568,24 +569,7 @@ export class ApprovalService {
   }
 
   async _sendEmail({ to, subject, html }) {
-    if (!env.BREVO_API_KEY) {
-      console.log(`[Email] No BREVO_API_KEY — would send to ${to}\n  Subject: ${subject}`);
-      return;
-    }
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'api-key': env.BREVO_API_KEY },
-      body: JSON.stringify({
-        sender: { name: 'PhotonX GrowthOS', email: env.FROM_EMAIL },
-        to: [{ email: to }],
-        subject,
-        htmlContent: html,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Brevo error ${res.status}: ${body}`);
-    }
+    return sendEmail({ to, subject, html });
   }
 
   // ───────────────────────────────────────────────────────────────────────────

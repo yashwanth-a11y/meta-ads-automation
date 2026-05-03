@@ -5,4 +5,6 @@ export type { Channel, ChannelApprover, ChannelTrendSources, ChannelUpdateInput,
 export { approvalsApi } from './approvals'
 export type { Approval, ApprovalStage, ApprovalBundle } from './approvals'
 export { queryClient, qk } from './queryClient'
+export { streamChat, listConversations, getConversationMessages, deleteConversation } from './genui'
+export type { ChatMessage, MessagePart, AdDraft, ChartPayload, StatItem, ActionPayload, Conversation, StoredMessage } from './genui'
 export type * from './types'
