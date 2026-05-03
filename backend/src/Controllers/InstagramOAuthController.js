@@ -155,6 +155,45 @@ export class InstagramOAuthController {
     }
   }
 
+  async getMediaComments(request, reply) {
+    try {
+      const { limit, after } = request.query || {};
+      const out = await this.service.getMediaComments(
+        request.user.organization_id,
+        request.params.accountId,
+        request.params.mediaId,
+        {
+          limit: limit ? parseInt(limit, 10) : undefined,
+          after,
+        },
+      );
+      return { success: true, data: out };
+    } catch (err) {
+      // IG Graph rejects /comments when the account lacks
+      // instagram_manage_comments — surface its message as a 400 so the UI
+      // can show a permissions hint without a generic retry banner.
+      const igError = err.response?.data?.error;
+      if (igError) {
+        this.logger.warn({
+          message: 'Instagram comments API rejected request',
+          mediaId: request.params.mediaId,
+          igError,
+        });
+        return reply.status(400).send({
+          success: false,
+          error: igError.message || 'Comments unavailable for this post',
+          code: igError.code ? `IG_${igError.code}` : 'IG_COMMENTS_UNAVAILABLE',
+        });
+      }
+      const status = err.statusCode === 404 ? 404 : 500;
+      this.logger.error({ message: 'Error fetching Instagram media comments', err: err.message });
+      return reply.status(status).send({
+        success: false,
+        error: err.message || 'Failed to fetch comments',
+      });
+    }
+  }
+
   async linkChannel(request, reply) {
     try {
       const { channel_id } = request.body;

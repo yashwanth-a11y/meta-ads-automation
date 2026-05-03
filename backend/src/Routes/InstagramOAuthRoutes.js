@@ -59,6 +59,12 @@ export async function instagramOAuthRoutes(fastify) {
     (req, reply) => controller.getMediaInsights(req, reply),
   );
 
+  fastify.get(
+    '/accounts/:accountId/media/:mediaId/comments',
+    { preHandler: auth },
+    (req, reply) => controller.getMediaComments(req, reply),
+  );
+
   fastify.post(
     '/accounts/:accountId/links',
     {

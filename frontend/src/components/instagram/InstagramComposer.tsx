@@ -86,35 +86,35 @@ const TAB_DEFS: Array<{
   accept: string
   helper: string
 }> = [
-  {
-    value: 'image',
-    label: 'Post',
-    icon: <ImageIcon fontSize="small" />,
-    accept: 'image/jpeg',
-    helper: 'JPEG · up to 8 MB · square (1:1) recommended',
-  },
-  {
-    value: 'reels',
-    label: 'Reel',
-    icon: <MovieCreation fontSize="small" />,
-    accept: 'video/mp4,video/quicktime',
-    helper: 'MP4 or MOV · vertical 9:16 · 3–90 s · up to 100 MB',
-  },
-  {
-    value: 'carousel',
-    label: 'Carousel',
-    icon: <Collections fontSize="small" />,
-    accept: 'image/jpeg,video/mp4,video/quicktime',
-    helper: '2 to 10 items, mix of JPEG images and MP4/MOV videos',
-  },
-  {
-    value: 'story',
-    label: 'Story',
-    icon: <HighlightAlt fontSize="small" />,
-    accept: 'image/jpeg,video/mp4,video/quicktime',
-    helper: 'Single JPEG image or short MP4/MOV (≤ 60 s)',
-  },
-]
+    {
+      value: 'image',
+      label: 'Post',
+      icon: <ImageIcon fontSize="small" />,
+      accept: 'image/jpeg',
+      helper: 'JPEG · up to 8 MB · square (1:1) recommended',
+    },
+    {
+      value: 'reels',
+      label: 'Reel',
+      icon: <MovieCreation fontSize="small" />,
+      accept: 'video/mp4,video/quicktime',
+      helper: 'MP4 or MOV · vertical 9:16 · 3–90 s · up to 100 MB',
+    },
+    {
+      value: 'carousel',
+      label: 'Carousel',
+      icon: <Collections fontSize="small" />,
+      accept: 'image/jpeg,video/mp4,video/quicktime',
+      helper: '2 to 10 items, mix of JPEG images and MP4/MOV videos',
+    },
+    {
+      value: 'story',
+      label: 'Story',
+      icon: <HighlightAlt fontSize="small" />,
+      accept: 'image/jpeg,video/mp4,video/quicktime',
+      helper: 'Single JPEG image or short MP4/MOV (≤ 60 s)',
+    },
+  ]
 
 function parseHashtags(text: string): string[] {
   // Matches #word — allows letters, digits, underscore, period (Instagram
@@ -714,8 +714,8 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
             {assets.length === 0
               ? 'No media yet'
               : postType === 'carousel'
-              ? `${assets.length} item${assets.length === 1 ? '' : 's'}`
-              : `1 ${assets[0].kind}`}
+                ? `${assets.length} item${assets.length === 1 ? '' : 's'}`
+                : `1 ${assets[0].kind}`}
           </Typography>
         </Stack>
         <Stack direction="row" spacing={1}>

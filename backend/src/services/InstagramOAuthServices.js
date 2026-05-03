@@ -270,6 +270,14 @@ export class InstagramOAuthService {
     };
   }
 
+  // Fetches comments + nested replies for a media item belonging to this org.
+  async getMediaComments(organizationId, accountId, mediaId, { limit, after } = {}) {
+    const account = await this.repository.findById(accountId);
+    if (!account || account.organization_id !== organizationId) throw notFound('Account not found');
+    const accessToken = decryptToken(account.access_token_encrypted, 'instagram');
+    return this.apiService.getMediaComments(mediaId, accessToken, { limit, after });
+  }
+
   // --- Channel links ---
   async linkChannel(organizationId, accountId, channelId) {
     const account = await this.repository.findById(accountId);

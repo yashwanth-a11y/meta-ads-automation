@@ -124,6 +124,31 @@ export class InstagramApiService {
     }
     return out;
   }
+
+  // Fetch top-level comments on a media. Each comment carries one level of
+  // replies via the nested `replies{...}` field — IG's API doesn't recurse
+  // deeper than that, so callers don't need to paginate replies separately.
+  async getMediaComments(mediaId, accessToken, { limit = 25, after } = {}) {
+    const params = {
+      fields: [
+        'id',
+        'text',
+        'timestamp',
+        'username',
+        'like_count',
+        'hidden',
+        'replies{id,text,timestamp,username,like_count,hidden}',
+      ].join(','),
+      limit,
+      access_token: accessToken,
+    };
+    if (after) params.after = after;
+    const { data } = await axios.get(
+      `${this.graphBase}/${this.apiVersion}/${mediaId}/comments`,
+      { params, timeout: TIMEOUT_MS },
+    );
+    return data;
+  }
 }
 
 // Picks the insight metric set Meta accepts for a given media kind.

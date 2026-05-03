@@ -64,6 +64,25 @@ export type InstagramMediaInsightsResponse = {
   insights: InstagramInsightValues
 }
 
+export type InstagramComment = {
+  id: string
+  text: string
+  timestamp: string
+  username?: string
+  like_count?: number
+  hidden?: boolean
+  replies?: { data: InstagramComment[] }
+}
+
+export type InstagramCommentsResponse = {
+  data: InstagramComment[]
+  paging?: {
+    cursors?: { before?: string; after?: string }
+    next?: string
+    previous?: string
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Composer / publishing
 // ---------------------------------------------------------------------------
@@ -151,6 +170,22 @@ export const instagramApi = {
     const suffix = qs.toString() ? `?${qs}` : ''
     return get<InstagramMediaInsightsResponse>(
       `/instagram/accounts/${accountId}/media/${mediaId}/insights${suffix}`,
+    )
+  },
+  // Top-level comments + one nested level of replies. The endpoint returns
+  // 400 when the IG account lacks `instagram_manage_comments` (e.g. older
+  // OAuth scopes); callers should treat that as "comments unavailable".
+  getMediaComments: (
+    accountId: string,
+    mediaId: string,
+    opts: { limit?: number; after?: string } = {},
+  ) => {
+    const qs = new URLSearchParams()
+    if (opts.limit) qs.set('limit', String(opts.limit))
+    if (opts.after) qs.set('after', opts.after)
+    const suffix = qs.toString() ? `?${qs}` : ''
+    return get<InstagramCommentsResponse>(
+      `/instagram/accounts/${accountId}/media/${mediaId}/comments${suffix}`,
     )
   },
   linkChannel: (accountId: string, channelId: string) =>

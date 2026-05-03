@@ -41,7 +41,6 @@ import {
   PhotoLibraryOutlined,
   MovieOutlined,
   ViewCarouselOutlined,
-  ImageOutlined,
   ContentCopy,
   ChevronRight,
   IosShare,
@@ -60,6 +59,8 @@ import {
   type InstagramMediaItem,
   type InstagramMediaResponse,
   type InstagramPostType,
+  type InstagramComment,
+  type InstagramCommentsResponse,
 } from '../api/instagram'
 import { trendsApi, type Channel } from '../api/trends'
 import { qk } from '../api/queryClient'
@@ -250,6 +251,321 @@ function PostThumbnail({
   )
 }
 
+function formatRelativeTime(timestamp: string): string {
+  const diffMs = Date.now() - new Date(timestamp).getTime()
+  const minutes = Math.floor(diffMs / 60_000)
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d`
+  const weeks = Math.floor(days / 7)
+  if (weeks < 5) return `${weeks}w`
+  return new Date(timestamp).toLocaleDateString()
+}
+
+const COMMENT_PALETTE = [
+  '#6366F1',
+  '#3B82F6',
+  '#10B981',
+  '#F59E0B',
+  '#EF4444',
+  '#8B5CF6',
+  '#EC4899',
+  '#14B8A6',
+]
+
+function pickCommentColor(seed: string): string {
+  if (!seed) return COMMENT_PALETTE[0]
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0
+  return COMMENT_PALETTE[Math.abs(h) % COMMENT_PALETTE.length]
+}
+
+function CommentAvatar({ username, size = 32 }: { username?: string; size?: number }) {
+  const color = pickCommentColor(username || '?')
+  const initials = (username || '?')
+    .replace(/^@/, '')
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+  return (
+    <Box
+      sx={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        bgcolor: alpha(color, 0.15),
+        color,
+        border: `1.5px solid ${alpha(color, 0.3)}`,
+        display: 'grid',
+        placeItems: 'center',
+        fontSize: size * 0.36,
+        fontWeight: 800,
+        flexShrink: 0,
+      }}
+    >
+      {initials}
+    </Box>
+  )
+}
+
+function CommentRow({
+  comment,
+  isReply = false,
+}: {
+  comment: InstagramComment
+  isReply?: boolean
+}) {
+  const replies = comment.replies?.data ?? []
+  return (
+    <Box>
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start' }}>
+        <CommentAvatar username={comment.username} size={isReply ? 26 : 32} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Stack
+            direction="row"
+            spacing={0.75}
+            sx={{ alignItems: 'baseline', flexWrap: 'wrap' }}
+          >
+            <Typography variant="body2" sx={{ fontWeight: 700, fontSize: 13 }}>
+              {comment.username || 'unknown'}
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ fontSize: 11 }}
+            >
+              {formatRelativeTime(comment.timestamp)}
+            </Typography>
+            {comment.hidden ? (
+              <Chip
+                label="Hidden"
+                size="small"
+                sx={{
+                  height: 16,
+                  fontSize: 9,
+                  fontWeight: 700,
+                  borderRadius: '4px',
+                  bgcolor: alpha('#0f172a', 0.06),
+                  color: 'text.secondary',
+                }}
+              />
+            ) : null}
+          </Stack>
+          <Typography
+            variant="body2"
+            sx={{
+              mt: 0.25,
+              fontSize: 13,
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+            }}
+          >
+            {comment.text}
+          </Typography>
+          {typeof comment.like_count === 'number' && comment.like_count > 0 ? (
+            <Stack
+              direction="row"
+              spacing={0.5}
+              sx={{ alignItems: 'center', mt: 0.5, color: 'text.secondary' }}
+            >
+              <FavoriteBorder sx={{ fontSize: 12 }} />
+              <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 600 }}>
+                {comment.like_count}
+              </Typography>
+            </Stack>
+          ) : null}
+        </Box>
+      </Stack>
+
+      {replies.length > 0 ? (
+        <Stack spacing={1.25} sx={{ mt: 1.25, ml: 5 }}>
+          {replies.map((r) => (
+            <CommentRow key={r.id} comment={r} isReply />
+          ))}
+        </Stack>
+      ) : null}
+    </Box>
+  )
+}
+
+function CommentsPanel({
+  account,
+  accountId,
+  mediaId,
+  totalCount,
+}: {
+  account: InstagramAccount
+  accountId: string
+  mediaId: string
+  totalCount: number
+}) {
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery<InstagramCommentsResponse, Error>({
+    queryKey: ['instagram', 'accounts', accountId, 'media', mediaId, 'comments'],
+    queryFn: ({ pageParam }) =>
+      instagramApi.getMediaComments(accountId, mediaId, {
+        limit: 25,
+        after: pageParam as string | undefined,
+      }),
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.paging?.next ? lastPage.paging.cursors?.after : undefined,
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const comments = data?.pages.flatMap((p) => p.data) ?? []
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        flexShrink: 0,
+        maxHeight: 320,
+        bgcolor: 'background.paper',
+      }}
+    >
+      {/* Header strip — count + handle */}
+      <Stack
+        direction="row"
+        sx={{
+          px: 2.5,
+          py: 1.5,
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexShrink: 0,
+        }}
+      >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: '50%',
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
+              color: 'primary.main',
+              display: 'grid',
+              placeItems: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <ChatBubbleOutlined sx={{ fontSize: 14 }} />
+          </Box>
+          <Typography variant="body2" sx={{ fontWeight: 700 }}>
+            Comments ({totalCount})
+          </Typography>
+        </Stack>
+        <Typography variant="caption" color="text.secondary" noWrap>
+          @{account.ig_username}
+        </Typography>
+      </Stack>
+
+      <Divider />
+
+      {/* Body */}
+      <Box
+        sx={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          px: 2.5,
+          py: 1.5,
+          '&::-webkit-scrollbar': { width: 6 },
+          '&::-webkit-scrollbar-thumb': {
+            bgcolor: alpha('#0f172a', 0.12),
+            borderRadius: 3,
+          },
+        }}
+      >
+        {isLoading ? (
+          <Stack spacing={1.5}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Stack
+                key={i}
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: 'flex-start' }}
+              >
+                <Skeleton variant="circular" width={32} height={32} />
+                <Box sx={{ flex: 1 }}>
+                  <Skeleton variant="text" width="40%" height={14} />
+                  <Skeleton variant="text" width="80%" height={14} />
+                </Box>
+              </Stack>
+            ))}
+          </Stack>
+        ) : isError ? (
+          <Alert
+            severity="info"
+            icon={<ChatBubbleOutlined />}
+            sx={{ borderRadius: 1.5 }}
+          >
+            Comments unavailable for this post
+            {error instanceof Error && error.message ? ` — ${error.message}` : '.'}
+          </Alert>
+        ) : comments.length === 0 ? (
+          <Box
+            sx={{
+              py: 3,
+              textAlign: 'center',
+              color: 'text.secondary',
+            }}
+          >
+            <ChatBubbleOutlined sx={{ fontSize: 24, color: 'text.disabled', mb: 0.5 }} />
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              No comments yet
+            </Typography>
+            <Typography variant="caption">
+              Comments on this post will appear here.
+            </Typography>
+          </Box>
+        ) : (
+          <Stack spacing={1.75} divider={<Divider flexItem sx={{ opacity: 0.6 }} />}>
+            {comments.map((c) => (
+              <CommentRow key={c.id} comment={c} />
+            ))}
+          </Stack>
+        )}
+
+        {hasNextPage ? (
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              startIcon={
+                isFetchingNextPage ? <CircularProgress size={12} /> : null
+              }
+              sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 1.5 }}
+            >
+              {isFetchingNextPage ? 'Loading…' : 'Load more comments'}
+            </Button>
+          </Box>
+        ) : null}
+      </Box>
+    </Box>
+  )
+}
+
 function formatPostTimestamp(ts: string): string {
   const d = new Date(ts)
   const date = d.toLocaleDateString('en-US', {
@@ -290,10 +606,9 @@ function StatTile({
         <Skeleton width={56} height={32} sx={{ mx: 'auto', mb: 0.5 }} />
       ) : (
         <Typography
-          variant="h5"
+          variant="body2"
           sx={{
-            fontWeight: 800,
-            fontSize: '1.6rem',
+            fontWeight: 500,
             lineHeight: 1.1,
             mb: 0.5,
           }}
@@ -456,7 +771,7 @@ function PostDetailDialog({
         }}
       >
         <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
-          <Box
+          {/* <Box
             sx={{
               width: 28,
               height: 28,
@@ -468,11 +783,11 @@ function PostDetailDialog({
             }}
           >
             <ImageOutlined fontSize="small" sx={{ color: 'text.secondary' }} />
-          </Box>
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            Post
+          </Box> */}
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Post -
           </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>
+          <Typography variant="body1" color="text.secondary" noWrap>
             {formatPostTimestamp(media.timestamp)}
           </Typography>
         </Stack>
@@ -483,7 +798,7 @@ function PostDetailDialog({
           sx={{
             width: 30,
             height: 30,
-            bgcolor: 'primary.main',
+            bgcolor: '#ddd',
             color: 'primary.contrastText',
             '&:hover': { bgcolor: 'primary.dark' },
           }}
@@ -566,20 +881,20 @@ function PostDetailDialog({
           sx={{
             display: 'flex',
             flexDirection: 'column',
-            borderLeft: { md: '1px solid' },
+            borderLeft: { md: '1px solid #DDD' },
             borderTop: { xs: '1px solid', md: 0 },
             borderColor: 'divider',
             minHeight: 0,
             overflow: 'hidden',
           }}
         >
-          <Box sx={{ p: 2.5, flex: 1, overflowY: 'auto' }}>
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
             {/* Top stat tiles */}
             <Stack
               direction="row"
               sx={{
                 alignItems: 'stretch',
-                pb: 1.5,
+                // pb: 1.5,
                 borderBottom: '1px solid',
                 borderColor: 'divider',
               }}
@@ -609,9 +924,9 @@ function PostDetailDialog({
             {/* Mid inline stats */}
             <Box
               sx={{
-                mt: 2,
+                m: 2,
                 py: 0.5,
-                borderRadius: 2,
+                borderRadius: "8px",
                 bgcolor: (theme) => alpha(theme.palette.primary.main, 0.04),
                 border: '1px solid',
                 borderColor: 'divider',
@@ -649,7 +964,7 @@ function PostDetailDialog({
             {media.caption ? (
               <Box
                 sx={{
-                  mt: 2,
+                  m: 2,
                   p: 1.75,
                   borderRadius: 2,
                   bgcolor: 'action.hover',
@@ -658,7 +973,7 @@ function PostDetailDialog({
                 }}
               >
                 <Typography
-                  variant="body2"
+                  variant="body1"
                   sx={{
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
@@ -733,42 +1048,13 @@ function PostDetailDialog({
         </Box>
       </Box>
 
-      {/* Footer — comments info */}
-      <Stack
-        direction="row"
-        sx={{
-          px: 2.5,
-          py: 1.5,
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          flexShrink: 0,
-        }}
-      >
-        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
-          <Box
-            sx={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
-              color: 'primary.main',
-              display: 'grid',
-              placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <ChatBubbleOutlined sx={{ fontSize: 14 }} />
-          </Box>
-          <Typography variant="body2" sx={{ fontWeight: 700 }}>
-            Comments ({typeof comments === 'number' ? comments : 0})
-          </Typography>
-        </Stack>
-        <Typography variant="caption" color="text.secondary" noWrap>
-          @{account.ig_username}
-        </Typography>
-      </Stack>
+      {/* Comments — paginated, scrollable list of top-level comments + replies */}
+      <CommentsPanel
+        account={account}
+        accountId={accountId}
+        mediaId={media.id}
+        totalCount={typeof comments === 'number' ? comments : 0}
+      />
     </Box>
   )
 }
@@ -1361,7 +1647,7 @@ export function InstagramPage() {
           <Typography
             variant="h4"
             sx={{
-              fontWeight: 800,
+              fontWeight: 600,
               background: IG_GRADIENT,
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -1370,7 +1656,7 @@ export function InstagramPage() {
           >
             Instagram
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body1" color="text.secondary">
             Manage connected business accounts and their recent posts.
           </Typography>
         </Box>
@@ -1400,9 +1686,9 @@ export function InstagramPage() {
       {accounts.length === 0 ? (
         <Card
           sx={{
-            p: 6,
+            p: 2,
             textAlign: 'center',
-            borderRadius: 3,
+            borderRadius: "4px",
             border: '1px dashed',
             borderColor: 'divider',
             boxShadow: 'none',

@@ -42,7 +42,6 @@ import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded'
 import SlideshowRoundedIcon from '@mui/icons-material/SlideshowRounded'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { GlassCard } from '../components/ui/GlassCard'
-import { PageHeader } from '../components/ui/PageHeader'
 import { apiFetch } from '../lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,27 +100,27 @@ const ACCENT = '#22D3EE'
 const ACCENT_DARK = '#0891B2'
 
 const STATUS_CFG: Record<BundleStatus, { bg: string; color: string; border: string; label: string; dot: string }> = {
-  draft:     { bg: alpha('#94A3B8', 0.12), color: '#64748B',  border: alpha('#94A3B8', 0.28), label: 'Draft',     dot: '#94A3B8' },
-  rendering: { bg: alpha('#60A5FA', 0.12), color: '#2563EB',  border: alpha('#60A5FA', 0.3),  label: 'Rendering', dot: '#60A5FA' },
-  ready:     { bg: alpha('#FBBF24', 0.14), color: '#B45309',  border: alpha('#FBBF24', 0.35), label: 'Ready',     dot: '#FBBF24' },
-  approved:  { bg: alpha('#34D399', 0.12), color: '#059669',  border: alpha('#34D399', 0.3),  label: 'Approved',  dot: '#34D399' },
-  rejected:  { bg: alpha('#F87171', 0.12), color: '#DC2626',  border: alpha('#F87171', 0.28), label: 'Rejected',  dot: '#F87171' },
-  published: { bg: alpha('#2DD4BF', 0.12), color: '#0D9488',  border: alpha('#2DD4BF', 0.3),  label: 'Published', dot: '#2DD4BF' },
+  draft: { bg: alpha('#94A3B8', 0.12), color: '#64748B', border: alpha('#94A3B8', 0.28), label: 'Draft', dot: '#94A3B8' },
+  rendering: { bg: alpha('#60A5FA', 0.12), color: '#2563EB', border: alpha('#60A5FA', 0.3), label: 'Rendering', dot: '#60A5FA' },
+  ready: { bg: alpha('#FBBF24', 0.14), color: '#B45309', border: alpha('#FBBF24', 0.35), label: 'Ready', dot: '#FBBF24' },
+  approved: { bg: alpha('#34D399', 0.12), color: '#059669', border: alpha('#34D399', 0.3), label: 'Approved', dot: '#34D399' },
+  rejected: { bg: alpha('#F87171', 0.12), color: '#DC2626', border: alpha('#F87171', 0.28), label: 'Rejected', dot: '#F87171' },
+  published: { bg: alpha('#2DD4BF', 0.12), color: '#0D9488', border: alpha('#2DD4BF', 0.3), label: 'Published', dot: '#2DD4BF' },
 }
 
 const CT_CFG: Record<ContentType, { bg: string; color: string; border: string; label: string; icon: React.ReactNode }> = {
-  reel:       { bg: alpha('#A78BFA', 0.12), color: '#7C3AED', border: alpha('#A78BFA', 0.3),  label: 'Reel',      icon: <PlayArrowRoundedIcon sx={{ fontSize: 10 }} /> },
-  image_post: { bg: alpha('#60A5FA', 0.12), color: '#2563EB', border: alpha('#60A5FA', 0.3),  label: 'Image',     icon: <ImageRoundedIcon sx={{ fontSize: 10 }} /> },
-  carousel:   { bg: alpha('#FB923C', 0.12), color: '#D97706', border: alpha('#FB923C', 0.28), label: 'Carousel',  icon: <SlideshowRoundedIcon sx={{ fontSize: 10 }} /> },
-  story:      { bg: alpha('#F472B6', 0.12), color: '#DB2777', border: alpha('#F472B6', 0.28), label: 'Story',     icon: <AutoStoriesRoundedIcon sx={{ fontSize: 10 }} /> },
+  reel: { bg: alpha('#A78BFA', 0.12), color: '#7C3AED', border: alpha('#A78BFA', 0.3), label: 'Reel', icon: <PlayArrowRoundedIcon sx={{ fontSize: 10 }} /> },
+  image_post: { bg: alpha('#60A5FA', 0.12), color: '#2563EB', border: alpha('#60A5FA', 0.3), label: 'Image', icon: <ImageRoundedIcon sx={{ fontSize: 10 }} /> },
+  carousel: { bg: alpha('#FB923C', 0.12), color: '#D97706', border: alpha('#FB923C', 0.28), label: 'Carousel', icon: <SlideshowRoundedIcon sx={{ fontSize: 10 }} /> },
+  story: { bg: alpha('#F472B6', 0.12), color: '#DB2777', border: alpha('#F472B6', 0.28), label: 'Story', icon: <AutoStoriesRoundedIcon sx={{ fontSize: 10 }} /> },
 }
 
 const CATEGORY_CFG: Record<SpecialDayCategory, { label: string; color: string }> = {
-  festival:      { label: 'Festival',      color: '#F59E0B' },
-  national:      { label: 'National',      color: '#3B82F6' },
+  festival: { label: 'Festival', color: '#F59E0B' },
+  national: { label: 'National', color: '#3B82F6' },
   international: { label: 'International', color: '#8B5CF6' },
-  shopping:      { label: 'Shopping',      color: '#EC4899' },
-  wedding:       { label: 'Wedding',       color: '#EF4444' },
+  shopping: { label: 'Shopping', color: '#EC4899' },
+  wedding: { label: 'Wedding', color: '#EF4444' },
 }
 
 const WEEK_DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -577,7 +576,7 @@ function MonthView({ monthStart, bundlesByDay, specialDaysByDay, today, onDayCli
                 bgcolor: isToday
                   ? alpha(ACCENT, 0.045)
                   : isCurrentMonth
-                    ? 'rgba(255,255,255,0.03)'
+                    ? '#FFF'
                     : alpha('#0F172A', 0.015),
                 borderLeft: firstSpecial ? `3px solid ${firstSpecial.color}` : 'none',
                 cursor: 'pointer',
@@ -2053,13 +2052,81 @@ export function ContentCalendarPage() {
     </Box>
   )
 
+  // Quick stats for the hero strip — totals are computed from whatever
+  // window is currently fetched (week or month).
+  const heroStats = (() => {
+    const total = bundles.length
+    const ready = bundles.filter((b) => b.status === 'ready' || b.status === 'approved').length
+    const draft = bundles.filter((b) => b.status === 'draft' || b.status === 'rendering').length
+    const events = upcomingEvents.length
+    return { total, ready, draft, events }
+  })()
+
   return (
     <Stack spacing={2.5}>
-      <PageHeader
-        title="Content Calendar"
-        subtitle="Plan, schedule, and manage posts across all channels."
-        action={
-          <Stack direction="row" spacing={1}>
+      {/* ── Hero header ────────────────────────────────────────────────── */}
+      <Box
+        sx={{
+          position: 'relative',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          border: `1px solid ${alpha(ACCENT, 0.18)}`,
+          bgcolor: 'background.paper',
+          // Soft accent wash so the page has a clear "you are here" feel
+          // without being heavy.
+          backgroundImage: `linear-gradient(135deg, ${alpha(ACCENT, 0.08)} 0%, ${alpha(ACCENT, 0.02)} 60%, ${alpha('#FFFFFF', 0)} 100%)`,
+          px: { xs: 2.5, md: 3.5 },
+          py: { xs: 2.5, md: 3 },
+        }}
+      >
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          sx={{ alignItems: { md: 'center' }, justifyContent: 'space-between' }}
+        >
+          <Stack direction="row" spacing={2} sx={{ alignItems: 'center', minWidth: 0 }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: '12px',
+                background: `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT_DARK} 100%)`,
+                color: '#FFFFFF',
+                display: 'grid',
+                placeItems: 'center',
+                flexShrink: 0,
+                boxShadow: `0 8px 24px ${alpha(ACCENT, 0.3)}`,
+              }}
+            >
+              <CalendarTodayRoundedIcon sx={{ fontSize: 22 }} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                variant="h5"
+                sx={{ fontWeight: 800, lineHeight: 1.15, letterSpacing: -0.3 }}
+              >
+                Content Calendar
+              </Typography>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.25 }}
+              >
+                Plan, schedule, and manage posts across all channels.
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              flexShrink: 0,
+              alignSelf: { xs: 'stretch', md: 'auto' },
+              flexWrap: 'wrap',
+              gap: 1,
+            }}
+          >
             <Tooltip title="Sync holidays & festivals from external calendar source">
               <Button
                 variant="outlined"
@@ -2067,9 +2134,24 @@ export function ContentCalendarPage() {
                 startIcon={syncingHolidays ? <CircularProgress size={14} /> : <SyncRoundedIcon />}
                 onClick={() => void handleSyncHolidays()}
                 disabled={syncingHolidays}
-                sx={{ height: 36, fontSize: 12, fontWeight: 600, borderRadius: '8px' }}
+                sx={{
+                  height: 38,
+                  px: 1.75,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  borderRadius: '10px',
+                  borderColor: alpha('#0F172A', 0.12),
+                  color: 'text.primary',
+                  bgcolor: 'background.paper',
+                  '&:hover': {
+                    borderColor: ACCENT,
+                    bgcolor: alpha(ACCENT, 0.06),
+                    color: ACCENT_DARK,
+                  },
+                }}
               >
-                Sync Holidays
+                Sync holidays
               </Button>
             </Tooltip>
             <Button
@@ -2077,16 +2159,97 @@ export function ContentCalendarPage() {
               size="small"
               startIcon={<EventNoteRoundedIcon />}
               onClick={() => setAddEventOpen(true)}
-              sx={{ height: 36, fontSize: 12, fontWeight: 600, borderRadius: '8px' }}
+              sx={{
+                height: 38,
+                px: 1.75,
+                fontSize: 12.5,
+                fontWeight: 600,
+                textTransform: 'none',
+                borderRadius: '10px',
+                borderColor: alpha('#0F172A', 0.12),
+                color: 'text.primary',
+                bgcolor: 'background.paper',
+                '&:hover': {
+                  borderColor: ACCENT,
+                  bgcolor: alpha(ACCENT, 0.06),
+                  color: ACCENT_DARK,
+                },
+              }}
             >
-              Add Event
+              Add event
             </Button>
-            <Button variant="contained" color="primary" startIcon={<AddRoundedIcon />} sx={{ minWidth: 120, height: 36, fontSize: 12, fontWeight: 600, borderRadius: '8px' }}>
-              New Post
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<AddRoundedIcon />}
+              sx={{
+                minWidth: 130,
+                height: 38,
+                px: 2,
+                fontSize: 12.5,
+                fontWeight: 700,
+                textTransform: 'none',
+                borderRadius: '10px',
+                background: `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT_DARK} 100%)`,
+                boxShadow: `0 6px 16px ${alpha(ACCENT, 0.35)}`,
+                '&:hover': {
+                  background: `linear-gradient(135deg, ${ACCENT_DARK} 0%, ${ACCENT_DARK} 100%)`,
+                  boxShadow: `0 8px 20px ${alpha(ACCENT, 0.45)}`,
+                },
+              }}
+            >
+              New post
             </Button>
           </Stack>
-        }
-      />
+        </Stack>
+
+        {/* Stats strip — at-a-glance summary of the loaded window */}
+        <Stack
+          direction="row"
+          spacing={3}
+          sx={{
+            mt: 2.5,
+            pt: 2,
+            borderTop: `1px dashed ${alpha('#0F172A', 0.1)}`,
+            flexWrap: 'wrap',
+            gap: 2,
+          }}
+        >
+          {[
+            { label: 'Scheduled', value: heroStats.total, color: '#0F172A' },
+            { label: 'Ready', value: heroStats.ready, color: '#10B981' },
+            { label: 'Drafts', value: heroStats.draft, color: '#F59E0B' },
+            { label: 'Upcoming events', value: heroStats.events, color: ACCENT_DARK },
+          ].map((s) => (
+            <Stack
+              key={s.label}
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: 'center' }}
+            >
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  bgcolor: s.color,
+                  flexShrink: 0,
+                  boxShadow: `0 0 0 3px ${alpha(s.color, 0.15)}`,
+                }}
+              />
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12.5 }}>
+                {s.label}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ fontWeight: 800, color: 'text.primary', fontSize: 13 }}
+              >
+                {s.value}
+              </Typography>
+            </Stack>
+          ))}
+        </Stack>
+      </Box>
 
       {/* Main content + sidebar row */}
       <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
@@ -2102,92 +2265,139 @@ export function ContentCalendarPage() {
           )}
 
           {/* Controls bar */}
-          <GlassCard sx={{ p: 2 }}>
+          <GlassCard sx={{ px: 2, py: 1.5 }}>
             <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={2}
-              sx={{ alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between' }}
+              direction={{ xs: 'column', md: 'row' }}
+              spacing={1.5}
+              sx={{
+                alignItems: { xs: 'stretch', md: 'center' },
+                justifyContent: 'space-between',
+              }}
             >
-              {/* Navigation */}
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-                <Tooltip title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
-                  <IconButton
-                    size="small"
-                    onClick={handlePrev}
-                    sx={{
-                      border: `1px solid ${alpha('#0F172A', 0.12)}`,
-                      borderRadius: '8px',
-                      color: 'text.secondary',
-                      '&:hover': { bgcolor: alpha(ACCENT, 0.08), color: ACCENT_DARK, borderColor: alpha(ACCENT, 0.3) },
-                    }}
-                  >
-                    <ArrowBackIosNewRoundedIcon sx={{ fontSize: 13 }} />
-                  </IconButton>
-                </Tooltip>
-
-                <Stack
-                  direction="row"
-                  spacing={0.75}
-                  sx={{
-                    alignItems: 'center',
-                    px: 1.5,
-                    py: 0.75,
-                    borderRadius: '8px',
-                    border: `1px solid ${alpha('#0F172A', 0.1)}`,
-                    bgcolor: (t) => alpha(t.palette.background.paper, 0.7),
-                    minWidth: { xs: 'auto', sm: 220 },
-                    justifyContent: 'center',
-                  }}
-                >
-                  <CalendarTodayRoundedIcon sx={{ fontSize: 12, color: 'text.disabled' }} />
-                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', whiteSpace: 'nowrap' }}>
-                    {navLabel}
-                  </Typography>
-                </Stack>
-
-                <Tooltip title={viewMode === 'week' ? 'Next week' : 'Next month'}>
-                  <IconButton
-                    size="small"
-                    onClick={handleNext}
-                    sx={{
-                      border: `1px solid ${alpha('#0F172A', 0.12)}`,
-                      borderRadius: '8px',
-                      color: 'text.secondary',
-                      '&:hover': { bgcolor: alpha(ACCENT, 0.08), color: ACCENT_DARK, borderColor: alpha(ACCENT, 0.3) },
-                    }}
-                  >
-                    <ArrowForwardIosRoundedIcon sx={{ fontSize: 13 }} />
-                  </IconButton>
-                </Tooltip>
-
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={handleToday}
-                  sx={{
-                    height: 34,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    px: 1.5,
-                    borderColor: alpha('#0F172A', 0.14),
-                    color: 'text.secondary',
-                    '&:hover': { borderColor: ACCENT, color: ACCENT_DARK, bgcolor: alpha(ACCENT, 0.06) },
-                  }}
-                >
-                  Today
-                </Button>
-              </Stack>
-
-              {/* Right controls: view toggle + channel selector */}
-              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                {/* View toggle */}
+              {/* Left cluster — date navigation */}
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}
+              >
+                {/* Prev / next paired group with shared border */}
                 <Stack
                   direction="row"
                   sx={{
                     border: `1px solid ${alpha('#0F172A', 0.1)}`,
                     borderRadius: '10px',
                     overflow: 'hidden',
-                    bgcolor: (t) => alpha(t.palette.background.paper, 0.6),
+                    bgcolor: 'background.paper',
+                    height: 38,
+                  }}
+                >
+                  <Tooltip title={viewMode === 'week' ? 'Previous week' : 'Previous month'}>
+                    <IconButton
+                      onClick={handlePrev}
+                      sx={{
+                        borderRadius: 0,
+                        width: 38,
+                        height: 38,
+                        color: 'text.secondary',
+                        '&:hover': {
+                          bgcolor: alpha(ACCENT, 0.08),
+                          color: ACCENT_DARK,
+                        },
+                      }}
+                    >
+                      <ArrowBackIosNewRoundedIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                  <Box
+                    sx={{
+                      width: 1,
+                      bgcolor: alpha('#0F172A', 0.08),
+                    }}
+                  />
+                  <Tooltip title={viewMode === 'week' ? 'Next week' : 'Next month'}>
+                    <IconButton
+                      onClick={handleNext}
+                      sx={{
+                        borderRadius: 0,
+                        width: 38,
+                        height: 38,
+                        color: 'text.secondary',
+                        '&:hover': {
+                          bgcolor: alpha(ACCENT, 0.08),
+                          color: ACCENT_DARK,
+                        },
+                      }}
+                    >
+                      <ArrowForwardIosRoundedIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+
+                {/* Date label */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 1.75,
+                    height: 38,
+                    minWidth: { xs: 'auto', sm: 220 },
+                    borderRadius: '10px',
+                    border: `1px solid ${alpha('#0F172A', 0.1)}`,
+                    bgcolor: 'background.paper',
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: 'text.primary',
+                      whiteSpace: 'nowrap',
+                      letterSpacing: -0.1,
+                    }}
+                  >
+                    {navLabel}
+                  </Typography>
+                </Box>
+
+                <Button
+                  variant="outlined"
+                  onClick={handleToday}
+                  sx={{
+                    height: 38,
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    px: 2,
+                    borderRadius: '10px',
+                    borderColor: alpha('#0F172A', 0.12),
+                    color: 'text.primary',
+                    bgcolor: 'background.paper',
+                    '&:hover': {
+                      borderColor: ACCENT,
+                      color: ACCENT_DARK,
+                      bgcolor: alpha(ACCENT, 0.06),
+                    },
+                  }}
+                >
+                  Today
+                </Button>
+              </Stack>
+
+              {/* Right cluster — view toggle + channel filter */}
+              <Stack
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1 }}
+              >
+                {/* View toggle — segmented */}
+                <Stack
+                  direction="row"
+                  sx={{
+                    height: 38,
+                    p: '3px',
+                    borderRadius: '10px',
+                    border: `1px solid ${alpha('#0F172A', 0.1)}`,
+                    bgcolor: alpha('#0F172A', 0.025),
                     flexShrink: 0,
                   }}
                 >
@@ -2200,24 +2410,32 @@ export function ContentCalendarPage() {
                         sx={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 0.625,
-                          px: 1.5,
-                          py: 0.875,
+                          gap: 0.75,
+                          px: 1.75,
+                          height: '100%',
+                          borderRadius: '7px',
                           cursor: 'pointer',
-                          transition: 'all 160ms ease',
-                          bgcolor: isActive ? ACCENT : 'transparent',
-                          '&:hover': { bgcolor: isActive ? ACCENT : alpha(ACCENT, 0.07) },
+                          transition:
+                            'background-color 180ms ease, color 180ms ease, box-shadow 180ms ease',
+                          bgcolor: isActive ? '#FFFFFF' : 'transparent',
+                          color: isActive ? ACCENT_DARK : 'text.secondary',
+                          boxShadow: isActive
+                            ? `0 1px 3px ${alpha('#0F172A', 0.08)}`
+                            : 'none',
+                          '&:hover': isActive
+                            ? {}
+                            : { color: 'text.primary' },
                         }}
                       >
-                        {mode === 'week'
-                          ? <CalendarViewWeekRoundedIcon sx={{ fontSize: 14, color: isActive ? '#fff' : 'text.disabled' }} />
-                          : <CalendarViewMonthRoundedIcon sx={{ fontSize: 14, color: isActive ? '#fff' : 'text.disabled' }} />
-                        }
+                        {mode === 'week' ? (
+                          <CalendarViewWeekRoundedIcon sx={{ fontSize: 15 }} />
+                        ) : (
+                          <CalendarViewMonthRoundedIcon sx={{ fontSize: 15 }} />
+                        )}
                         <Typography
                           sx={{
-                            fontSize: 12,
+                            fontSize: 12.5,
                             fontWeight: 700,
-                            color: isActive ? '#fff' : 'text.secondary',
                             lineHeight: 1,
                             textTransform: 'capitalize',
                           }}
@@ -2230,7 +2448,7 @@ export function ContentCalendarPage() {
                 </Stack>
 
                 {/* Channel selector */}
-                <FormControl size="small" sx={{ minWidth: 180 }}>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
                   <InputLabel id="cal-channel-lbl" sx={{ fontSize: 13 }}>
                     All channels
                   </InputLabel>
@@ -2240,7 +2458,18 @@ export function ContentCalendarPage() {
                     value={selectedChannelId}
                     onChange={(e) => setSelectedChannelId(e.target.value)}
                     disabled={channelsLoading}
-                    sx={{ fontSize: 13 }}
+                    sx={{
+                      fontSize: 13,
+                      height: 38,
+                      borderRadius: '10px',
+                      bgcolor: 'background.paper',
+                      '& fieldset': {
+                        borderColor: alpha('#0F172A', 0.12),
+                      },
+                      '&:hover fieldset': {
+                        borderColor: `${alpha(ACCENT, 0.5)} !important`,
+                      },
+                    }}
                   >
                     <MenuItem value=""><em>All channels</em></MenuItem>
                     {channels.map((ch) => (
@@ -2341,7 +2570,7 @@ export function ContentCalendarPage() {
         onClose={() => setAddEventOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: '16px' } }}
+        slotProps={{ paper: { sx: { borderRadius: '16px' } } }}
       >
         <DialogTitle sx={{ fontWeight: 700, fontSize: 16, pb: 1 }}>
           Add Custom Event
@@ -2355,7 +2584,7 @@ export function ContentCalendarPage() {
                 onChange={(e) => setAddEventForm((f) => ({ ...f, emoji: e.target.value }))}
                 sx={{ width: 80 }}
                 size="small"
-                inputProps={{ maxLength: 4 }}
+                slotProps={{ htmlInput: { maxLength: 4 } }}
               />
               <TextField
                 label="Event Name"
@@ -2376,7 +2605,7 @@ export function ContentCalendarPage() {
                 fullWidth
                 size="small"
                 required
-                InputLabelProps={{ shrink: true }}
+                slotProps={{ inputLabel: { shrink: true } }}
               />
               <TextField
                 label="End Date (optional)"
@@ -2385,7 +2614,7 @@ export function ContentCalendarPage() {
                 onChange={(e) => setAddEventForm((f) => ({ ...f, end_date: e.target.value }))}
                 fullWidth
                 size="small"
-                InputLabelProps={{ shrink: true }}
+                slotProps={{ inputLabel: { shrink: true } }}
               />
             </Stack>
             <TextField
@@ -2406,7 +2635,7 @@ export function ContentCalendarPage() {
                 onChange={(e) => setAddEventForm((f) => ({ ...f, color: e.target.value }))}
                 size="small"
                 sx={{ width: 100 }}
-                InputLabelProps={{ shrink: true }}
+                slotProps={{ inputLabel: { shrink: true } }}
               />
               <Typography variant="caption" color="text.secondary">
                 Color used to display this event on the calendar
