@@ -84,6 +84,31 @@ const POLL_MAX_ATTEMPTS = 24;    // 24 × 15s = 6 minutes max
 
 const MEDIA_TYPES = new Set(['image', 'video', 'reels', 'carousel', 'story']);
 
+function isHttpUrl(value) {
+  return typeof value === 'string' && /^https?:\/\//i.test(value);
+}
+
+function validateImageUserTags(tags) {
+  if (!Array.isArray(tags)) return;
+  for (const t of tags) {
+    if (!t || typeof t.username !== 'string') {
+      throw badRequest('user_tags entry requires a username', { tag: t });
+    }
+    if (typeof t.x !== 'number' || typeof t.y !== 'number' || t.x < 0 || t.x > 1 || t.y < 0 || t.y > 1) {
+      throw badRequest('user_tags on images require x and y in [0,1]', { tag: t });
+    }
+  }
+}
+
+function validateOptionalCoverFields(spec) {
+  if (spec.cover_url !== undefined && !isHttpUrl(spec.cover_url)) {
+    throw badRequest('cover_url must be an http(s) URL', { cover_url: spec.cover_url });
+  }
+  if (spec.thumb_offset_ms !== undefined && (typeof spec.thumb_offset_ms !== 'number' || spec.thumb_offset_ms < 0)) {
+    throw badRequest('thumb_offset_ms must be a non-negative number', { thumb_offset_ms: spec.thumb_offset_ms });
+  }
+}
+
 export class PublishingService {
   // -------------------------------------------------------------------------
   // Publish an approved creative bundle to Instagram
@@ -298,7 +323,89 @@ export class PublishingService {
     if (!MEDIA_TYPES.has(spec.type)) {
       throw badRequest(`Unknown MediaSpec type: ${spec.type}`, { allowed: [...MEDIA_TYPES] });
     }
-    // Per-type validation lands in subsequent tasks.
+
+    // Common: collaborators (≤3), partnership (sponsor_ig_user_ids ≤2)
+    if (spec.collaborators !== undefined) {
+      if (!Array.isArray(spec.collaborators) || spec.collaborators.length > 3) {
+        throw badRequest('collaborators must be an array of at most 3 usernames', {
+          collaborators: spec.collaborators,
+        });
+      }
+    }
+    if (spec.partnership) {
+      const ids = spec.partnership.sponsor_ig_user_ids;
+      if (ids !== undefined && (!Array.isArray(ids) || ids.length > 2)) {
+        throw badRequest('partnership.sponsor_ig_user_ids must be an array of at most 2', { ids });
+      }
+    }
+
+    switch (spec.type) {
+      case 'image':
+        this._validateImageSpec(spec);
+        break;
+      case 'video':
+        this._validateVideoSpec(spec);
+        break;
+      case 'reels':
+        this._validateReelsSpec(spec);
+        break;
+      case 'carousel':
+        this._validateCarouselSpec(spec);
+        break;
+      case 'story':
+        this._validateStorySpec(spec);
+        break;
+    }
+  }
+
+  _validateImageSpec(spec) {
+    if (!isHttpUrl(spec.image_url)) {
+      throw badRequest('image_url is required and must be an http(s) URL', { image_url: spec.image_url });
+    }
+    if (typeof spec.alt_text === 'string' && spec.alt_text.length > 1000) {
+      throw badRequest('alt_text exceeds 1000 characters', { length: spec.alt_text.length });
+    }
+    validateImageUserTags(spec.user_tags);
+  }
+
+  _validateVideoSpec(spec) {
+    if (!isHttpUrl(spec.video_url)) {
+      throw badRequest('video_url is required and must be an http(s) URL', { video_url: spec.video_url });
+    }
+    if (spec.share_to_feed !== undefined) {
+      throw badRequest('share_to_feed is reels-only; use type="reels"');
+    }
+    if (spec.audio_name !== undefined) {
+      throw badRequest('audio_name is reels-only; use type="reels"');
+    }
+    validateOptionalCoverFields(spec);
+  }
+
+  _validateReelsSpec(spec) {
+    if (!isHttpUrl(spec.video_url)) {
+      throw badRequest('video_url is required and must be an http(s) URL', { video_url: spec.video_url });
+    }
+    if (typeof spec.audio_name === 'string' && spec.audio_name.length > 30) {
+      throw badRequest('audio_name exceeds 30 characters', { length: spec.audio_name.length });
+    }
+    validateOptionalCoverFields(spec);
+  }
+
+  _validateStorySpec(spec) {
+    const hasImage = isHttpUrl(spec.image_url);
+    const hasVideo = isHttpUrl(spec.video_url);
+    if (hasImage === hasVideo) {
+      throw badRequest('story requires exactly one of image_url or video_url');
+    }
+    for (const forbidden of ['caption', 'hashtags', 'collaborators', 'partnership']) {
+      if (spec[forbidden] !== undefined) {
+        throw badRequest(`${forbidden} is not supported on stories`, { forbidden });
+      }
+    }
+  }
+
+  _validateCarouselSpec(spec) {
+    // see Task 6
   }
 
   _sleep(ms) {

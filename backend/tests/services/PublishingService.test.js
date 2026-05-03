@@ -110,3 +110,95 @@ describe('PublishingService._validateSpec', () => {
     expect(() => svc._validateSpec({ type: 'image', image_url: 'https://x/a.jpg' })).not.toThrow();
   });
 });
+
+describe('PublishingService._validateSpec — image', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('requires image_url', () => {
+    expect(() => svc._validateSpec({ type: 'image' })).toThrowError(/image_url/);
+  });
+  it('rejects oversize alt_text', () => {
+    expect(() => svc._validateSpec({
+      type: 'image', image_url: 'https://x/a.jpg', alt_text: 'a'.repeat(1001),
+    })).toThrowError(/alt_text/i);
+  });
+  it('requires x and y on user_tags for image', () => {
+    expect(() => svc._validateSpec({
+      type: 'image', image_url: 'https://x/a.jpg',
+      user_tags: [{ username: 'u' }],
+    })).toThrowError(/x.*y/i);
+  });
+  it('rejects collaborators > 3', () => {
+    expect(() => svc._validateSpec({
+      type: 'image', image_url: 'https://x/a.jpg',
+      collaborators: ['a', 'b', 'c', 'd'],
+    })).toThrowError(/collaborator/i);
+  });
+});
+
+describe('PublishingService._validateSpec — video', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('requires video_url', () => {
+    expect(() => svc._validateSpec({ type: 'video' })).toThrowError(/video_url/);
+  });
+  it('rejects reels-only fields', () => {
+    expect(() => svc._validateSpec({
+      type: 'video', video_url: 'https://x/v.mp4', share_to_feed: true,
+    })).toThrowError(/share_to_feed/);
+    expect(() => svc._validateSpec({
+      type: 'video', video_url: 'https://x/v.mp4', audio_name: 'song',
+    })).toThrowError(/audio_name/);
+  });
+});
+
+describe('PublishingService._validateSpec — reels', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('requires video_url', () => {
+    expect(() => svc._validateSpec({ type: 'reels' })).toThrowError(/video_url/);
+  });
+  it('accepts cover_url and thumb_offset_ms together', () => {
+    expect(() => svc._validateSpec({
+      type: 'reels', video_url: 'https://x/v.mp4',
+      cover_url: 'https://x/c.jpg', thumb_offset_ms: 1000,
+    })).not.toThrow();
+  });
+  it('rejects audio_name longer than 30 chars', () => {
+    expect(() => svc._validateSpec({
+      type: 'reels', video_url: 'https://x/v.mp4', audio_name: 'a'.repeat(31),
+    })).toThrowError(/audio_name/);
+  });
+});
+
+describe('PublishingService._validateSpec — story', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('requires exactly one of image_url or video_url', () => {
+    expect(() => svc._validateSpec({ type: 'story' })).toThrowError(/image_url.*video_url|video_url.*image_url/);
+    expect(() => svc._validateSpec({
+      type: 'story', image_url: 'https://x/a.jpg', video_url: 'https://x/v.mp4',
+    })).toThrowError(/exactly one/i);
+  });
+  it('rejects caption/hashtags/collaborators/partnership', () => {
+    expect(() => svc._validateSpec({
+      type: 'story', image_url: 'https://x/a.jpg', caption: 'hi',
+    })).toThrowError(/caption/);
+  });
+});
+
+describe('PublishingService._validateSpec — partnership', () => {
+  let svc;
+  beforeEach(() => { svc = new PublishingService(); });
+
+  it('rejects sponsor_ig_user_ids longer than 2', () => {
+    expect(() => svc._validateSpec({
+      type: 'image', image_url: 'https://x/a.jpg',
+      partnership: { is_paid_partnership: true, sponsor_ig_user_ids: ['1', '2', '3'] },
+    })).toThrowError(/sponsor/i);
+  });
+});
