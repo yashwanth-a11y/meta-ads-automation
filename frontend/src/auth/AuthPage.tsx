@@ -456,7 +456,7 @@ export function AuthPage() {
                   backgroundColor: '#22D3EE',
                   color: "#FFF",
                   boxShadow: `inset 0 0 0 1px ${alpha(auth.accentFrom, 0.55)}, 0 0 20px ${alpha(auth.accentFrom, 0.12)}`,
-                  '&:hover': { bgcolor: alpha(auth.accentFrom, 0.18) },
+                  '&:hover': { bgcolor: "#22D3EE" },
                 },
               }}
             >
@@ -475,7 +475,9 @@ export function AuthPage() {
                   backgroundColor: '#22D3EE',
                   color: "#FFF",
                   boxShadow: `inset 0 0 0 1px ${alpha(auth.accentFrom, 0.55)}, 0 0 20px ${alpha(auth.accentFrom, 0.12)}`,
-                  '&:hover': { bgcolor: alpha(auth.accentFrom, 0.18) },
+                  '&:hover': { 
+                    bgcolor: "#22D3EE"
+                  },
                 },
               }}
             >
@@ -544,6 +546,7 @@ export function AuthPage() {
                   component="button"
                   type="button"
                   underline="hover"
+                  onClick={() => navigate(paths.forgotPassword)}
                   sx={{ color: auth.accentTo, fontWeight: 600, fontSize: '0.875rem' }}
                 >
                   Forgot password?

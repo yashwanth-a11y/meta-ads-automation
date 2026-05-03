@@ -16,7 +16,6 @@ import {
   AnalyticsOutlined,
   AutoAwesome,
   CampaignOutlined,
-  ChecklistOutlined,
   DashboardOutlined,
   HubOutlined,
   LogoutOutlined,
@@ -36,7 +35,6 @@ const navItems = [
   { to: paths.dashboard, label: 'Dashboard', icon: DashboardOutlined },
   { to: paths.channels, label: 'Channels', icon: HubOutlined },
   { to: paths.trends, label: 'Trends', icon: TrendingUpOutlined },
-  { to: paths.approvals, label: 'Approvals', icon: ChecklistOutlined },
   { to: paths.creatives, label: 'Creatives', icon: VideoLibraryOutlined },
   { to: paths.ads, label: 'Ads', icon: CampaignOutlined },
   { to: paths.crm, label: 'CRM', icon: PeopleOutlined },
@@ -96,20 +94,20 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
         px: 1.5,
       }}
     >
-      <IconButton 
-        onClick={onToggleCollapse} 
+      <IconButton
+        onClick={onToggleCollapse}
         size="small"
-        sx={{ 
+        sx={{
           position: 'absolute',
           top: 24,
           right: -12,
           bgcolor: '#FFFFFF',
           border: `1px solid ${alpha('#0F172A', 0.08)}`,
-          color: '#475569', 
+          color: '#475569',
           zIndex: 10,
           width: 24,
           height: 24,
-          '&:hover': { bgcolor: '#F8FAFC' } 
+          '&:hover': { bgcolor: '#F8FAFC' }
         }}
       >
         {isCollapsed ? <KeyboardDoubleArrowRightIcon sx={{ fontSize: 16 }} /> : <KeyboardDoubleArrowLeftIcon sx={{ fontSize: 16 }} />}
@@ -119,14 +117,14 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
         {isCollapsed ? (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', animation: 'fadeIn 0.3s ease' }}>
             <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M16 0C16 8.83656 23.1634 16 32 16C23.1634 16 16 23.1634 16 32C16 23.1634 8.83656 16 0 16C8.83656 16 16 8.83656 16 0Z" fill="#22D3EE"/>
+              <path d="M16 0C16 8.83656 23.1634 16 32 16C23.1634 16 16 23.1634 16 32C16 23.1634 8.83656 16 0 16C8.83656 16 16 8.83656 16 0Z" fill="#22D3EE" />
             </svg>
           </Box>
         ) : (
-          <Box sx={{ 
-            overflow: 'hidden', 
-            whiteSpace: 'nowrap', 
-            width: '160px', 
+          <Box sx={{
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            width: '160px',
             animation: 'fadeIn 0.3s ease'
           }}>
             <img src={logo} alt="PhotonX" width="160px" />
@@ -143,16 +141,16 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
               end={to === paths.dashboard}
               onClick={onNavigate}
               sx={{
-                borderRadius: "8px",
+                borderRadius: "2px",
                 mb: 0.5,
                 py: 1.1,
-                fontSize:"14px !important",
+                fontSize: "14px !important",
                 px: isCollapsed ? 1 : 1.5,
                 justifyContent: isCollapsed ? 'center' : 'flex-start',
                 // color: '#475569', // Slate 600
                 transition: 'all 220ms ease',
-                '& .MuiListItemIcon-root': { 
-                  // color: '#475569', 
+                '& .MuiListItemIcon-root': {
+                  // color: '#475569',
                   minWidth: isCollapsed ? 0 : 40,
                   justifyContent: 'center',
                 },
@@ -164,6 +162,7 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
                 '&.active': {
                   color: '#0F172A',
                   bgcolor: alpha('#22D3EE', 0.15),
+                  borderLeft: '3px solid #22D3EE',
                   fontWeight: 700,
                   '& .MuiListItemIcon-root': { color: '#0EA5E9' }, // Cyan icon when active
                 },
@@ -192,8 +191,8 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
               justifyContent: isCollapsed ? 'center' : 'flex-start',
               color: '#475569',
               transition: 'all 220ms ease',
-              '& .MuiListItemIcon-root': { 
-                color: '#475569', 
+              '& .MuiListItemIcon-root': {
+                color: '#475569',
                 minWidth: isCollapsed ? 0 : 40,
                 justifyContent: 'center',
               },
@@ -219,9 +218,9 @@ export function Sidebar({ onNavigate, isCollapsed, onToggleCollapse }: SidebarPr
 
       <Divider sx={{ borderColor: alpha('#0F172A', 0.08), my: 1 }} />
 
-      <Stack 
-        direction={isCollapsed ? "column" : "row"} 
-        spacing={1.25} 
+      <Stack
+        direction={isCollapsed ? "column" : "row"}
+        spacing={1.25}
         sx={{ px: isCollapsed ? 0.5 : 1, pt: 1, alignItems: 'flex-start' }}
       >
         <Tooltip title={isCollapsed ? displayName : ''} placement="right" arrow disableHoverListener={!isCollapsed}>
