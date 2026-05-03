@@ -6,7 +6,7 @@ import { env } from '../config/env.js';
 
 // Instagram Content Publishing API — two-step: create container → publish
 // Docs: https://developers.facebook.com/docs/instagram-api/guides/content-publishing
-const IG_API_BASE = 'https://graph.facebook.com';
+const IG_API_BASE = `${env.META_API_BASE_URL}/${env.META_API_VERSION}`;
 const POLL_INTERVAL_MS = 15_000; // 15s between container status polls
 const POLL_MAX_ATTEMPTS = 24;    // 24 × 15s = 6 minutes max
 
