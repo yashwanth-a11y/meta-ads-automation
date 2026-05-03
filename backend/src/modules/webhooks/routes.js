@@ -24,4 +24,9 @@ export default async function routes(app) {
   app.post('/email', async () => {
     throw notImplemented('webhooks.email.event');
   });
+
+  // WhatsApp Webhooks
+  const { handleWhatsAppGet, handleWhatsAppPost } = await import('../../services/whatsapp/webhook.js');
+  app.get('/whatsapp', handleWhatsAppGet);
+  app.post('/whatsapp', handleWhatsAppPost);
 }

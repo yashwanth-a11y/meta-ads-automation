@@ -64,13 +64,20 @@ type UploadedAsset = InstagramUpload & {
   // Object URL of the *local* file used as the preview thumbnail. Object
   // URLs (blob:) load instantly without waiting for our public-uploads
   // route to round-trip through ngrok or the prod CDN.
+  // For AI-generated assets, this is the same as the public `url` (since
+  // there's no local File to make a blob from).
   previewUrl: string
   fileName: string
+  // When set, this asset came from the AI microservice (not our upload
+  // service). On publish we send the URL via cleanup_ai_urls so the
+  // microservice can delete its own S3 object.
+  aiUrl?: string
 }
 
 type ComposerStatus =
   | { kind: 'idle' }
   | { kind: 'uploading'; loaded: number; total: number; fileName: string }
+  | { kind: 'generating' }
   | { kind: 'publishing' }
   | { kind: 'success'; mediaId: string; postType: InstagramPostType }
   | { kind: 'error'; message: string }
@@ -304,11 +311,19 @@ function MediaPreview({
   )
 }
 
+// Post types that the AI image microservice can fulfill. Reels are video-
+// only and the microservice generates still JPEGs; we hide the AI button
+// on the Reel tab.
+const AI_SUPPORTED_TYPES: InstagramPostType[] = ['image', 'carousel', 'story']
+
 export function InstagramComposer({ open, account, onClose, onPublished, onError }: Props) {
   const [postType, setPostType] = useState<InstagramPostType>('image')
   const [caption, setCaption] = useState('')
   const [assets, setAssets] = useState<UploadedAsset[]>([])
   const [status, setStatus] = useState<ComposerStatus>({ kind: 'idle' })
+  // AI generation panel state.
+  const [aiPanelOpen, setAiPanelOpen] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const tab = useMemo(() => TAB_DEFS.find((t) => t.value === postType)!, [postType])
@@ -318,14 +333,22 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
   const tooManyTags = hashtags.length > MAX_HASHTAGS
   const isUploading = status.kind === 'uploading'
   const isPublishing = status.kind === 'publishing'
-  const isBusy = isUploading || isPublishing
+  const isGenerating = status.kind === 'generating'
+  const isBusy = isUploading || isPublishing || isGenerating
+  const aiSupportedHere = AI_SUPPORTED_TYPES.includes(postType)
 
   const reset = useCallback(() => {
-    for (const a of assets) URL.revokeObjectURL(a.previewUrl)
+    // Only revoke blob: previewUrls — AI-generated assets reuse the public
+    // URL as their preview, and revoking that breaks the <img> tag.
+    for (const a of assets) {
+      if (a.previewUrl.startsWith('blob:')) URL.revokeObjectURL(a.previewUrl)
+    }
     setAssets([])
     setCaption('')
     setStatus({ kind: 'idle' })
     setPostType('image')
+    setAiPanelOpen(false)
+    setAiPrompt('')
   }, [assets])
 
   const handleClose = useCallback(() => {
@@ -340,10 +363,13 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
       // Switching post type discards uploaded assets — different types have
       // different validation rules, and silently keeping the wrong-shape
       // upload around would just confuse the user.
-      for (const a of assets) URL.revokeObjectURL(a.previewUrl)
+      for (const a of assets) {
+        if (a.previewUrl.startsWith('blob:')) URL.revokeObjectURL(a.previewUrl)
+      }
       setAssets([])
       setStatus({ kind: 'idle' })
       setPostType(next)
+      setAiPanelOpen(false)
     },
     [assets, postType],
   )
@@ -438,10 +464,76 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
     setAssets((prev) => {
       const next = [...prev]
       const [removed] = next.splice(index, 1)
-      if (removed) URL.revokeObjectURL(removed.previewUrl)
+      if (removed && removed.previewUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(removed.previewUrl)
+      }
       return next
     })
   }, [])
+
+  const handleGenerate = useCallback(async () => {
+    if (!account) return
+    if (!aiSupportedHere) {
+      onError('AI generation is available for Post, Carousel, and Story.')
+      return
+    }
+    const prompt = aiPrompt.trim()
+    if (prompt.length < 5) {
+      onError('Describe what you want — at least a few words.')
+      return
+    }
+    if (postType !== 'carousel' && assets.length > 0) {
+      onError('You already have a post asset. Remove it first or switch to Carousel for multiple slides.')
+      return
+    }
+    if (postType === 'carousel' && assets.length >= MAX_CAROUSEL) {
+      onError(`Carousels can hold at most ${MAX_CAROUSEL} items.`)
+      return
+    }
+
+    setStatus({ kind: 'generating' })
+    try {
+      const result = await instagramApi.generateAiPost(account.id, {
+        prompt,
+        post_type: postType as 'image' | 'carousel' | 'story',
+      })
+      // Add the generated image as an asset. previewUrl reuses the public
+      // microservice URL — works as an <img src> directly. storedPath stays
+      // empty because we didn't go through our upload service; cleanup uses
+      // aiUrl instead.
+      const newAsset: UploadedAsset = {
+        url: result.image_url,
+        storedPath: '',
+        kind: 'image',
+        mimeType: result.mime_type || 'image/jpeg',
+        size: 0,
+        backend: 's3',
+        previewUrl: result.image_url,
+        fileName: 'ai-generated.jpg',
+        aiUrl: result.ai_microservice_url,
+      }
+      setAssets((prev) => [...prev, newAsset])
+
+      // Prefill caption + hashtags only if the user hasn't already written
+      // something — otherwise we'd clobber their draft. Stories return an
+      // empty caption from the backend.
+      if (postType !== 'story') {
+        const hashtagBlock = result.hashtags.length
+          ? '\n\n' + result.hashtags.map((t) => `#${t}`).join(' ')
+          : ''
+        const next = `${result.caption}${hashtagBlock}`.trim()
+        setCaption((prev) => (prev.trim().length === 0 ? next : prev))
+      }
+
+      setStatus({ kind: 'idle' })
+      setAiPanelOpen(false)
+      setAiPrompt('')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'AI generation failed'
+      setStatus({ kind: 'error', message })
+      onError(message)
+    }
+  }, [account, aiPrompt, aiSupportedHere, assets.length, onError, postType])
 
   const canPublish = useMemo(() => {
     if (!account || isBusy || captionTooLong || tooManyTags) return false
@@ -504,10 +596,23 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
     if (!account || !canPublish) return
     const spec = buildSpec()
     if (!spec) return
-    const cleanupPaths = assets.map((a) => a.storedPath)
+    // Split cleanup by storage origin: regular uploads go to our S3/local via
+    // the upload service; AI-generated images live in the microservice's S3
+    // and need its /reject endpoint instead.
+    const cleanupPaths = assets
+      .filter((a) => !a.aiUrl && a.storedPath)
+      .map((a) => a.storedPath)
+    const cleanupAiUrls = assets
+      .filter((a) => !!a.aiUrl)
+      .map((a) => a.aiUrl as string)
     setStatus({ kind: 'publishing' })
     try {
-      const result = await instagramApi.publishMedia(account.id, spec, cleanupPaths)
+      const result = await instagramApi.publishMedia(
+        account.id,
+        spec,
+        cleanupPaths,
+        cleanupAiUrls,
+      )
       setStatus({ kind: 'success', mediaId: result.media_id, postType })
       onPublished({ type: postType, mediaId: result.media_id })
       // Auto-close after success so the parent can reflect new media in the
@@ -618,9 +723,127 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
       </Tabs>
 
       <DialogContent sx={{ pt: 2.5 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
-          {tab.helper}
-        </Typography>
+        <Stack
+          direction="row"
+          sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5, gap: 1 }}
+        >
+          <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
+            {tab.helper}
+          </Typography>
+          {aiSupportedHere ? (
+            <Button
+              size="small"
+              startIcon={<AutoAwesome sx={{ fontSize: 16 }} />}
+              onClick={() => setAiPanelOpen((v) => !v)}
+              disabled={isBusy}
+              sx={{
+                textTransform: 'none',
+                fontWeight: 700,
+                fontSize: 12,
+                px: 1.25,
+                py: 0.25,
+                background: aiPanelOpen ? IG_GRADIENT : 'transparent',
+                color: aiPanelOpen ? 'white' : 'text.primary',
+                border: aiPanelOpen ? 'none' : '1px solid',
+                borderColor: 'divider',
+                '&:hover': {
+                  background: aiPanelOpen ? IG_GRADIENT : 'grey.50',
+                  filter: aiPanelOpen ? 'brightness(1.05)' : undefined,
+                },
+              }}
+            >
+              {aiPanelOpen ? 'Hide AI' : 'Generate with AI'}
+            </Button>
+          ) : null}
+        </Stack>
+
+        {aiPanelOpen && aiSupportedHere ? (
+          <Box
+            sx={{
+              mb: 2,
+              p: 1.75,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              background:
+                'linear-gradient(135deg, rgba(240,148,51,0.05), rgba(220,39,67,0.05) 50%, rgba(188,24,136,0.05))',
+            }}
+          >
+            <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mb: 0.75 }}>
+              <AutoAwesome sx={{ fontSize: 14, color: '#dc2743' }} />
+              <Typography
+                variant="caption"
+                sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6 }}
+              >
+                Describe the post
+              </Typography>
+            </Stack>
+            <TextField
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder={
+                postType === 'story'
+                  ? 'e.g. minimal vertical announcement for our new espresso blend, warm tones'
+                  : postType === 'carousel'
+                  ? 'e.g. one slide showing our new espresso blend on a marble counter'
+                  : 'e.g. cozy coffee shop morning, soft natural light, our espresso cup on a marble counter'
+              }
+              multiline
+              minRows={2}
+              maxRows={5}
+              fullWidth
+              size="small"
+              disabled={isGenerating}
+              slotProps={{ input: { sx: { fontSize: 13, lineHeight: 1.5 } } }}
+            />
+            <Stack
+              direction="row"
+              sx={{ alignItems: 'center', justifyContent: 'space-between', mt: 1 }}
+            >
+              <Typography variant="caption" color="text.secondary">
+                {postType === 'story'
+                  ? '9:16 vertical · JPEG'
+                  : '1:1 square · JPEG · caption + hashtags included'}
+              </Typography>
+              <Button
+                size="small"
+                variant="contained"
+                onClick={handleGenerate}
+                disabled={isBusy || aiPrompt.trim().length < 5}
+                startIcon={
+                  isGenerating ? (
+                    <CircularProgress size={12} color="inherit" />
+                  ) : (
+                    <AutoAwesome sx={{ fontSize: 14 }} />
+                  )
+                }
+                sx={{
+                  textTransform: 'none',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  background: IG_GRADIENT,
+                  color: 'white',
+                  '&:hover': { background: IG_GRADIENT, filter: 'brightness(1.05)' },
+                  '&.Mui-disabled': {
+                    background: 'rgba(0,0,0,0.12)',
+                    color: 'rgba(0,0,0,0.38)',
+                  },
+                }}
+              >
+                {isGenerating ? 'Generating…' : 'Generate'}
+              </Button>
+            </Stack>
+            {isGenerating ? (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ display: 'block', mt: 1, fontStyle: 'italic' }}
+              >
+                Composing your post — this usually takes 30-60 seconds.
+              </Typography>
+            ) : null}
+          </Box>
+        ) : null}
 
         {assets.length === 0 ? (
           <Box
@@ -668,7 +891,7 @@ export function InstagramComposer({ open, account, onClose, onPublished, onError
           >
             {assets.map((a, i) => (
               <MediaPreview
-                key={`${a.storedPath}-${i}`}
+                key={`${a.aiUrl || a.storedPath || a.url}-${i}`}
                 asset={a}
                 onRemove={() => removeAsset(i)}
               />

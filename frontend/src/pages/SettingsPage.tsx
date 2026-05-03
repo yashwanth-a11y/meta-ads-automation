@@ -7,6 +7,7 @@ import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined
 import HubOutlinedIcon from '@mui/icons-material/HubOutlined'
 import { GlassCard } from '../components/ui/GlassCard'
 import { GeneralSection } from '../components/settings/GeneralSection'
+import { ProfileSection } from '../components/settings/ProfileSection'
 import { NotificationsSection } from '../components/settings/NotificationsSection'
 import { IntegrationsSection } from '../components/settings/IntegrationsSection'
 

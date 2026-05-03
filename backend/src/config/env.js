@@ -50,6 +50,11 @@ const schema = z.object({
   FACEBOOK_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   META_CAPI_TEST_CODE: z.string().optional(),
 
+  // WhatsApp
+  WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
+  WHATSAPP_TOKEN: z.string().optional(),
+  WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+
   // Instagram Business Login (separate flow from Ads OAuth)
   INSTAGRAM_APP_ID: z.string().optional(),
   INSTAGRAM_APP_SECRET: z.string().optional(),
