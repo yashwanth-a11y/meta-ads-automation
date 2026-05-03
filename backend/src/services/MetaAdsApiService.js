@@ -263,6 +263,58 @@ export class MetaAdsApiService {
   }
 
   /**
+   * Generic account-level insights fetch with full pagination.
+   *
+   * Use for /analytics — passes through `level`, `breakdowns`, `time_increment`,
+   * `time_range`/`date_preset`, `fields`, `filtering`, `sort`, `limit`. Returns
+   * `{ data: [...] }` with all pages merged.
+   *
+   * Throws the standard `{code, message, ...}` shape from `_request` on failure
+   * (callers should wrap calls in `Promise.allSettled` when partial failures
+   * are acceptable).
+   */
+  async getAccountInsights(adAccountId, params = {}) {
+    const baseParams = {
+      level: params.level || "account",
+      fields:
+        params.fields ||
+        "spend,impressions,reach,clicks,unique_clicks,ctr,cpc,cpm,frequency,actions",
+      limit: params.limit || 500,
+    };
+    if (params.breakdowns) baseParams.breakdowns = params.breakdowns;
+    if (params.time_increment) baseParams.time_increment = params.time_increment;
+    if (params.filtering) {
+      baseParams.filtering =
+        typeof params.filtering === "string"
+          ? params.filtering
+          : JSON.stringify(params.filtering);
+    }
+    if (params.sort) baseParams.sort = params.sort;
+    if (params.time_range) {
+      baseParams.time_range =
+        typeof params.time_range === "string"
+          ? params.time_range
+          : JSON.stringify(params.time_range);
+    } else if (params.date_preset) {
+      baseParams.date_preset = params.date_preset;
+    }
+
+    const allRows = [];
+    let endpoint = `/act_${adAccountId}/insights`;
+    let nextParams = baseParams;
+    let guard = 0;
+    while (guard++ < 20) {
+      const resp = await this._request("GET", endpoint, nextParams);
+      if (Array.isArray(resp?.data)) allRows.push(...resp.data);
+      const next = resp?.paging?.next;
+      if (!next) break;
+      endpoint = next.replace(this.baseUrl, "");
+      nextParams = {};
+    }
+    return { data: allRows };
+  }
+
+  /**
    * Fetch ad-level insights sliced to Instagram only.
    * Uses publisher_platform breakdown + server-side filtering so the response
    * contains exactly one row per ad (Instagram slice). Returns all rows across

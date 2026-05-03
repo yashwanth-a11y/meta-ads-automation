@@ -2982,6 +2982,47 @@ Provide a concise, actionable answer. If recommending changes, be specific about
     return { ad, account: { ad_account_id: account.ad_account_id, page_id: account.page_id, page_name: account.page_name } };
   }
 
+  // === ALL ADS UNDER A CAMPAIGN ===
+  // Single Meta call (vs. campaign→adsets→ads which is N+1) so the /ads UI
+  // can drill from a campaign card straight into its ads list. The embedded
+  // `insights.date_preset(...)` lets us colocate per-ad metrics in the same
+  // response — Meta computes them server-side from the supplied preset.
+  async getMetaCampaignAds(organizationId, metaCampaignId, params = {}) {
+    const account = await this.metaAdAccountRepo.findActiveByOrganizationId(organizationId);
+    if (!account) throw { code: 400, message: "No ad account connected" };
+
+    const metaApi = this._getMetaApi(account.access_token_encrypted);
+
+    const allowedPresets = new Set([
+      "today", "yesterday",
+      "last_3d", "last_7d", "last_14d", "last_28d", "last_30d", "last_90d",
+      "this_month", "last_month",
+      "this_quarter", "last_quarter",
+      "this_year", "last_year",
+      "maximum",
+    ]);
+    const preset = allowedPresets.has(String(params.date_preset))
+      ? params.date_preset
+      : "last_28d";
+
+    const insightsBlock = `insights.date_preset(${preset}){spend,impressions,reach,clicks,unique_clicks,ctr,cpc,cpm,frequency,actions,cost_per_action_type,quality_ranking,engagement_rate_ranking,conversion_rate_ranking}`;
+
+    const resp = await metaApi._request("GET", `/${metaCampaignId}/ads`, {
+      fields: `id,name,status,effective_status,created_time,updated_time,adset_id,creative{id,name,thumbnail_url,image_url,instagram_permalink_url,effective_instagram_media_id,effective_object_story_id,object_story_spec},${insightsBlock}`,
+      limit: 200,
+    });
+
+    return {
+      ads: resp.data || [],
+      paging: resp.paging || null,
+      date_preset: preset,
+      account: {
+        ad_account_id: account.ad_account_id,
+        currency: account.currency,
+      },
+    };
+  }
+
   // === BUSINESS & FUNDING ===
 
   async getBusinesses(organizationId) {

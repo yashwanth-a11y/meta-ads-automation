@@ -8,6 +8,7 @@ import { CtwaInsightsRepository } from '../Repositories/CtwaInsightsRepository.j
 import { UserRepository } from '../Repositories/UserRepository.js';
 import { PasswordResetTokenRepository } from '../Repositories/PasswordResetTokenRepository.js';
 import { AdsService } from '../services/AdsService.js';
+import { AnalyticsService } from '../services/AnalyticsService.js';
 import { AuthService } from '../services/AuthService.js';
 import { AdsController } from '../Controllers/AdsController.js';
 import { CreativeService } from '../services/CreativeService.js';
@@ -56,6 +57,15 @@ async function plugin(app) {
   const adsController = new AdsController(adsService, app.log);
   const creativeService = new CreativeService({ logger: app.log });
 
+  // Live-fetch analytics service (no DB cache). Reuses the metaAdAccountRepo
+  // for token + account lookup, and the CTWA conversation repo to layer
+  // referral-source breakdowns alongside Meta-fetched metrics.
+  const analyticsService = new AnalyticsService({
+    metaAdAccountRepository,
+    ctwaConversationRepository,
+    logger: app.log,
+  });
+
   // Instagram Business Login pipeline (separate from Ads OAuth).
   const instagramAccountRepository = new InstagramAccountRepository(db);
   const instagramApiService = new InstagramApiService({ logger: app.log });
@@ -74,6 +84,7 @@ async function plugin(app) {
   app.decorate('authService', authService);
   app.decorate('adsService', adsService);
   app.decorate('adsController', adsController);
+  app.decorate('analyticsService', analyticsService);
   app.decorate('creativeService', creativeService);
   app.decorate('instagramAccountRepository', instagramAccountRepository);
   app.decorate('instagramOAuthController', instagramOAuthController);

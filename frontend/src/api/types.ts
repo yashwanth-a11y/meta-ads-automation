@@ -388,6 +388,102 @@ export type ImageUploadResult = {
   height?: number
 }
 
+// --- Meta-side ad detail (live-fetched from Marketing API) ---
+// Returned by `/ads/meta-ads/:meta_ad_id` and `/ads/meta-campaigns/:id/ads`.
+// `insights` is Meta's wrapped paged shape — typically a single row when
+// `date_preset(...)` is embedded in the ad fields query.
+
+export type MetaActionStat = { action_type: string; value: string | number }
+
+export type MetaInsightsRow = {
+  date_start?: string
+  date_stop?: string
+  spend?: string
+  impressions?: string
+  reach?: string
+  clicks?: string
+  unique_clicks?: string
+  ctr?: string
+  cpc?: string
+  cpm?: string
+  cpp?: string
+  frequency?: string
+  actions?: MetaActionStat[]
+  cost_per_action_type?: MetaActionStat[]
+  quality_ranking?: string
+  engagement_rate_ranking?: string
+  conversion_rate_ranking?: string
+}
+
+export type MetaInsightsEnvelope = {
+  data: MetaInsightsRow[]
+  paging?: { cursors?: { before?: string; after?: string } }
+}
+
+export type MetaCreative = {
+  id?: string
+  name?: string
+  thumbnail_url?: string | null
+  image_url?: string | null
+  instagram_permalink_url?: string | null
+  effective_instagram_media_id?: string | null
+  effective_object_story_id?: string | null
+  object_story_spec?: unknown
+}
+
+export type MetaAd = {
+  id: string
+  name: string
+  status?: string
+  effective_status?: string
+  created_time?: string
+  updated_time?: string
+  adset_id?: string
+  creative?: MetaCreative
+  insights?: MetaInsightsEnvelope
+}
+
+export type MetaCampaignAdsResponse = {
+  ads: MetaAd[]
+  paging?: { cursors?: { before?: string; after?: string } } | null
+  date_preset: string
+  account: {
+    ad_account_id: string
+    currency?: string | null
+  }
+}
+
+export type MetaCampaignDetailResponse = {
+  campaign: {
+    id?: string
+    name?: string
+    objective?: string
+    status?: string
+    daily_budget?: string
+    lifetime_budget?: string
+    insights?: MetaInsightsEnvelope
+    [k: string]: unknown
+  }
+  adsets: Array<{
+    id?: string
+    name?: string
+    status?: string
+    daily_budget?: string
+    lifetime_budget?: string
+    insights?: MetaInsightsEnvelope
+    [k: string]: unknown
+  }>
+  account: { ad_account_id: string; page_id?: string | null; page_name?: string | null }
+}
+
+export type MetaAdDetailResponse = {
+  ad: MetaAd & {
+    adset?: Record<string, unknown>
+    campaign?: Record<string, unknown>
+  }
+  account: { ad_account_id: string; page_id?: string | null; page_name?: string | null }
+}
+
 // --- Generic API envelope ---
 
 export type ApiSuccess<T> = { success: true; data: T; warning?: string; message?: string }
