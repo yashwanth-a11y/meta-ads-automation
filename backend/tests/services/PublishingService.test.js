@@ -414,3 +414,45 @@ describe('PublishingService.publishMedia — reels', () => {
     expect(axios.post.mock.calls[0][2].params.share_to_feed).toBe('true');
   });
 });
+
+describe('PublishingService.publishMedia — story', () => {
+  let svc;
+  const channel = { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER' };
+  beforeEach(() => {
+    svc = new PublishingService();
+    vi.spyOn(svc, '_getPageToken').mockResolvedValue('TOK');
+    vi.spyOn(svc, '_sleep').mockResolvedValue();
+  });
+
+  it('image story sends media_type=STORIES + image_url', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    await svc.publishMedia(channel, { type: 'story', image_url: 'https://x/a.jpg' });
+    const params = axios.post.mock.calls[0][2].params;
+    expect(params).toMatchObject({
+      media_type: 'STORIES',
+      image_url: 'https://x/a.jpg',
+      access_token: 'TOK',
+    });
+    expect(params.video_url).toBeUndefined();
+  });
+
+  it('video story sends media_type=STORIES + video_url', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'CON' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get.mockResolvedValue({ data: { status_code: 'FINISHED' } });
+
+    await svc.publishMedia(channel, { type: 'story', video_url: 'https://x/v.mp4' });
+    const params = axios.post.mock.calls[0][2].params;
+    expect(params).toMatchObject({
+      media_type: 'STORIES',
+      video_url: 'https://x/v.mp4',
+      access_token: 'TOK',
+    });
+    expect(params.image_url).toBeUndefined();
+  });
+});
