@@ -33,7 +33,7 @@ export function AIAssistantFab() {
           position: 'fixed',
           right: { xs: 16, md: 28 },
           bottom: { xs: 16, md: 28 },
-          zIndex: (t) => t.zIndex.modal - 1,
+          zIndex: 1,
           boxShadow: `0 12px 40px ${alpha('#000000', 0.55)}, 0 0 0 1px ${alpha('#FFFFFF', 0.12)}`,
         }}
       >

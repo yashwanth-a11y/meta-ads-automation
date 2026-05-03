@@ -6,7 +6,9 @@ import {
   Chip,
   CircularProgress,
   Dialog,
+  DialogActions,
   DialogContent,
+  DialogContentText,
   DialogTitle,
   Divider,
   FormControl,
@@ -26,6 +28,8 @@ import {
 import { alpha } from '@mui/material/styles'
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -95,11 +99,16 @@ interface ChannelCardProps {
 }
 
 function ChannelCard({ channel, selected, onClick, onEdit, onDelete }: ChannelCardProps) {
+  const isActive = channel.status === 'active'
+  const monogram = (channel.brand_name?.trim()?.charAt(0) || '?').toUpperCase()
+  const blockedCount = channel.blocked_topics?.length ?? 0
+  const hasFooter = !!channel.tone || !!channel.target_audience || blockedCount > 0
+
   return (
     <GlassCard
       onClick={onClick}
       sx={{
-        p: 2,
+        p: 2.25,
         cursor: 'pointer',
         borderColor: selected ? alpha('#22D3EE', 0.55) : undefined,
         boxShadow: selected
@@ -110,108 +119,237 @@ function ChannelCard({ channel, selected, onClick, onEdit, onDelete }: ChannelCa
         },
       }}
     >
-      {/* Row 1: brand name + status + actions */}
-      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
-          <Typography
-            variant="subtitle1"
-            sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-          >
-            {channel.brand_name}
-          </Typography>
-          <Chip
-            label={channel.status}
-            size="small"
-            sx={{
-              height: 20,
-              fontSize: '10px',
-              fontWeight: 700,
-              borderRadius: '6px',
-              flexShrink: 0,
-              bgcolor:
-                channel.status === 'active' ? alpha('#34D399', 0.14) : alpha('#94A3B8', 0.14),
-              color: channel.status === 'active' ? '#059669' : '#64748B',
-              border: `1px solid ${channel.status === 'active' ? alpha('#34D399', 0.35) : alpha('#94A3B8', 0.25)}`,
-            }}
-          />
-        </Stack>
-        <Stack direction="row" spacing={0.25} sx={{ ml: 1, flexShrink: 0 }}>
-          <Tooltip title="Edit channel">
-            <IconButton
-              size="small"
-              onClick={(e) => { e.stopPropagation(); onEdit() }}
-              sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main', bgcolor: alpha('#22D3EE', 0.08) } }}
-            >
-              <EditOutlinedIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete channel">
-            <IconButton
-              size="small"
-              onClick={(e) => { e.stopPropagation(); onDelete() }}
-              sx={{ color: 'text.disabled', '&:hover': { color: 'error.main', bgcolor: alpha('#F87171', 0.08) } }}
-            >
-              <DeleteOutlineIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Tooltip>
-        </Stack>
-      </Stack>
-
-      {/* Row 2: channel name */}
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 1, lineHeight: 1.4 }}>
-        {channel.name}
-      </Typography>
-
-      {/* Row 3: niche + industry tags */}
-      {(channel.niche || channel.industry) && (
-        <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', mb: 1 }}>
-          {channel.niche && (
-            <Chip
-              label={channel.niche}
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: '10px',
-                fontWeight: 600,
-                borderRadius: '6px',
-                bgcolor: alpha('#22D3EE', 0.08),
-                color: '#0EA5B7',
-                border: `1px solid ${alpha('#22D3EE', 0.2)}`,
-              }}
-            />
-          )}
-          {channel.industry && (
-            <Chip
-              label={channel.industry}
-              size="small"
-              sx={{
-                height: 20,
-                fontSize: '10px',
-                fontWeight: 600,
-                borderRadius: '6px',
-                bgcolor: alpha('#64748B', 0.08),
-                color: '#64748B',
-                border: `1px solid ${alpha('#64748B', 0.2)}`,
-              }}
-            />
-          )}
-        </Stack>
-      )}
-
-      {/* Row 4: tone */}
-      {channel.tone && (
-        <Typography
-          variant="caption"
+      <Stack direction="row" spacing={1.75} sx={{ alignItems: 'flex-start' }}>
+        {/* Monogram avatar */}
+        {/* <Box
           sx={{
-            color: 'text.disabled',
-            fontStyle: 'italic',
-            display: 'block',
-            lineHeight: 1.4,
+            flexShrink: 0,
+            width: 44,
+            height: 44,
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: `linear-gradient(135deg, ${alpha('#22D3EE', 0.2)} 0%, ${alpha('#0EA5B7', 0.1)} 100%)`,
+            border: `1px solid ${alpha('#22D3EE', 0.25)}`,
+            color: '#0EA5B7',
+            fontWeight: 800,
+            fontSize: 18,
+            letterSpacing: 0.5,
+            userSelect: 'none',
           }}
         >
-          {channel.tone}
-        </Typography>
-      )}
+          {monogram}
+        </Box> */}
+
+        <Stack sx={{ flex: 1, minWidth: 0 }} spacing={1.25}>
+          {/* Header row: eyebrow + brand name + status, with action icons on the right */}
+          <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Stack sx={{ minWidth: 0, flex: 1, gap: 0.75 }}>
+              <Typography
+                sx={{
+                  color: 'text.disabled',
+                  fontWeight: 500,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  fontSize: 10,
+                  lineHeight: 1.2,
+                  mb: 0.25,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {channel.name}
+              </Typography>
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    color: 'text.primary',
+                    lineHeight: 1.25,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {channel.brand_name}
+                </Typography>
+                <Stack
+                  direction="row"
+                  spacing={0.625}
+                  sx={{
+                    alignItems: 'center',
+                    flexShrink: 0,
+                    px: 0.875,
+                    py: 0.25,
+                    borderRadius: '4px',
+                    bgcolor: isActive ? alpha('#34D399', 0.12) : alpha('#94A3B8', 0.12),
+                    border: `1px solid ${isActive ? alpha('#34D399', 0.3) : alpha('#94A3B8', 0.22)}`,
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: isActive ? '#059669' : '#64748B',
+                      textTransform: 'capitalize',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {channel.status}
+                  </Typography>
+                </Stack>
+              </Stack>
+            </Stack>
+
+            <Stack direction="row" spacing={0.5} sx={{ ml: 1, flexShrink: 0, mt: -0.25 }}>
+              <Tooltip title="Edit channel">
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); onEdit() }}
+                  sx={{ 
+                    color: 'primary.main', 
+                    bgcolor: alpha('#22D3EE', 0.08),
+                    borderRadius: '4px',
+                    }}
+                >
+                  <EditOutlinedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Delete channel">
+                <IconButton
+                  size="small"
+                  onClick={(e) => { e.stopPropagation(); onDelete() }}
+                  sx={{ 
+                    color: 'error.main', 
+                    bgcolor: alpha('#F87171', 0.08) ,
+                    borderRadius: '4px',
+                     }}
+                >
+                  <DeleteOutlineIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          </Stack>
+
+          {/* Brand description */}
+          {channel.brand_description && (
+            <Typography
+              variant="body1"
+              sx={{
+                color: 'text.secondary',
+                lineHeight: 1.5,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {channel.brand_description}
+            </Typography>
+          )}
+
+          {/* Tags row */}
+          {(channel.niche || channel.industry || channel.language) && (
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+              {channel.niche && (
+                <Chip
+                  label={channel.niche}
+                  size="small"
+                  sx={{
+                    height: 22,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    bgcolor: alpha('#22D3EE', 0.08),
+                    color: '#0EA5B7',
+                    border: `1px solid ${alpha('#22D3EE', 0.2)}`,
+                  }}
+                />
+              )}
+              {channel.industry && (
+                <Chip
+                  label={channel.industry}
+                  size="small"
+                  sx={{
+                    height: 22,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    borderRadius: '6px',
+                    bgcolor: alpha('#64748B', 0.08),
+                    color: '#475569',
+                    border: `1px solid ${alpha('#64748B', 0.2)}`,
+                  }}
+                />
+              )}
+              {channel.language && (
+                <Chip
+                  label={channel.language.toUpperCase()}
+                  size="small"
+                  sx={{
+                    height: 22,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    borderRadius: '6px',
+                    bgcolor: alpha('#A78BFA', 0.08),
+                    color: '#7C3AED',
+                    border: `1px solid ${alpha('#A78BFA', 0.22)}`,
+                    letterSpacing: '0.04em',
+                  }}
+                />
+              )}
+            </Stack>
+          )}
+
+          {/* Footer metadata */}
+          {hasFooter && (
+            <Stack
+              direction="row"
+              sx={{
+                pt: 1,
+                mt: 0.25,
+                borderTop: `1px dashed ${alpha('#94A3B8', 0.22)}`,
+                flexWrap: 'wrap',
+                rowGap: 0.5,
+                columnGap: 2,
+                alignItems: 'center',
+              }}
+            >
+              {channel.tone && (
+                <Stack direction="row" spacing={0.625} sx={{ alignItems: 'center', minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 9, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Tone : 
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {channel.tone}
+                  </Typography>
+                </Stack>
+              )}
+              {channel.target_audience && (
+                <Stack direction="row" spacing={0.625} sx={{ alignItems: 'center', minWidth: 0, maxWidth: '100%' }}>
+                  <Typography sx={{ fontSize: 9, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Audience : 
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {channel.target_audience}
+                  </Typography>
+                </Stack>
+              )}
+              {blockedCount > 0 && (
+                <Stack direction="row" spacing={0.625} sx={{ alignItems: 'center' }}>
+                  <Typography sx={{ fontSize: 9, fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Blocked
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', fontWeight: 500 }}>
+                    {blockedCount} topic{blockedCount === 1 ? '' : 's'}
+                  </Typography>
+                </Stack>
+              )}
+            </Stack>
+          )}
+        </Stack>
+      </Stack>
     </GlassCard>
   )
 }
@@ -251,13 +389,18 @@ export function ChannelsPage() {
 
   // ── Mode helpers ───────────────────────────────────────────────────────────
 
-  const openCreate = () => {
+  const resetToCreateMode = () => {
     setMode('create')
     setEditChannel(null)
     setMutationError(null)
     setBlockedTopics([])
     setTopicInput('')
     reset(defaultValues)
+  }
+
+  const openCreate = () => {
+    resetToCreateMode()
+    setDialogOpen(true)
   }
 
   const openEdit = (channel: Channel) => {
@@ -276,6 +419,7 @@ export function ChannelsPage() {
       target_audience: channel.target_audience ?? '',
       language: channel.language,
     })
+    setDialogOpen(true)
   }
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -296,6 +440,41 @@ export function ChannelsPage() {
       setMutationError(err.message || 'Failed to create channel. Please try again.')
     },
   })
+
+  const { mutate: updateChannel, isPending: isUpdating } = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof trendsApi.updateChannel>[1] & { blocked_topics?: string[] } }) =>
+      trendsApi.updateChannel(id, data),
+    onSuccess: (updated) => {
+      client.invalidateQueries({ queryKey: qk.channels })
+      setSnackMsg(`Channel "${updated.brand_name}" updated.`)
+      setSnackOpen(true)
+      setMutationError(null)
+      setEditChannel(updated)
+    },
+    onError: (err: Error) => {
+      setMutationError(err.message || 'Failed to update channel.')
+    },
+  })
+
+  const { mutate: deleteChannel, isPending: isDeleting } = useMutation({
+    mutationFn: (id: string) => trendsApi.deleteChannel(id),
+    onSuccess: () => {
+      const deletedId = deleteTarget?.id
+      client.invalidateQueries({ queryKey: qk.channels })
+      setSnackMsg('Channel deleted.')
+      setSnackOpen(true)
+      setDeleteTarget(null)
+      if (editChannel?.id === deletedId) {
+        resetToCreateMode()
+      }
+    },
+    onError: (err: Error) => {
+      setMutationError(err.message || 'Failed to delete channel.')
+      setDeleteTarget(null)
+    },
+  })
+
+  const isPending = isCreating || isUpdating
 
   const handleCloseDialog = () => {
     if (isPending) return
@@ -344,7 +523,7 @@ export function ChannelsPage() {
             variant="contained"
             color="primary"
             startIcon={<AddRoundedIcon />}
-            onClick={() => setDialogOpen(true)}
+            onClick={openCreate}
             sx={{ minWidth: 180, height: 44 }}
           >
             Create channel
@@ -673,6 +852,40 @@ export function ChannelsPage() {
             </Box>
           </DialogContent>
         </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() => !isDeleting && setDeleteTarget(null)}
+        slotProps={{
+          paper: { sx: { borderRadius: '12px', minWidth: 360 } },
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 700 }}>Delete channel?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently delete <strong>{deleteTarget?.brand_name}</strong>. This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            onClick={() => setDeleteTarget(null)}
+            disabled={isDeleting}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => deleteTarget && deleteChannel(deleteTarget.id)}
+            disabled={isDeleting}
+            startIcon={isDeleting ? <CircularProgress size={14} sx={{ color: 'inherit' }} /> : undefined}
+          >
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Success snackbar */}
       <Snackbar

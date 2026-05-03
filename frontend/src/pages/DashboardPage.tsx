@@ -50,7 +50,6 @@ const stripData = [
   { label: 'Spend efficiency', value: '82%', progress: 82, trend: '+4.2%' },
   { label: 'Creative velocity', value: '19/day', progress: 68, trend: '+11.0%' },
   { label: 'Reply SLA', value: '6m', progress: 91, trend: '+2.1%' },
-  { label: 'Reply SLA', value: '6m', progress: 91, trend: '+2.1%' },
 ]
 
 export function DashboardPage() {
