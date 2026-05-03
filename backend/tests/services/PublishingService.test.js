@@ -456,3 +456,54 @@ describe('PublishingService.publishMedia — story', () => {
     expect(params.image_url).toBeUndefined();
   });
 });
+
+describe('PublishingService.publishMedia — carousel', () => {
+  let svc;
+  const channel = { id: 'ch1', organization_id: 'org1', instagram_account_id: 'IG_USER' };
+  beforeEach(() => {
+    svc = new PublishingService();
+    vi.spyOn(svc, '_getPageToken').mockResolvedValue('TOK');
+    vi.spyOn(svc, '_sleep').mockResolvedValue();
+  });
+
+  it('creates each child, polls each, then creates parent and publishes', async () => {
+    axios.post
+      .mockResolvedValueOnce({ data: { id: 'C1' } })
+      .mockResolvedValueOnce({ data: { id: 'C2' } })
+      .mockResolvedValueOnce({ data: { id: 'PAR' } })
+      .mockResolvedValueOnce({ data: { id: 'MED' } });
+    axios.get
+      .mockResolvedValueOnce({ data: { status_code: 'FINISHED' } })
+      .mockResolvedValueOnce({ data: { status_code: 'FINISHED' } })
+      .mockResolvedValueOnce({ data: { status_code: 'FINISHED' } });
+
+    const out = await svc.publishMedia(channel, {
+      type: 'carousel',
+      caption: 'multi',
+      children: [
+        { kind: 'image', image_url: 'https://x/a.jpg' },
+        { kind: 'video', video_url: 'https://x/v.mp4' },
+      ],
+    });
+
+    expect(out).toEqual({ containerId: 'PAR', mediaId: 'MED' });
+
+    expect(axios.post.mock.calls[0][2].params).toMatchObject({
+      image_url: 'https://x/a.jpg',
+      is_carousel_item: 'true',
+      access_token: 'TOK',
+    });
+    expect(axios.post.mock.calls[1][2].params).toMatchObject({
+      media_type: 'VIDEO',
+      video_url: 'https://x/v.mp4',
+      is_carousel_item: 'true',
+      access_token: 'TOK',
+    });
+    expect(axios.post.mock.calls[2][2].params).toMatchObject({
+      media_type: 'CAROUSEL',
+      children: 'C1,C2',
+      caption: 'multi',
+      access_token: 'TOK',
+    });
+  });
+});

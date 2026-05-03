@@ -137,7 +137,9 @@ export class PublishingService {
       case 'story':
         containerId = await this._createStoryContainer({ spec, igUserId, token });
         break;
-      // other branches added in Task 12
+      case 'carousel':
+        containerId = await this._createCarouselContainer({ spec, igUserId, token });
+        break;
       default:
         throw badRequest(`publishMedia does not yet handle type=${spec.type}`);
     }
@@ -290,6 +292,54 @@ export class PublishingService {
     });
     if (!data?.id) throw new Error(`IG container creation failed: ${JSON.stringify(data)}`);
     console.log(`[Publishing] Reels container created: ${data.id}`);
+    return data.id;
+  }
+
+  async _createCarouselContainer({ spec, igUserId, token }) {
+    const childIds = [];
+    for (const child of spec.children) {
+      const childId = await this._createCarouselChildContainer({ child, igUserId, token });
+      childIds.push(childId);
+    }
+
+    for (const childId of childIds) {
+      await this._waitForContainer({ igUserId, token, containerId: childId });
+    }
+
+    const params = {
+      ...this._buildCommonParams(spec),
+      media_type: 'CAROUSEL',
+      children: childIds.join(','),
+      access_token: token,
+    };
+    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+      params, timeout: 30_000,
+    });
+    if (!data?.id) throw new Error(`IG carousel parent creation failed: ${JSON.stringify(data)}`);
+    console.log(`[Publishing] Carousel parent container created: ${data.id} (children: ${childIds.join(',')})`);
+    return data.id;
+  }
+
+  async _createCarouselChildContainer({ child, igUserId, token }) {
+    const params = { is_carousel_item: 'true', access_token: token };
+    if (child.kind === 'image') {
+      params.image_url = child.image_url;
+      if (Array.isArray(child.user_tags) && child.user_tags.length) {
+        params.user_tags = JSON.stringify(child.user_tags);
+      }
+      if (child.alt_text) params.alt_text = child.alt_text;
+    } else {
+      params.media_type = 'VIDEO';
+      params.video_url = child.video_url;
+      if (Array.isArray(child.user_tags) && child.user_tags.length) {
+        params.user_tags = JSON.stringify(child.user_tags);
+      }
+    }
+    const { data } = await axios.post(`${IG_API_BASE}/${igUserId}/media`, null, {
+      params, timeout: 30_000,
+    });
+    if (!data?.id) throw new Error(`IG carousel child creation failed: ${JSON.stringify(data)}`);
+    console.log(`[Publishing] Carousel child created: ${data.id}`);
     return data.id;
   }
 
