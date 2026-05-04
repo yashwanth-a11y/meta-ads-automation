@@ -47,9 +47,9 @@ export async function getChannelConfig({ channel_name } = {}, orgId) {
       tone: channels.tone,
       posting_schedule: channels.posting_schedule,
       brand_assets: channels.brand_assets,
-      audience_profile: channels.audience_profile,
+      target_audience: channels.target_audience,
       trend_sources: channels.trend_sources,
-      content_guidelines: channels.content_guidelines,
+      brand_description: channels.brand_description,
     })
     .from(channels)
     .where(eq(channels.organization_id, orgId));
@@ -77,7 +77,7 @@ export async function getChannelConfig({ channel_name } = {}, orgId) {
     { label: 'Posting Schedule', value: target.posting_schedule ?? '3x / week' },
     { label: 'Trend Sources', value: [src.google_news !== false ? 'Google News ✓' : null, src.reddit !== false ? 'Reddit ✓' : null, src.twitter !== false ? 'Twitter ✓' : null, src.website !== false ? 'Website ✓' : null].filter(Boolean).join(' · ') || 'None' },
     ...(assets.logo_url ? [{ label: 'Brand Logo', value: assets.logo_url.length > 60 ? assets.logo_url.slice(0, 57) + '…' : assets.logo_url }] : []),
-    { label: 'Content Guidelines', value: target.content_guidelines ? (target.content_guidelines.length > 100 ? target.content_guidelines.slice(0, 97) + '…' : target.content_guidelines) : '—' },
+    { label: 'Brand Description', value: target.brand_description ? (target.brand_description.length > 100 ? target.brand_description.slice(0, 97) + '…' : target.brand_description) : '—' },
   ];
 
   return { raw: filtered, eventType: 'stat', payload: statItems };

@@ -5,6 +5,7 @@ import { resolveOpenAIConfig, streamStoryboardScriptFromBrief } from '../../serv
 import { scriptGeneratorService } from '../../services/ScriptGeneratorService.js';
 import { generateImages } from '../../services/ImageGenerationService.js';
 import { channelService } from '../../services/ChannelService.js';
+import { notificationService } from '../../services/NotificationService.js';
 
 function requireTenant(request) {
   const org = request.tenantId ?? request.user?.organization_id;
@@ -351,48 +352,58 @@ export default async function routes(app) {
    */
   app.post('/generate-image', async (request, reply) => {
     const orgId = requireTenant(request);
-    const { channel_id, trend_id, prompt, brand_override } = request.body ?? {};
+    const { channel_id, trend_id, prompt } = request.body ?? {};
 
     if (!channel_id) throw badRequest('channel_id is required');
 
     const channel = await channelService.get(orgId, channel_id);
-    const brandAssets = { ...(channel.brand_assets ?? {}), ...(brand_override ?? {}) };
 
-    if (prompt) {
-      // Direct image generation from a custom prompt
-      const urls = await generateImages(
-        [prompt],
-        brandAssets,
-        { niche: channel.niche, tone: channel.tone, brand_name: channel.brand_name },
-        { size: '1024x1792', quality: 'hd' },
-      );
-      return reply.code(200).send({ image_urls: urls });
-    }
-
-    // Generate full image bundle (requires a trend)
-    const trend = trend_id ? { id: trend_id, title: trend_id } : { id: null, title: 'general' };
+    // Always generate a full bundle (saves to DB with caption + hashtags)
+    const trend = {
+      id: trend_id ?? null,
+      title: trend_id ?? (prompt ? prompt.slice(0, 80) : 'general'),
+      brand_fit: prompt ? { adaptation_idea: prompt } : undefined,
+    };
     const bundle = await scriptGeneratorService.generateImageBundle(channel, trend);
+    notificationService.notify(orgId, {
+      type: 'creative_generated',
+      content_type: 'image_post',
+      bundle_id: bundle.id,
+      title: 'Image Post ready',
+      message: bundle.hook ?? bundle.caption?.slice(0, 80) ?? 'Your image post has been generated.',
+    });
     return reply.code(201).send({ bundle });
   });
 
   /**
    * Generate a carousel bundle for a channel + trend.
    * POST /api/v1/creatives/generate-carousel
-   * Body: { channel_id, trend_id?, slide_count? }
+   * Body: { channel_id, trend_id?, slide_count?, prompt? }
    */
   app.post('/generate-carousel', async (request, reply) => {
     const orgId = requireTenant(request);
-    const { channel_id, trend_id, slide_count } = request.body ?? {};
+    const { channel_id, trend_id, slide_count, prompt } = request.body ?? {};
 
     if (!channel_id) throw badRequest('channel_id is required');
 
     const channel = await channelService.get(orgId, channel_id);
-    const trend = trend_id ? { id: trend_id, title: trend_id } : { id: null, title: 'general' };
+    const trend = {
+      id: trend_id ?? null,
+      title: trend_id ?? 'general',
+      brand_fit: prompt ? { adaptation_idea: prompt } : undefined,
+    };
     const bundle = await scriptGeneratorService.generateCarouselBundle(
       channel,
       trend,
       slide_count ?? 5,
     );
+    notificationService.notify(orgId, {
+      type: 'creative_generated',
+      content_type: 'carousel',
+      bundle_id: bundle.id,
+      title: 'Carousel ready',
+      message: bundle.hook ?? bundle.caption?.slice(0, 80) ?? 'Your carousel has been generated.',
+    });
     return reply.code(201).send({ bundle });
   });
 

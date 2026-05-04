@@ -5,6 +5,40 @@ import { creativeBundles } from '../db/schema.js';
 import { generateImages } from './ImageGenerationService.js';
 import { generateJSON } from './agent/llmClient.js';
 import { PROMPTS } from './agent/prompts.js';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { env } from '../config/env.js';
+
+// Re-host a temporary image URL (e.g. expiring OpenAI/DALL-E signed URL) to S3
+// as a permanent public object. Returns the original url on any failure.
+async function rehost(organizationId, temporaryUrl) {
+  try {
+    const bucket = env.AWS_S3_BUCKET;
+    const region = env.AWS_REGION || 'us-east-1';
+    if (!env.USE_S3 || !bucket) return temporaryUrl;
+
+    const res = await fetch(temporaryUrl);
+    if (!res.ok) return temporaryUrl;
+
+    const contentType = res.headers.get('content-type') || 'image/png';
+    const buf = Buffer.from(await res.arrayBuffer());
+    const id = Math.random().toString(36).slice(2);
+    const ext = contentType.includes('png') ? 'png' : 'jpg';
+    const key = `generated-creatives/${organizationId}/${id}.${ext}`;
+
+    const s3 = new S3Client({ region });
+    await s3.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buf,
+      ContentType: contentType,
+      CacheControl: 'public, max-age=31536000',
+    }));
+
+    return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+  } catch {
+    return temporaryUrl;
+  }
+}
 
 export class ScriptGeneratorService {
   async generateBundle(channel, trend) {
@@ -151,15 +185,16 @@ Script: ${bundle.script}`,
       label: 'gen_image_bundle',
     });
 
-    // Generate the actual image using the AI prompt
+    // Generate the actual image using the AI prompt, then rehost to S3
     let imageUrls = [];
     try {
-      imageUrls = await generateImages(
+      const raw = await generateImages(
         [bundle.image_prompt],
         brandAssets,
         { niche: channel.niche, tone: channel.tone, brand_name: channel.brand_name },
         { size: '1024x1792', quality: 'hd' },
       );
+      imageUrls = await Promise.all(raw.map((u) => rehost(channel.organization_id, u)));
     } catch (err) {
       console.error('[ScriptGenerator] Image generation failed, saving bundle without image:', err.message);
     }
@@ -215,15 +250,16 @@ Script: ${bundle.script}`,
     const slides = (bundle.slides ?? []).slice(0, count);
     const imagePrompts = slides.map((s) => s.image_prompt);
 
-    // Generate all carousel images
+    // Generate all carousel images and rehost to S3
     let imageUrls = [];
     try {
-      imageUrls = await generateImages(
+      const raw = await generateImages(
         imagePrompts,
         brandAssets,
         { niche: channel.niche, tone: channel.tone, brand_name: channel.brand_name },
         { size: '1024x1024', quality: 'standard' },
       );
+      imageUrls = await Promise.all(raw.map((u) => rehost(channel.organization_id, u)));
     } catch (err) {
       console.error('[ScriptGenerator] Carousel image generation failed:', err.message);
     }

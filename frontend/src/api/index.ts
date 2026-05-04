@@ -25,6 +25,8 @@ export type {
 export { approvalsApi } from './approvals'
 export type { Approval, ApprovalStage, ApprovalBundle } from './approvals'
 export { queryClient, qk } from './queryClient'
+export { creativesApi } from './creatives'
+export type { MediaBundle } from './creatives'
 export { streamChat, listConversations, getConversationMessages, deleteConversation } from './genui'
 export type { ChatMessage, MessagePart, AdDraft, ChartPayload, StatItem, ActionPayload, Conversation, StoredMessage } from './genui'
 export type * from './types'

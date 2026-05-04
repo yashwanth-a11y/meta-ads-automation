@@ -5,7 +5,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export type NotificationType = 'pipeline_done' | 'pipeline_failed'
+export type NotificationType = 'pipeline_done' | 'pipeline_failed' | 'creative_generated'
 
 export type AppNotification = {
   id: string
@@ -19,6 +19,11 @@ export type AppNotification = {
   scored?: number
   // pipeline_failed
   error?: string
+  // creative_generated
+  bundle_id?: string
+  content_type?: string
+  title?: string
+  message?: string
 }
 
 type NotificationsContextValue = {

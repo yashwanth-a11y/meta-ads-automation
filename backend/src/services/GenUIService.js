@@ -544,6 +544,12 @@ export class GenUIService {
           actionType: 'add_lead_note',
           payload: { leadId: input.lead_id, note: input.note },
         };
+      case 'sync_meta_leads':
+        return {
+          label: 'Sync leads from Meta Lead Ads',
+          actionType: 'sync_meta_leads',
+          payload: {},
+        };
       // Audience presets
       case 'create_audience_preset':
         return {

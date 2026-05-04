@@ -25,6 +25,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded'
 import NotificationsNoneRoundedIcon from '@mui/icons-material/NotificationsNoneRounded'
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineRounded'
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineRounded'
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import DoneAllIcon from '@mui/icons-material/DoneAllRounded'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineRounded'
 import { useNotifications, type AppNotification } from '../../context/NotificationsContext'
@@ -32,15 +33,20 @@ import { useNotifications, type AppNotification } from '../../context/Notificati
 // ── Single notification row ───────────────────────────────────────────────────
 
 function NotificationRow({ n, onRead }: { n: AppNotification; onRead: (id: string) => void }) {
+  const isCreative = n.type === 'creative_generated'
   const isDone = n.type === 'pipeline_done'
 
-  const title = isDone
-    ? 'Pipeline complete'
-    : 'Pipeline failed'
+  const title = isCreative
+    ? (n.title ?? 'Creative ready')
+    : isDone
+      ? 'Pipeline complete'
+      : 'Pipeline failed'
 
-  const body = isDone
-    ? `${n.scored ?? 0} trend${n.scored !== 1 ? 's' : ''} scored · ${n.classified ?? 0} classified · ${n.ingested ?? 0} ingested`
-    : n.error ?? 'An error occurred'
+  const body = isCreative
+    ? (n.message ?? 'Your content has been generated.')
+    : isDone
+      ? `${n.scored ?? 0} trend${n.scored !== 1 ? 's' : ''} scored · ${n.classified ?? 0} classified · ${n.ingested ?? 0} ingested`
+      : n.error ?? 'An error occurred'
 
   const timeAgo = (() => {
     const diff = Date.now() - new Date(n.timestamp).getTime()
@@ -58,16 +64,18 @@ function NotificationRow({ n, onRead }: { n: AppNotification; onRead: (id: strin
         py: 1.5,
         cursor: 'pointer',
         bgcolor: n.read ? 'transparent' : alpha('#22D3EE', 0.04),
-        borderLeft: `3px solid ${n.read ? 'transparent' : (isDone ? '#22D3EE' : '#F87171')}`,
+        borderLeft: `3px solid ${n.read ? 'transparent' : (isCreative ? '#A78BFA' : isDone ? '#22D3EE' : '#F87171')}`,
         '&:hover': { bgcolor: alpha('#0F172A', 0.03) },
         transition: 'background 0.15s',
       }}
     >
       <Stack direction="row" spacing={1.5} alignItems="flex-start">
         <Box sx={{ mt: '2px', flexShrink: 0 }}>
-          {isDone
-            ? <CheckCircleOutlineIcon sx={{ fontSize: 18, color: '#22D3EE' }} />
-            : <ErrorOutlineIcon sx={{ fontSize: 18, color: '#F87171' }} />
+          {isCreative
+            ? <AutoAwesomeRoundedIcon sx={{ fontSize: 18, color: '#A78BFA' }} />
+            : isDone
+              ? <CheckCircleOutlineIcon sx={{ fontSize: 18, color: '#22D3EE' }} />
+              : <ErrorOutlineIcon sx={{ fontSize: 18, color: '#F87171' }} />
           }
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>

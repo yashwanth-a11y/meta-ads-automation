@@ -5,18 +5,14 @@ import { desc, eq, and, gte, ilike, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { metaAdLeads } from '../../db/schema.js';
 
-export async function leadFunnelBreakdown({ days = 30 } = {}, orgId) {
-  const since = new Date(Date.now() - Number(days) * 86400_000);
+export async function leadFunnelBreakdown({ days } = {}, orgId) {
+  const conditions = [eq(metaAdLeads.organization_id, orgId)];
+  if (days) conditions.push(gte(metaAdLeads.created_time, new Date(Date.now() - Number(days) * 86400_000)));
 
   const total = await db
     .select({ count: sql`count(*)`.mapWith(Number) })
     .from(metaAdLeads)
-    .where(
-      and(
-        eq(metaAdLeads.organization_id, orgId),
-        gte(metaAdLeads.created_time, since),
-      ),
-    );
+    .where(and(...conditions));
 
   const totalCount = total[0]?.count ?? 0;
 
@@ -41,8 +37,11 @@ export async function leadFunnelBreakdown({ days = 30 } = {}, orgId) {
   };
 }
 
-export async function getLeadList({ limit = 10, days = 30, campaign_name } = {}, orgId) {
-  const since = new Date(Date.now() - Number(days) * 86400_000);
+export async function getLeadList({ limit = 10, days, campaign_name } = {}, orgId) {
+  // Build conditions — only apply date filter when explicitly requested
+  const conditions = [eq(metaAdLeads.organization_id, orgId)];
+  if (days) conditions.push(gte(metaAdLeads.created_time, new Date(Date.now() - Number(days) * 86400_000)));
+  if (campaign_name) conditions.push(ilike(metaAdLeads.campaign_name, `%${campaign_name}%`));
 
   const rows = await db
     .select({
@@ -53,15 +52,7 @@ export async function getLeadList({ limit = 10, days = 30, campaign_name } = {},
       created_time: metaAdLeads.created_time,
     })
     .from(metaAdLeads)
-    .where(
-      campaign_name
-        ? and(
-            eq(metaAdLeads.organization_id, orgId),
-            gte(metaAdLeads.created_time, since),
-            ilike(metaAdLeads.campaign_name, `%${campaign_name}%`),
-          )
-        : and(eq(metaAdLeads.organization_id, orgId), gte(metaAdLeads.created_time, since)),
-    )
+    .where(and(...conditions))
     .orderBy(desc(metaAdLeads.created_time))
     .limit(Math.min(Number(limit) || 10, 25));
 
@@ -69,7 +60,11 @@ export async function getLeadList({ limit = 10, days = 30, campaign_name } = {},
     return {
       raw: [],
       eventType: 'stat',
-      payload: [{ label: 'Leads', value: '0', delta: `No leads found in the last ${days} days` }],
+      payload: [{
+        label: 'No Meta leads found',
+        value: '0',
+        delta: 'Meta leads come from Lead Ads forms. If you have leads, try "sync leads from Meta" to import them into the CRM.',
+      }],
     };
   }
 

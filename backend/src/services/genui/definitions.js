@@ -29,6 +29,7 @@ export const MUTATING_TOOLS = new Set([
   // CRM
   'move_lead_stage',
   'add_lead_note',
+  'sync_meta_leads',
   // Audience
   'create_audience_preset',
 ]);
@@ -89,6 +90,7 @@ export const TOOL_LABELS = {
   get_crm_leads:             'Fetching CRM leads…',
   move_lead_stage:           'Preparing stage move…',
   add_lead_note:             'Preparing note…',
+  sync_meta_leads:           'Preparing Meta lead sync…',
   // Caption generation
   generate_caption:          'Writing caption…',
   // CTWA
@@ -731,6 +733,14 @@ export const TOOL_DEFINITIONS = [
           note: { type: 'string', description: 'Note text to log.' },
         },
       },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'sync_meta_leads',
+      description: 'Surface a button to import leads from Meta Lead Ad forms into the CRM. Does NOT sync immediately — the user must confirm. Use when the user says "sync leads from Meta", "import Meta leads", "my leads aren\'t showing up", or "bring in leads from Facebook".',
+      parameters: { type: 'object', properties: {} },
     },
   },
   // ── Caption & content generation ────────────────────────────────────────────

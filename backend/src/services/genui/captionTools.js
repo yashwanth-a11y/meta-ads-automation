@@ -16,7 +16,7 @@ export async function generateCaption({ topic, channel_name, tone, platform = 'i
   let brandContext = {};
   try {
     const allChannels = await db
-      .select({ brand_name: channels.brand_name, niche: channels.niche, tone: channels.tone, brand_description: channels.brand_description, audience_profile: channels.audience_profile, content_guidelines: channels.content_guidelines })
+      .select({ brand_name: channels.brand_name, niche: channels.niche, tone: channels.tone, brand_description: channels.brand_description, target_audience: channels.target_audience, blocked_topics: channels.blocked_topics })
       .from(channels)
       .where(eq(channels.organization_id, orgId))
       .limit(10);
@@ -34,14 +34,18 @@ export async function generateCaption({ topic, channel_name, tone, platform = 'i
   const effectiveTone = tone ?? brandContext.tone ?? 'engaging and professional';
   const brandName = brandContext.brand_name ?? 'the brand';
   const niche = brandContext.niche ?? '';
-  const guidelines = brandContext.content_guidelines ?? '';
-  const audienceStr = brandContext.audience_profile ? JSON.stringify(brandContext.audience_profile).slice(0, 200) : '';
+  const guidelines = brandContext.brand_description ?? '';
+  const audienceStr = brandContext.target_audience ? brandContext.target_audience.slice(0, 200) : '';
+  const blockedTopics = Array.isArray(brandContext.blocked_topics) && brandContext.blocked_topics.length
+    ? `Avoid topics: ${brandContext.blocked_topics.join(', ')}`
+    : '';
 
   const systemPrompt = `You are a social media copywriter for ${brandName}${niche ? ` (${niche})` : ''}.
 Tone: ${effectiveTone}
 Platform: ${platform}
-${guidelines ? `Brand guidelines: ${guidelines}` : ''}
+${guidelines ? `Brand description: ${guidelines}` : ''}
 ${audienceStr ? `Target audience: ${audienceStr}` : ''}
+${blockedTopics}
 
 Write an Instagram caption for the given topic. Return a JSON object with:
 {

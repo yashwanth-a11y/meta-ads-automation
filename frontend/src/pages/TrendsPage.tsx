@@ -18,6 +18,7 @@ import {
   Skeleton,
   Snackbar,
   Stack,
+  TextField,
   Tooltip,
   Typography,
 } from '@mui/material'
@@ -26,10 +27,16 @@ import AutorenewIcon from '@mui/icons-material/Autorenew'
 import CloseIcon from '@mui/icons-material/Close'
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import BoltIcon from '@mui/icons-material/Bolt'
+import ImageRoundedIcon from '@mui/icons-material/ImageRounded'
+import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarousel'
+import MovieRoundedIcon from '@mui/icons-material/MovieRounded'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { GlassCard } from '../components/ui/GlassCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { trendsApi } from '../api/trends'
+import { creativesApi } from '../api/creatives'
+import type { MediaBundle } from '../api/creatives'
 import { qk } from '../api/queryClient'
 import type { CreativeBundle, QualityScores, TrendWithScore } from '../api/trends'
 import type { AppNotification } from '../context/NotificationsContext'
@@ -106,12 +113,57 @@ function QScoreChip({ label, value, large = false }: { label: string; value: num
 
 interface BundleDrawerProps {
   bundle: CreativeBundle | null
+  channelId: string
+  trendId: string
   open: boolean
   onClose: () => void
 }
 
-function BundleDrawer({ bundle, open, onClose }: BundleDrawerProps) {
+function BundleDrawer({ bundle, channelId, trendId, open, onClose }: BundleDrawerProps) {
   const qs: QualityScores | null = bundle?.quality_scores ?? null
+
+  const [generated, setGenerated] = useState<{
+    type: 'image_post' | 'carousel'
+    urls: string[]
+    bundleId: string
+  } | null>(null)
+
+  // Prompt step state
+  const [genMode, setGenMode] = useState<'image_post' | 'carousel' | null>(null)
+  const [promptText, setPromptText] = useState('')
+
+  useEffect(() => {
+    if (!open) { setGenerated(null); setGenMode(null); setPromptText('') }
+  }, [open])
+
+  const handleClickType = (mode: 'image_post' | 'carousel') => {
+    setGenMode(mode)
+    // Pre-fill with the bundle hook as a starting suggestion
+    setPromptText(bundle?.hook ?? '')
+    setGenerated(null)
+  }
+
+  const { mutateAsync: genImage, isPending: generatingImage, error: imageError, reset: resetImage } = useMutation({
+    mutationFn: (prompt: string) => creativesApi.generateImage(channelId, trendId || undefined, prompt || undefined),
+    onSuccess: ({ bundle: b }: { bundle: MediaBundle }) =>
+      setGenerated({ type: 'image_post', urls: b.image_urls ?? [], bundleId: b.id }),
+  })
+
+  const { mutateAsync: genCarousel, isPending: generatingCarousel, error: carouselError, reset: resetCarousel } = useMutation({
+    mutationFn: (prompt: string) => creativesApi.generateCarousel(channelId, trendId || undefined, 5, prompt || undefined),
+    onSuccess: ({ bundle: b }: { bundle: MediaBundle }) =>
+      setGenerated({ type: 'carousel', urls: b.image_urls ?? [], bundleId: b.id }),
+  })
+
+  const handleConfirmGenerate = async () => {
+    const p = promptText.trim()
+    if (genMode === 'image_post') await genImage(p)
+    else if (genMode === 'carousel') await genCarousel(p)
+    setGenMode(null)
+  }
+
+  const isGenerating = generatingImage || generatingCarousel
+  const genError = (imageError ?? carouselError) as Error | null
 
   return (
     <Drawer
@@ -355,20 +407,165 @@ function BundleDrawer({ bundle, open, onClose }: BundleDrawerProps) {
         </Stack>
           </Box>
 
+          {/* Generation error */}
+          {genError && !isGenerating && (
+            <Box sx={{ px: 3, pb: 1.5, flexShrink: 0 }}>
+              <Alert
+                severity="error"
+                onClose={() => { resetImage(); resetCarousel() }}
+                sx={{ fontSize: 12, py: 0.5, borderRadius: '8px' }}
+              >
+                {genError.message ?? 'Generation failed. Please try again.'}
+              </Alert>
+            </Box>
+          )}
+
+          {/* Generated media preview */}
+          {generated && generated.urls.length > 0 && (
+            <Box sx={{ px: 3, pb: 2, flexShrink: 0 }}>
+              <Typography
+                variant="subtitle2"
+                sx={{ mb: 1.25, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'text.disabled' }}
+              >
+                {generated.type === 'carousel' ? 'Carousel slides' : 'Image post'} — ready
+              </Typography>
+              <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
+                {generated.urls.slice(0, 5).map((url, i) => (
+                  <Box
+                    key={i}
+                    component="img"
+                    src={url}
+                    sx={{
+                      width: generated.type === 'carousel' ? 80 : 112,
+                      height: generated.type === 'carousel' ? 80 : 112,
+                      objectFit: 'cover',
+                      borderRadius: '8px',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  />
+                ))}
+              </Stack>
+              <Button
+                component="a"
+                href="/calendar"
+                variant="contained"
+                size="small"
+                endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+                sx={{ fontSize: 12, textDecoration: 'none' }}
+              >
+                View in Calendar
+              </Button>
+            </Box>
+          )}
+
+          {/* Prompt step — shown when user clicks Image Post or Carousel */}
+          {genMode && !isGenerating && (
+            <Box
+              sx={{
+                px: 3, py: 2,
+                borderTop: '1px solid', borderColor: 'divider',
+                flexShrink: 0,
+                bgcolor: alpha('#22D3EE', 0.03),
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{ fontWeight: 700, color: 'text.secondary', mb: 1, display: 'block', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: 10 }}
+              >
+                Brief for {genMode === 'image_post' ? 'Image Post' : 'Carousel'}
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                minRows={2}
+                maxRows={4}
+                value={promptText}
+                onChange={(e) => setPromptText(e.target.value)}
+                placeholder="Describe the visual direction, angle, or tone to focus on…"
+                size="small"
+                sx={{ mb: 1.5 }}
+                slotProps={{ input: { sx: { fontSize: '0.8rem', fontFamily: 'inherit' } } }}
+              />
+              <Stack direction="row" spacing={1}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={() => void handleConfirmGenerate()}
+                  startIcon={genMode === 'image_post'
+                    ? <ImageRoundedIcon sx={{ fontSize: 14 }} />
+                    : <ViewCarouselRoundedIcon sx={{ fontSize: 14 }} />}
+                >
+                  Generate {genMode === 'image_post' ? 'Image Post' : 'Carousel'}
+                </Button>
+                <Button variant="outlined" size="small" onClick={() => setGenMode(null)}>
+                  Cancel
+                </Button>
+              </Stack>
+            </Box>
+          )}
+
+          {/* Footer action buttons */}
           <Box
             sx={{
-              px: 3,
-              py: 2,
-              borderTop: '1px solid',
-              borderColor: 'divider',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              flexShrink: 0,
+              px: 3, py: 2,
+              borderTop: '1px solid', borderColor: 'divider',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              flexShrink: 0, gap: 1, flexWrap: 'wrap',
             }}
           >
-            <Button onClick={onClose} variant="outlined" sx={{ minWidth: 100 }}>
+            <Button onClick={onClose} variant="outlined" size="small" sx={{ minWidth: 80 }}>
               Close
             </Button>
+
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: '6px !important' }}>
+              <Tooltip title={channelId ? 'Add a brief then generate an image post' : 'Select a channel first'}>
+                <span>
+                  <Button
+                    variant="outlined" size="small"
+                    disabled={isGenerating || !channelId || genMode === 'image_post'}
+                    onClick={() => handleClickType('image_post')}
+                    startIcon={
+                      generatingImage
+                        ? <CircularProgress size={13} sx={{ color: 'inherit' }} />
+                        : <ImageRoundedIcon sx={{ fontSize: 16 }} />
+                    }
+                    sx={{ fontSize: 12 }}
+                  >
+                    {generatingImage ? 'Generating…' : 'Image Post'}
+                  </Button>
+                </span>
+              </Tooltip>
+
+              <Tooltip title={channelId ? 'Add a brief then generate a carousel' : 'Select a channel first'}>
+                <span>
+                  <Button
+                    variant="outlined" size="small"
+                    disabled={isGenerating || !channelId || genMode === 'carousel'}
+                    onClick={() => handleClickType('carousel')}
+                    startIcon={
+                      generatingCarousel
+                        ? <CircularProgress size={13} sx={{ color: 'inherit' }} />
+                        : <ViewCarouselRoundedIcon sx={{ fontSize: 16 }} />
+                    }
+                    sx={{ fontSize: 12 }}
+                  >
+                    {generatingCarousel ? 'Generating…' : 'Carousel'}
+                  </Button>
+                </span>
+              </Tooltip>
+
+              <Tooltip title="Use this script as a reel brief in Creatives">
+                <Button
+                  component="a" href="/creatives"
+                  variant="outlined" size="small"
+                  startIcon={<MovieRoundedIcon sx={{ fontSize: 16 }} />}
+                  sx={{ fontSize: 12, textDecoration: 'none' }}
+                >
+                  Reel
+                </Button>
+              </Tooltip>
+            </Stack>
           </Box>
         </>
       )}
@@ -413,13 +610,13 @@ function TrendCardSkeleton() {
 interface TrendCardProps {
   trend: TrendWithScore
   channelId: string
-  onBundleReady: (bundle: CreativeBundle) => void
+  onBundleReady: (bundle: CreativeBundle, channelId: string, trendId: string) => void
 }
 
 function TrendCard({ trend, channelId, onBundleReady }: TrendCardProps) {
   const { mutate: generate, isPending } = useMutation({
     mutationFn: () => trendsApi.generateBundle(channelId, trend.id),
-    onSuccess: (bundle) => onBundleReady(bundle),
+    onSuccess: (bundle) => onBundleReady(bundle, channelId, trend.id),
   })
 
   const score = trend.brand_fit.composite_score
@@ -499,6 +696,8 @@ export function TrendsPage() {
   const [snackSeverity, setSnackSeverity] = useState<'success' | 'error' | 'info'>('success')
   const [activeBundle, setActiveBundle] = useState<CreativeBundle | null>(null)
   const [bundleOpen, setBundleOpen] = useState(false)
+  const [activeTrendId, setActiveTrendId] = useState('')
+  const [activeChannelIdForBundle, setActiveChannelIdForBundle] = useState('')
 
   const notify = (msg: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnackMsg(msg)
@@ -561,8 +760,10 @@ export function TrendsPage() {
 
   // ── Bundle handlers ───────────────────────────────────────────────────────
 
-  const handleBundleReady = (bundle: CreativeBundle) => {
+  const handleBundleReady = (bundle: CreativeBundle, channelId: string, trendId: string) => {
     setActiveBundle(bundle)
+    setActiveChannelIdForBundle(channelId)
+    setActiveTrendId(trendId)
     setBundleOpen(true)
   }
 
@@ -668,6 +869,8 @@ export function TrendsPage() {
       {/* Bundle dialog */}
       <BundleDrawer
         bundle={activeBundle}
+        channelId={activeChannelIdForBundle}
+        trendId={activeTrendId}
         open={bundleOpen}
         onClose={() => setBundleOpen(false)}
       />

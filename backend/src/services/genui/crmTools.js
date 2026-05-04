@@ -2,14 +2,12 @@
 import { desc, eq, and, isNull, sql } from 'drizzle-orm';
 import { db } from '../../db/index.js';
 import { crmLeads, crmPipelineStages, crmLeadActivities } from '../../db/schema.js';
+import { crmService } from '../CrmService.js';
 
 export async function getCrmPipeline(_input, orgId) {
+  // Use CrmService.listStages so default stages are auto-seeded on first call
   const [stages, leads] = await Promise.all([
-    db
-      .select({ id: crmPipelineStages.id, name: crmPipelineStages.name, color: crmPipelineStages.color, position: crmPipelineStages.position, is_terminal_win: crmPipelineStages.is_terminal_win, is_terminal_loss: crmPipelineStages.is_terminal_loss })
-      .from(crmPipelineStages)
-      .where(eq(crmPipelineStages.organization_id, orgId))
-      .orderBy(crmPipelineStages.position),
+    crmService.listStages(orgId),
     db
       .select({ stage_id: crmLeads.stage_id, count: sql`count(*)`.mapWith(Number) })
       .from(crmLeads)
@@ -95,7 +93,17 @@ export async function getCrmLeads({ limit = 10, stage_name, owner_email, overdue
     .limit(Math.min(Number(limit) || 10, 25));
 
   if (!rows.length) {
-    return { raw: [], eventType: 'stat', payload: [{ label: 'CRM Leads', value: '0', delta: stage_name ? `No leads in "${stage_name}" stage` : 'No leads found' }] };
+    return {
+      raw: [],
+      eventType: 'stat',
+      payload: [{
+        label: 'CRM Leads',
+        value: '0',
+        delta: stage_name
+          ? `No leads in "${stage_name}" stage`
+          : 'No CRM leads yet. Add leads manually, import a CSV, or type "sync leads from Meta" to import from your Meta Lead Ad forms.',
+      }],
+    };
   }
 
   const statItems = [
@@ -121,5 +129,9 @@ export async function moveLeadStage(_input, _orgId) {
 }
 
 export async function addLeadNote(_input, _orgId) {
+  return { raw: { queued: true }, eventType: null, payload: null };
+}
+
+export async function syncMetaLeads(_input, _orgId) {
   return { raw: { queued: true }, eventType: null, payload: null };
 }
